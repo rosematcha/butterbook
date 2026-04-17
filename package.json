@@ -1,0 +1,28 @@
+{
+  "name": "butterbook",
+  "private": true,
+  "version": "0.1.0",
+  "packageManager": "pnpm@9.12.3",
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "lint": "turbo run lint",
+    "test": "turbo run test",
+    "typecheck": "turbo run typecheck",
+    "migrate": "pnpm --filter api migrate",
+    "bootstrap": "pnpm --filter api bootstrap"
+  },
+  "devDependencies": {
+    "turbo": "2.3.3",
+    "typescript": "5.6.3",
+    "prettier": "3.4.1",
+    "eslint": "8.57.1",
+    "@typescript-eslint/parser": "8.15.0",
+    "@typescript-eslint/eslint-plugin": "8.15.0",
+    "eslint-plugin-butterbook": "workspace:*"
+  },
+  "engines": {
+    "node": ">=20.11.0",
+    "pnpm": ">=9.12.0"
+  }
+}
