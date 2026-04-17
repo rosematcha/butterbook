@@ -1,0 +1,10 @@
+{
+  "name": "eslint-plugin-butterbook",
+  "version": "0.1.0",
+  "private": true,
+  "type": "commonjs",
+  "main": "./lib/index.js",
+  "peerDependencies": {
+    "eslint": ">=8"
+  }
+}
