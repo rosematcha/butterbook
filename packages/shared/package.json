@@ -3,15 +3,39 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "main": "./src/index.ts",
-  "types": "./src/index.ts",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
-    ".": "./src/index.ts",
-    "./permissions": "./src/permissions/index.ts",
-    "./schemas": "./src/schemas/index.ts",
-    "./types": "./src/types/index.ts",
-    "./errors": "./src/errors/index.ts",
-    "./utils": "./src/utils/index.ts"
+    ".": {
+      "source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./permissions": {
+      "source": "./src/permissions/index.ts",
+      "types": "./dist/permissions/index.d.ts",
+      "default": "./dist/permissions/index.js"
+    },
+    "./schemas": {
+      "source": "./src/schemas/index.ts",
+      "types": "./dist/schemas/index.d.ts",
+      "default": "./dist/schemas/index.js"
+    },
+    "./types": {
+      "source": "./src/types/index.ts",
+      "types": "./dist/types/index.d.ts",
+      "default": "./dist/types/index.js"
+    },
+    "./errors": {
+      "source": "./src/errors/index.ts",
+      "types": "./dist/errors/index.d.ts",
+      "default": "./dist/errors/index.js"
+    },
+    "./utils": {
+      "source": "./src/utils/index.ts",
+      "types": "./dist/utils/index.d.ts",
+      "default": "./dist/utils/index.js"
+    }
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
