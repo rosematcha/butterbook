@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { selfBookingSchema } from '@butterbook/shared';
+import { selfBookingSchema, type Permission } from '@butterbook/shared';
 import { getDb, withOrgContext, withOrgRead } from '../db/index.js';
 import { NotFoundError } from '../errors/index.js';
 import { createVisitInTx } from '../services/booking.js';
@@ -35,7 +35,7 @@ export function registerPublicBookingRoutes(app: FastifyInstance): void {
           userId: null,
           orgId: org.id,
           isSuperadmin: false,
-          permissions: new Set(),
+          permissions: new Set<Permission>(),
           actorType: 'guest' as const,
           ip: req.ip ?? null,
           userAgent: (req.headers['user-agent'] as string | undefined) ?? null,

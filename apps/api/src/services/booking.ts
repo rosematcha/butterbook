@@ -42,7 +42,7 @@ export async function createVisitInTx(
       .executeTakeFirst();
     if (!row) throw new NotFoundError('Event not found.');
     if (row.location_id !== input.locationId) throw new ValidationError('Event does not belong to the specified location.');
-    event = row as never;
+    event = row;
   }
 
   const fields = (event?.form_fields as FormField[] | null | undefined) ?? ((org.form_fields as FormField[] | null) ?? DEFAULT_FORM_FIELDS);

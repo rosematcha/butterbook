@@ -1,4 +1,4 @@
-import pino, { type LoggerOptions } from 'pino';
+import { pino, type LoggerOptions } from 'pino';
 import { getConfig } from '../config.js';
 
 export function buildLoggerOptions(): LoggerOptions {

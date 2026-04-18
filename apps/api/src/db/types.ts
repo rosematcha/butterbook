@@ -1,7 +1,8 @@
 import type { ColumnType, Generated } from 'kysely';
 
-type Timestamp = ColumnType<Date, Date | string | undefined, Date | string>;
-type Jsonb = ColumnType<unknown, unknown, unknown>;
+type Timestamp = Date;
+type Jsonb = unknown;
+export type { Jsonb };
 
 export interface DB {
   orgs: OrgsTable;

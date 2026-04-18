@@ -77,8 +77,8 @@ export async function withGlobalContext<T>(fn: (tx: Tx) => Promise<T>): Promise<
 export async function withOrgRead<T>(orgId: string, fn: (tx: Tx) => Promise<T>): Promise<T> {
   return getDb()
     .transaction()
-    .setAccessMode('read only')
     .execute(async (tx) => {
+      await sql`SET TRANSACTION READ ONLY`.execute(tx);
       await sql`SELECT set_config('app.current_org_id', ${orgId}, true)`.execute(tx);
       return fn(tx);
     });

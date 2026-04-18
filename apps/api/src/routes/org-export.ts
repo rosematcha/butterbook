@@ -64,8 +64,8 @@ export function registerOrgExportRoutes(app: FastifyInstance): void {
 
       await getDb()
         .transaction()
-        .setAccessMode('read only')
         .execute(async (tx) => {
+          await sql`SET TRANSACTION READ ONLY`.execute(tx);
           await sql`SELECT set_config('app.current_org_id', ${orgId}, true)`.execute(tx);
           for (const section of EXPORT_SECTIONS) {
             write(`,"${section}":[`);

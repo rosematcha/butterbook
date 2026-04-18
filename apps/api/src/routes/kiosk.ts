@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import crypto from 'node:crypto';
-import { kioskCheckinSchema } from '@butterbook/shared';
+import { kioskCheckinSchema, type Permission } from '@butterbook/shared';
 import { getDb, withOrgContext } from '../db/index.js';
 import { AuthenticationError, NotFoundError } from '../errors/index.js';
 import { createVisitInTx } from '../services/booking.js';
@@ -103,7 +103,7 @@ export function registerKioskRoutes(app: FastifyInstance): void {
         userId: null,
         orgId: loc.orgId,
         isSuperadmin: false,
-        permissions: new Set(),
+        permissions: new Set<Permission>(),
         actorType: 'kiosk' as const,
         ip: req.ip ?? null,
         userAgent: (req.headers['user-agent'] as string | undefined) ?? null,

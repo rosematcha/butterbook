@@ -243,7 +243,7 @@ describe('route matrix: happy + 401 + 403 + 422 + 404', () => {
             ...(token ? { authorization: `Bearer ${token}` } : {}),
           },
         };
-        if (body !== undefined) opts.payload = body;
+        if (body !== undefined && body !== null) opts.payload = body as object;
         return opts;
       };
 
