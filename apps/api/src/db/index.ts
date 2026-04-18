@@ -13,7 +13,14 @@ let cachedDb: Kysely<DB> | null = null;
 export function getPool(): pg.Pool {
   if (pool) return pool;
   const cfg = getConfig();
-  pool = new Pool({ connectionString: cfg.DATABASE_URL, max: cfg.DATABASE_POOL_SIZE });
+  pool = new Pool({
+    connectionString: cfg.DATABASE_URL,
+    max: cfg.DATABASE_POOL_SIZE,
+    idleTimeoutMillis: 30_000,
+    connectionTimeoutMillis: 5_000,
+    keepAlive: true,
+    keepAliveInitialDelayMillis: 10_000,
+  });
   return pool;
 }
 
@@ -78,8 +85,10 @@ export async function withOrgRead<T>(orgId: string, fn: (tx: Tx) => Promise<T>):
   return getDb()
     .transaction()
     .execute(async (tx) => {
-      await sql`SET TRANSACTION READ ONLY`.execute(tx);
-      await sql`SELECT set_config('app.current_org_id', ${orgId}, true)`.execute(tx);
+      // Single round-trip: set_config('transaction_read_only','on',true) is equivalent to
+      // SET LOCAL transaction_read_only = on (i.e. SET TRANSACTION READ ONLY) when inside a tx.
+      await sql`SELECT set_config('app.current_org_id', ${orgId}, true),
+                       set_config('transaction_read_only', 'on', true)`.execute(tx);
       return fn(tx);
     });
 }

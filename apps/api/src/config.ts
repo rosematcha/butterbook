@@ -4,7 +4,7 @@ const ConfigSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.coerce.number().default(3001),
   DATABASE_URL: z.string().url(),
-  DATABASE_POOL_SIZE: z.coerce.number().default(10),
+  DATABASE_POOL_SIZE: z.coerce.number().default(20),
   TOTP_ENCRYPTION_KEY: z
     .string()
     .regex(/^[A-Za-z0-9+/=]+$/)
