@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { FormField } from '@butterbook/shared';
 import { apiGet, apiPatch, apiPost } from '../../lib/api';
 import { useSession } from '../../lib/session';
@@ -74,6 +74,8 @@ export default function TodayPage() {
     queryFn: () => apiGet<{ data: TimelineVisit[] }>(`/api/v1/orgs/${activeOrgId}/visits?from=${from}&to=${to}&limit=200`),
     enabled: !!activeOrgId && dayIsActive,
     refetchInterval: 30_000,
+    staleTime: 30_000,
+    placeholderData: keepPreviousData,
   });
 
   const fieldsQ = useQuery({
@@ -285,7 +287,7 @@ export default function TodayPage() {
             <button className="btn-secondary mt-5" onClick={() => shiftToActive(1)}>Jump to next open day</button>
           </div>
         )
-      ) : visits.isLoading ? (
+      ) : visits.isLoading && !visits.isPlaceholderData ? (
         <p className="text-sm text-paper-500">Loading…</p>
       ) : list.length === 0 ? (
         <div className="mt-16 max-w-md">

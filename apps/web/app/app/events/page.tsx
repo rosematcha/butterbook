@@ -50,11 +50,13 @@ export default function EventsPage() {
     queryKey: ['events', activeOrgId],
     queryFn: () => apiGet<{ data: EventRow[] }>(`/api/v1/orgs/${activeOrgId}/events`),
     enabled: !!activeOrgId,
+    staleTime: 2 * 60_000,
   });
   const locations = useQuery({
     queryKey: ['locations', activeOrgId],
     queryFn: () => apiGet<{ data: Location[] }>(`/api/v1/orgs/${activeOrgId}/locations`),
     enabled: !!activeOrgId,
+    staleTime: 5 * 60_000,
   });
 
   const publish = useMutation({

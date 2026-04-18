@@ -6,7 +6,7 @@ import { ConfirmProvider } from '../lib/confirm';
 
 export function Providers({ children }: { children: ReactNode }) {
   const [client] = useState(
-    () => new QueryClient({ defaultOptions: { queries: { retry: 1, staleTime: 10_000 } } }),
+    () => new QueryClient({ defaultOptions: { queries: { retry: 1, staleTime: 60_000 } } }),
   );
   return (
     <QueryClientProvider client={client}>
