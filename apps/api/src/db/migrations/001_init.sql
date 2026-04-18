@@ -2,6 +2,9 @@
 -- Tables, RLS, triggers, and indexes for the full tenant model.
 
 -- Up Migration
+-- On Supabase, extensions install into the 'extensions' schema, so make it
+-- visible for unqualified type references (e.g. CITEXT) during this migration.
+SET search_path TO public, extensions;
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 CREATE EXTENSION IF NOT EXISTS citext;
 
