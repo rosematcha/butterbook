@@ -66,7 +66,7 @@ export function registerEventRoutes(app: FastifyInstance): void {
           capacity: body.capacity ?? null,
           waitlist_enabled: body.waitlistEnabled ?? false,
           waitlist_auto_promote: body.waitlistAutoPromote ?? false,
-          form_fields: body.formFields ?? null,
+          form_fields: body.formFields ? JSON.stringify(body.formFields) : null,
           slug: body.slug ?? null,
           public_id: newPublicId(),
         })
@@ -101,7 +101,7 @@ export function registerEventRoutes(app: FastifyInstance): void {
       if (body.capacity !== undefined) updates.capacity = body.capacity;
       if (body.waitlistEnabled !== undefined) updates.waitlist_enabled = body.waitlistEnabled;
       if (body.waitlistAutoPromote !== undefined) updates.waitlist_auto_promote = body.waitlistAutoPromote;
-      if (body.formFields !== undefined) updates.form_fields = body.formFields;
+      if (body.formFields !== undefined) updates.form_fields = body.formFields === null ? null : JSON.stringify(body.formFields);
       if (body.locationId !== undefined) updates.location_id = body.locationId;
       if (Object.keys(updates).length > 0) {
         const res = await tx.updateTable('events').set(updates).where('id', '=', eventId).where('org_id', '=', orgId).where('deleted_at', 'is', null).returning(['id']).executeTakeFirst();

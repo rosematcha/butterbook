@@ -128,7 +128,7 @@ export function registerLocationRoutes(app: FastifyInstance): void {
     });
     const url = `${getConfig().APP_BASE_URL}/kiosk/${result}?kiosk=true`;
     const png = await QRCode.toBuffer(url, { type: 'png', margin: 1, width: 512 });
-    reply.type('image/png').send(png);
+    return reply.type('image/png').send(png);
   });
 
   app.post('/api/v1/orgs/:orgId/locations/:locId/qr/rotate', async (req) => {

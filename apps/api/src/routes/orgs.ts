@@ -136,7 +136,7 @@ export function registerOrgRoutes(app: FastifyInstance): void {
     await req.requirePermission(orgId, 'admin.manage_forms');
     const m = await req.loadMembershipFor(orgId);
     return withOrgContext(orgId, req.actorForOrg(orgId, m), async ({ tx, audit }) => {
-      await tx.updateTable('orgs').set({ form_fields: body.fields }).where('id', '=', orgId).execute();
+      await tx.updateTable('orgs').set({ form_fields: JSON.stringify(body.fields) }).where('id', '=', orgId).execute();
       await audit({ action: 'org.form_updated', targetType: 'org', targetId: orgId });
       return { data: { fields: body.fields } };
     });

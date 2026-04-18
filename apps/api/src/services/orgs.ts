@@ -25,7 +25,7 @@ export async function createOrgWithOwner(input: {
         zip: input.zip,
         timezone: input.timezone,
         public_slug: input.publicSlug,
-        form_fields: DEFAULT_FORM_FIELDS,
+        form_fields: JSON.stringify(DEFAULT_FORM_FIELDS),
       })
       .returning(['id'])
       .executeTakeFirstOrThrow();
