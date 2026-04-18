@@ -1,8 +1,10 @@
 'use client';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { apiGet } from '../../../lib/api';
 import { useSession } from '../../../lib/session';
+import { Timestamp } from '../../components/timestamp';
+import { EmptyState } from '../../components/empty-state';
 
 interface AuditRow {
   id: string;
@@ -18,47 +20,113 @@ interface AuditRow {
 export default function AuditPage() {
   const { activeOrgId } = useSession();
   const [page, setPage] = useState(1);
+  const [q, setQ] = useState('');
   const limit = 50;
 
   const audit = useQuery({
     queryKey: ['audit', activeOrgId, page],
-    queryFn: () => apiGet<{ data: AuditRow[]; meta: { total: number; pages: number } }>(`/api/v1/orgs/${activeOrgId}/audit?page=${page}&limit=${limit}`),
+    queryFn: () =>
+      apiGet<{ data: AuditRow[]; meta: { total: number; pages: number } }>(
+        `/api/v1/orgs/${activeOrgId}/audit?page=${page}&limit=${limit}`,
+      ),
     enabled: !!activeOrgId,
   });
 
+  const rows = audit.data?.data ?? [];
+  const filtered = useMemo(() => {
+    const needle = q.trim().toLowerCase();
+    if (!needle) return rows;
+    return rows.filter((r) =>
+      `${r.action} ${r.actor_type} ${r.target_type} ${r.actor_id ?? ''} ${r.target_id}`
+        .toLowerCase()
+        .includes(needle),
+    );
+  }, [rows, q]);
+
   if (audit.isError) {
-    return <p className="text-sm text-red-600">Audit log requires superadmin access.</p>;
+    return (
+      <EmptyState
+        title="Superadmin only."
+        description="Audit log access is restricted to organization superadmins. If you need access, ask an existing superadmin to promote you."
+      />
+    );
   }
 
   return (
-    <div className="space-y-4">
-      <h2 className="text-lg font-semibold">Audit log</h2>
-      <div className="card">
+    <div className="space-y-5">
+      <div className="flex items-end justify-between gap-3">
+        <div>
+          <div className="h-eyebrow">History</div>
+          <h1 className="h-display mt-1">Audit log</h1>
+        </div>
+        <input
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder="Filter by actor, action, or target…"
+          className="input max-w-xs"
+        />
+      </div>
+
+      <div className="panel overflow-hidden">
         <table className="w-full text-sm">
           <thead>
-            <tr className="text-left text-slate-500">
-              <th className="py-1">When</th>
-              <th>Actor</th>
-              <th>Action</th>
-              <th>Target</th>
+            <tr className="border-b border-paper-200 text-left text-[11px] font-semibold uppercase tracking-[0.14em] text-paper-500">
+              <th className="px-4 py-2">When</th>
+              <th className="px-4 py-2">Actor</th>
+              <th className="px-4 py-2">Action</th>
+              <th className="px-4 py-2">Target</th>
             </tr>
           </thead>
           <tbody>
-            {(audit.data?.data ?? []).map((r) => (
-              <tr key={r.id} className="border-t border-slate-100 align-top">
-                <td className="py-2 tabular-nums">{new Date(r.created_at).toLocaleString()}</td>
-                <td>{r.actor_type}{r.actor_id ? ` ${r.actor_id.slice(0, 8)}…` : ''}</td>
-                <td><code>{r.action}</code></td>
-                <td><code>{r.target_type}:{r.target_id.slice(0, 8)}…</code></td>
+            {filtered.length === 0 && !audit.isLoading ? (
+              <tr>
+                <td colSpan={4} className="px-4 py-6 text-center text-sm text-paper-500">
+                  {q ? 'No rows match that filter.' : 'No events recorded on this page.'}
+                </td>
+              </tr>
+            ) : null}
+            {filtered.map((r) => (
+              <tr key={r.id} className="border-t border-paper-100 align-top">
+                <td className="px-4 py-3 tabular-nums text-paper-700">
+                  <Timestamp value={r.created_at} />
+                </td>
+                <td className="px-4 py-3 text-paper-700">
+                  <span className="text-xs uppercase tracking-wider text-paper-500">{r.actor_type}</span>
+                  {r.actor_id ? <span className="ml-1 font-mono text-xs text-paper-600">{r.actor_id.slice(0, 8)}</span> : null}
+                </td>
+                <td className="px-4 py-3">
+                  <code className="rounded bg-paper-100 px-1.5 py-0.5 text-xs text-ink">{r.action}</code>
+                </td>
+                <td className="px-4 py-3">
+                  <code className="text-xs text-paper-600">
+                    {r.target_type}:<span className="font-mono">{r.target_id.slice(0, 8)}</span>
+                  </code>
+                </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+
       <div className="flex items-center gap-3">
-        <button disabled={page <= 1} onClick={() => setPage((p) => p - 1)} className="btn-secondary disabled:opacity-50">Prev</button>
-        <span className="text-sm text-slate-600">Page {page} of {audit.data?.meta.pages ?? 1}</span>
-        <button disabled={page >= (audit.data?.meta.pages ?? 1)} onClick={() => setPage((p) => p + 1)} className="btn-secondary disabled:opacity-50">Next</button>
+        <button
+          disabled={page <= 1}
+          onClick={() => setPage((p) => p - 1)}
+          className="btn-secondary disabled:opacity-50"
+        >
+          Prev
+        </button>
+        <span className="text-sm text-paper-600">
+          Page {page} of {audit.data?.meta.pages ?? 1}
+          {audit.data ? <span className="ml-2 text-paper-400">· {audit.data.meta.total.toLocaleString()} events</span> : null}
+        </span>
+        <button
+          disabled={page >= (audit.data?.meta.pages ?? 1)}
+          onClick={() => setPage((p) => p + 1)}
+          className="btn-secondary disabled:opacity-50"
+        >
+          Next
+        </button>
       </div>
     </div>
   );

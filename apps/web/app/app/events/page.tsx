@@ -1,9 +1,15 @@
 'use client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
+import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import { apiDelete, apiGet, apiPost, ApiError } from '../../../lib/api';
 import { useSession } from '../../../lib/session';
+import { useConfirm } from '../../../lib/confirm';
+import { useToast } from '../../../lib/toast';
+import { CopyButton } from '../../components/copy-button';
+import { Timestamp } from '../../components/timestamp';
+import { EmptyState } from '../../components/empty-state';
 
 interface EventRow {
   id: string;
@@ -21,8 +27,24 @@ interface Location { id: string; name: string; }
 export default function EventsPage() {
   const { activeOrgId } = useSession();
   const qc = useQueryClient();
+  const confirm = useConfirm();
+  const toast = useToast();
+  const router = useRouter();
+  const pathname = usePathname();
+  const params = useSearchParams();
   const [showCreate, setShowCreate] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+
+  // Honor `?new=1` from the command palette's "Create event".
+  useEffect(() => {
+    if (params.get('new') === '1') {
+      setShowCreate(true);
+      const sp = new URLSearchParams(params.toString());
+      sp.delete('new');
+      const qs = sp.toString();
+      router.replace(qs ? `${pathname}?${qs}` : pathname);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params]);
 
   const events = useQuery({
     queryKey: ['events', activeOrgId],
@@ -43,17 +65,40 @@ export default function EventsPage() {
 
   const del = useMutation({
     mutationFn: (id: string) => apiDelete(`/api/v1/orgs/${activeOrgId}/events/${id}`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['events', activeOrgId] }),
-    onError: (e) => setError(e instanceof ApiError ? e.problem.detail ?? e.problem.title : 'Delete failed'),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['events', activeOrgId] });
+      toast.push({ kind: 'success', message: 'Event deleted' });
+    },
+    onError: (e) =>
+      toast.push({
+        kind: 'error',
+        message: e instanceof ApiError ? e.problem.detail ?? e.problem.title : 'Delete failed',
+      }),
   });
 
+  async function onDelete(id: string, title: string) {
+    const ok = await confirm({
+      title: `Delete "${title}"?`,
+      description:
+        'Registered visitors will keep their records, but the event page and any upcoming registrations will be removed.',
+      confirmLabel: 'Delete event',
+      danger: true,
+    });
+    if (ok) del.mutate(id);
+  }
+
+  const rows = events.data?.data ?? [];
+  const origin = typeof window !== 'undefined' ? window.location.origin : '';
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold">Events</h2>
+        <div>
+          <div className="h-eyebrow">Programs</div>
+          <h1 className="h-display mt-1">Events</h1>
+        </div>
         <button className="btn" onClick={() => setShowCreate((v) => !v)}>{showCreate ? 'Cancel' : 'New event'}</button>
       </div>
-      {error ? <p className="text-sm text-red-600">{error}</p> : null}
 
       {showCreate ? (
         <CreateEventForm
@@ -61,46 +106,70 @@ export default function EventsPage() {
           onCreated={() => {
             setShowCreate(false);
             qc.invalidateQueries({ queryKey: ['events', activeOrgId] });
+            toast.push({ kind: 'success', message: 'Event created' });
           }}
         />
       ) : null}
 
-      <div className="card">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-left text-slate-500">
-              <th className="py-1">Title</th>
-              <th>Starts</th>
-              <th>Capacity</th>
-              <th>Published</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {(events.data?.data ?? []).map((e) => (
-              <tr key={e.id} className="border-t border-slate-100">
-                <td className="py-2">
-                  <div className="font-medium">{e.title}</div>
-                  <div className="text-xs text-slate-500">/{e.slug ?? e.publicId}</div>
-                </td>
-                <td>{new Date(e.startsAt).toLocaleString()}</td>
-                <td>{e.capacity ?? '—'}</td>
-                <td>{e.isPublished ? '✓' : '—'}</td>
-                <td className="space-x-3 text-right">
-                  <button onClick={() => publish.mutate({ id: e.id, next: !e.isPublished })} className="text-xs underline">
-                    {e.isPublished ? 'Unpublish' : 'Publish'}
-                  </button>
-                  <Link href={`/app/events/${e.id}/waitlist`} className="text-xs underline">Waitlist</Link>
-                  <button onClick={() => del.mutate(e.id)} className="text-xs text-red-600 underline">Delete</button>
-                </td>
+      {rows.length === 0 && !events.isLoading ? (
+        <EmptyState
+          title="No events yet."
+          description="Create one to publish a public booking page and start taking registrations."
+          action={<button className="btn" onClick={() => setShowCreate(true)}>+ New event</button>}
+        />
+      ) : (
+        <div className="panel overflow-hidden">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-paper-200 text-left text-[11px] font-semibold uppercase tracking-[0.14em] text-paper-500">
+                <th className="px-4 py-2">Title</th>
+                <th className="px-4 py-2">Starts</th>
+                <th className="px-4 py-2">Capacity</th>
+                <th className="px-4 py-2">Published</th>
+                <th className="px-4 py-2"></th>
               </tr>
-            ))}
-            {events.data && events.data.data.length === 0 ? (
-              <tr><td colSpan={5} className="py-4 text-center text-slate-500">No events yet.</td></tr>
-            ) : null}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {rows.map((e) => {
+                const publicUrl = `${origin}/events/${e.slug ?? e.publicId}`;
+                return (
+                  <tr key={e.id} className="border-t border-paper-100">
+                    <td className="px-4 py-3">
+                      <div className="font-medium text-ink">{e.title}</div>
+                      <div className="mt-0.5 flex items-center gap-2 text-xs text-paper-500">
+                        <span className="truncate">/{e.slug ?? e.publicId}</span>
+                        {e.isPublished ? <CopyButton value={publicUrl} label="Copy link" /> : null}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 tabular-nums text-paper-700">
+                      <Timestamp value={e.startsAt} absolute />
+                    </td>
+                    <td className="px-4 py-3 tabular-nums">{e.capacity ?? '—'}</td>
+                    <td className="px-4 py-3">
+                      {e.isPublished ? <span className="badge-accent">Live</span> : <span className="badge">Draft</span>}
+                    </td>
+                    <td className="space-x-2 px-4 py-3 text-right">
+                      <button
+                        onClick={() => publish.mutate({ id: e.id, next: !e.isPublished })}
+                        className="btn-ghost text-xs"
+                      >
+                        {e.isPublished ? 'Unpublish' : 'Publish'}
+                      </button>
+                      <Link href={`/app/events/${e.id}/waitlist`} className="btn-ghost text-xs">Waitlist</Link>
+                      <button
+                        onClick={() => onDelete(e.id, e.title)}
+                        className="btn-ghost text-xs text-red-700 hover:bg-red-50"
+                      >
+                        Delete
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }
@@ -137,7 +206,7 @@ function CreateEventForm({ locations, onCreated }: { locations: Location[]; onCr
   }
 
   return (
-    <form onSubmit={onSubmit} className="card space-y-3">
+    <form onSubmit={onSubmit} className="panel space-y-3 p-5">
       <div className="grid gap-3 md:grid-cols-2">
         <label className="block">
           <span className="text-sm font-medium">Title</span>
