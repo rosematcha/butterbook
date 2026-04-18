@@ -56,6 +56,10 @@ export async function buildApp(): Promise<FastifyInstance> {
       if (req.userId) return `user:${req.userId}`;
       return `ip:${req.ip}`;
     },
+    // Tests fan out hundreds of logins from 127.0.0.1 in seconds; the per-route
+    // overrides (e.g. /auth/login max:5/min) would trip on every beforeEach and
+    // leave the route matrix red. Skip limits entirely when NODE_ENV=test.
+    ...(cfg.NODE_ENV === 'test' ? { allowList: () => true } : {}),
   });
 
   registerSecurityHeaders(app);

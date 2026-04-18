@@ -64,7 +64,7 @@ export function registerReportRoutes(app: FastifyInstance): void {
     const f = visitsFilters.parse(req.query);
     await req.requirePermission(orgId, 'reports.export');
     const rows = await withOrgRead(orgId, (tx) => reportVisits(tx, orgId, filtersFromQuery(f)));
-    sendCsv(
+    return sendCsv(
       reply,
       'visits',
       ['id', 'scheduled_at', 'status', 'booking_method', 'location_id', 'event_id', 'party_size', 'pii_redacted'],
@@ -97,7 +97,7 @@ export function registerReportRoutes(app: FastifyInstance): void {
         ...(f.location_id ? { locationId: f.location_id } : {}),
       }),
     );
-    sendCsv(reply, `headcount-${f.group_by}`, ['bucket', 'headcount', 'visits'], rows.map((r) => [r.bucket, r.headcount, r.visits]));
+    return sendCsv(reply, `headcount-${f.group_by}`, ['bucket', 'headcount', 'visits'], rows.map((r) => [r.bucket, r.headcount, r.visits]));
   });
 
   // ---- booking-sources ----
@@ -125,7 +125,7 @@ export function registerReportRoutes(app: FastifyInstance): void {
         ...(f.location_id ? { locationId: f.location_id } : {}),
       }),
     );
-    sendCsv(reply, 'booking-sources', ['booking_method', 'visits', 'headcount'], rows.map((r) => [r.booking_method, r.visits, r.headcount]));
+    return sendCsv(reply, 'booking-sources', ['booking_method', 'visits', 'headcount'], rows.map((r) => [r.booking_method, r.visits, r.headcount]));
   });
 
   // ---- events ----
@@ -153,7 +153,7 @@ export function registerReportRoutes(app: FastifyInstance): void {
         ...(f.location_id ? { locationId: f.location_id } : {}),
       }),
     );
-    sendCsv(
+    return sendCsv(
       reply,
       'events',
       ['event_id', 'title', 'starts_at', 'location_id', 'capacity', 'confirmed', 'cancelled', 'waitlisted'],
@@ -184,13 +184,13 @@ export function registerReportRoutes(app: FastifyInstance): void {
         ...(f.to ? { to: new Date(f.to) } : {}),
       }),
     );
-    sendCsv(reply, `intake-${f.field_key}`, ['value', 'count'], rows.map((r) => [r.value, r.count]));
+    return sendCsv(reply, `intake-${f.field_key}`, ['value', 'count'], rows.map((r) => [r.value, r.count]));
   });
 }
 
-function sendCsv(reply: FastifyReply, name: string, headers: string[], rows: Array<Array<string | number | null>>): void {
+function sendCsv(reply: FastifyReply, name: string, headers: string[], rows: Array<Array<string | number | null>>): FastifyReply {
   const body = toCsv(headers, rows);
-  reply
+  return reply
     .type('text/csv; charset=utf-8')
     .header('Content-Disposition', `attachment; filename="${name}.csv"`)
     .send(body);
