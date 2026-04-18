@@ -76,6 +76,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   }
 
   if (memberships.length === 0) {
+    // Let the new-org route render through; otherwise the "Create one" link
+    // navigates into this layout and stays stuck on the empty state forever.
+    if (pathname === '/app/orgs/new') {
+      return <main className="mx-auto max-w-lg p-10">{children}</main>;
+    }
     return (
       <main className="mx-auto max-w-lg p-10">
         <h1 className="h-display">No organization yet</h1>
