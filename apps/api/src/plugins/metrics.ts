@@ -69,21 +69,19 @@ export function registerMetricsRoutes(app: FastifyInstance): void {
   app.get('/metrics', async (req, reply) => {
     const token = getConfig().METRICS_TOKEN;
     if (!token) {
-      reply.status(404).type('application/problem+json').send({
+      return reply.status(404).type('application/problem+json').send({
         type: 'https://scheduler.app/errors/not_found',
         title: 'Not Found',
         status: 404,
       });
-      return;
     }
     const auth = req.headers['authorization'];
     if (typeof auth !== 'string' || auth !== `Bearer ${token}`) {
-      reply.status(401).type('application/problem+json').send({
+      return reply.status(401).type('application/problem+json').send({
         type: 'https://scheduler.app/errors/authentication_required',
         title: 'Authentication Required',
         status: 401,
       });
-      return;
     }
     const lines: string[] = [];
 
@@ -131,7 +129,7 @@ export function registerMetricsRoutes(app: FastifyInstance): void {
     const idle = (pool as unknown as { idleCount?: number }).idleCount ?? 0;
     lines.push(`db_pool_connections_active ${Math.max(0, total - idle)}`);
 
-    reply.type('text/plain; version=0.0.4; charset=utf-8').send(lines.join('\n') + '\n');
+    return reply.type('text/plain; version=0.0.4; charset=utf-8').send(lines.join('\n') + '\n');
   });
 }
 

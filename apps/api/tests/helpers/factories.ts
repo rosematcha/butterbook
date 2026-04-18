@@ -1,6 +1,6 @@
 import { buildApp } from '../../src/app.js';
 import type { FastifyInstance } from 'fastify';
-import { getDb } from '../../src/db/index.js';
+import { getDb, sql } from '../../src/db/index.js';
 import { hashPassword } from '../../src/utils/passwords.js';
 import { createOrgWithOwner } from '../../src/services/orgs.js';
 
@@ -10,7 +10,9 @@ export async function makeApp(): Promise<FastifyInstance> {
 
 export async function truncateAll(): Promise<void> {
   const db = getDb();
-  await db.deleteFrom('audit_log').execute();
+  // audit_log has a BEFORE UPDATE OR DELETE trigger that rejects row mutations.
+  // TRUNCATE is not covered by that trigger, so use it to reset between tests.
+  await sql`TRUNCATE TABLE audit_log`.execute(db);
   await db.deleteFrom('idempotency_keys').execute();
   await db.deleteFrom('waitlist_entries').execute();
   await db.deleteFrom('visits').execute();

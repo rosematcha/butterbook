@@ -34,10 +34,18 @@ export function getDb(): Kysely<DB> {
 }
 
 export async function closeDb(): Promise<void> {
-  if (cachedDb) await cachedDb.destroy();
+  const db = cachedDb;
+  const p = pool;
   cachedDb = null;
-  if (pool) await pool.end();
   pool = null;
+  // Kysely's PostgresDialect owns the pg Pool we handed it and ends it on
+  // destroy(). Only call pool.end() ourselves if Kysely never wrapped it,
+  // otherwise pg throws "Called end on pool more than once".
+  if (db) {
+    await db.destroy();
+  } else if (p) {
+    await p.end();
+  }
 }
 
 export type Tx = Transaction<DB>;
