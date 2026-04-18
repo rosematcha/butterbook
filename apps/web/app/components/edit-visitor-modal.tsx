@@ -104,7 +104,7 @@ export function EditVisitorModal({
           <p className="text-sm text-paper-500">Loading form…</p>
         ) : visit?.piiRedacted ? (
           <p className="text-sm text-paper-500">
-            This visit's form response has been redacted and can no longer be edited. You can still reschedule or change its status.
+            This visit&apos;s form response has been redacted and can no longer be edited. You can still reschedule or change its status.
           </p>
         ) : (
           <FormRenderer
