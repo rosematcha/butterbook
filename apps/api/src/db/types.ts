@@ -181,6 +181,7 @@ export interface VisitsTable {
   cancelled_by: string | null;
   pii_redacted: Generated<boolean>;
   idempotency_key: string | null;
+  tags: Generated<string[]>;
   created_at: Generated<Timestamp>;
   updated_at: Generated<Timestamp>;
 }

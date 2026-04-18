@@ -27,7 +27,7 @@ export function registerVisitRoutes(app: FastifyInstance): void {
         .selectFrom('visits')
         .select([
           'id', 'org_id', 'location_id', 'event_id', 'booking_method', 'scheduled_at',
-          'status', 'pii_redacted', 'form_response', 'created_at',
+          'status', 'pii_redacted', 'form_response', 'tags', 'created_at',
         ])
         .where('org_id', '=', orgId);
       if (q.from) query = query.where('scheduled_at', '>=', new Date(q.from));
@@ -95,6 +95,19 @@ export function registerVisitRoutes(app: FastifyInstance): void {
       const updates: Record<string, unknown> = {};
       if (body.scheduledAt !== undefined) updates.scheduled_at = new Date(body.scheduledAt);
       if (body.status !== undefined) updates.status = body.status;
+      if (body.tags !== undefined) {
+        // Dedup case-insensitively so "vip" and "VIP" don't both land; keep the
+        // first casing the user typed.
+        const seen = new Set<string>();
+        const deduped: string[] = [];
+        for (const t of body.tags) {
+          const key = t.toLowerCase();
+          if (seen.has(key)) continue;
+          seen.add(key);
+          deduped.push(t);
+        }
+        updates.tags = deduped;
+      }
       if (body.formResponse !== undefined) {
         if (visit.pii_redacted) throw new ValidationError('Cannot edit form_response on redacted visit.');
         const fields = await formFieldsForTx(tx, visit.event_id, orgId);
@@ -206,6 +219,38 @@ export function registerVisitRoutes(app: FastifyInstance): void {
     });
   });
 
+  /**
+   * Returns the tags used most often on visits in this org, newest 1000 visits
+   * first. Powers the type-ahead on the timeline's "Add tag" popover so admins
+   * re-use existing labels instead of re-typing slight variants ("Vip", "v.i.p.").
+   */
+  app.get('/api/v1/orgs/:orgId/visits/tag-suggestions', async (req) => {
+    const { orgId } = orgParam.parse(req.params);
+    await req.requirePermission(orgId, 'visits.view_all');
+    return withOrgRead(orgId, async (tx) => {
+      const rows = await tx
+        .selectFrom('visits')
+        .select(['tags'])
+        .where('org_id', '=', orgId)
+        .orderBy('created_at', 'desc')
+        .limit(1000)
+        .execute();
+      const counts = new Map<string, { tag: string; count: number }>();
+      for (const r of rows) {
+        for (const t of r.tags ?? []) {
+          const key = t.toLowerCase();
+          const existing = counts.get(key);
+          if (existing) existing.count += 1;
+          else counts.set(key, { tag: t, count: 1 });
+        }
+      }
+      const suggestions = Array.from(counts.values())
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 40);
+      return { data: suggestions };
+    });
+  });
+
   app.get('/api/v1/orgs/:orgId/locations/:locId/calendar/month', async (req) => {
     const params = z.object({ orgId: z.string().uuid(), locId: z.string().uuid() }).parse(req.params);
     const q = z.object({ year: z.coerce.number().int(), month: z.coerce.number().int().min(1).max(12) }).parse(req.query);
@@ -249,6 +294,7 @@ function publicVisit(v: {
   status?: string;
   pii_redacted?: boolean;
   form_response?: unknown;
+  tags?: string[] | null;
   created_at?: Date | string;
 }) {
   return {
@@ -261,6 +307,7 @@ function publicVisit(v: {
     ...(v.status ? { status: v.status } : {}),
     piiRedacted: v.pii_redacted ?? false,
     formResponse: v.form_response,
+    tags: v.tags ?? [],
     ...(v.created_at ? { createdAt: typeof v.created_at === 'string' ? v.created_at : v.created_at.toISOString() } : {}),
   };
 }
