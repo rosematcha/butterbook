@@ -1,5 +1,5 @@
 -- Museum Scheduler: initial schema
--- Implements SPEC.md §4 in full: tables, RLS, triggers, indexes.
+-- Tables, RLS, triggers, and indexes for the full tenant model.
 
 -- Up Migration
 CREATE EXTENSION IF NOT EXISTS pgcrypto;

@@ -1,6 +1,6 @@
 # butterbook — Museum Scheduler
 
-Multi-tenant reservation management for art museums. See `SPEC.md` for the frozen product specification and `CLAUDE.md` for the current implementation status per slice.
+Multi-tenant reservation management for art museums. See `CLAUDE.md` for the current implementation status per slice.
 
 ## Quick start
 
@@ -41,4 +41,4 @@ docs/adr/            Architecture Decision Records (001–010)
 
 ## Principles
 
-All ten kernel-grade principles from `SPEC.md §1.2` are the non-negotiable baseline. See `docs/adr/001-kernel-grade-definition.md`.
+The ten kernel-grade principles in `docs/adr/001-kernel-grade-definition.md` are the non-negotiable baseline.

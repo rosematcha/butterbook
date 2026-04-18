@@ -1,6 +1,6 @@
 # API
 
-The route catalog is in `SPEC.md §6.2`. Conventions:
+Conventions:
 
 - Base path: `/api/v1`
 - Auth: `Authorization: Bearer <opaque-token>`

@@ -1,6 +1,6 @@
 # ADR 001 — Kernel-Grade Definition
 
-**Status:** Accepted (copied verbatim from SPEC §1.2).
+**Status:** Accepted.
 
 These are the correctness contracts. Every design decision must honor them. Any design choice that would weaken one of these principles must be documented and justified in a subsequent ADR.
 
