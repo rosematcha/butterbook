@@ -76,16 +76,43 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   }
 
   if (memberships.length === 0) {
-    // Let the new-org route render through; otherwise the "Create one" link
-    // navigates into this layout and stays stuck on the empty state forever.
-    if (pathname === '/app/orgs/new') {
-      return <main className="mx-auto max-w-lg p-10">{children}</main>;
+    // Let the new-org route (and any other /app/orgs/* bootstrap route) render
+    // through; otherwise the "Create one" link would navigate into this same
+    // layout and stay stuck on the empty state forever.
+    if (pathname.startsWith('/app/orgs/')) {
+      return (
+        <main className="mx-auto max-w-xl px-6 py-14">
+          <div className="mb-6 flex items-center gap-2">
+            <span className="inline-block h-2.5 w-2.5 rounded-full bg-brand-accent" aria-hidden />
+            <span className="font-display text-xl font-medium tracking-tight-er text-ink">Butterbook</span>
+          </div>
+          {children}
+        </main>
+      );
     }
     return (
-      <main className="mx-auto max-w-lg p-10">
-        <h1 className="h-display">No organization yet</h1>
-        <p className="mt-3 text-paper-600">You aren’t a member of any organization.</p>
-        <Link href="/app/orgs/new" className="btn mt-5 inline-flex">Create one</Link>
+      <main className="mx-auto max-w-xl px-6 py-16">
+        <div className="mb-8 flex items-center gap-2">
+          <span className="inline-block h-2.5 w-2.5 rounded-full bg-brand-accent" aria-hidden />
+          <span className="font-display text-xl font-medium tracking-tight-er text-ink">Butterbook</span>
+        </div>
+        <div className="panel p-8">
+          <div className="h-eyebrow">Welcome, {user.email}</div>
+          <h1 className="h-display mt-2">Let’s set up your organization</h1>
+          <p className="mt-3 text-paper-600">
+            An organization is the top-level container for your museum: its locations, staff, events,
+            and visitor forms all live here. You’ll be the first superadmin.
+          </p>
+          <ul className="mt-5 space-y-2 text-sm text-paper-700">
+            <li className="flex gap-2"><span className="text-brand-accent">•</span>Takes about a minute — just name, address, and timezone.</li>
+            <li className="flex gap-2"><span className="text-brand-accent">•</span>You can invite staff and add more locations afterwards.</li>
+            <li className="flex gap-2"><span className="text-brand-accent">•</span>Nothing is public until you publish an event.</li>
+          </ul>
+          <div className="mt-7 flex items-center gap-3">
+            <Link href="/app/orgs/new" className="btn-accent">Create your organization</Link>
+            <button onClick={handleLogout} className="btn-ghost">Sign out</button>
+          </div>
+        </div>
       </main>
     );
   }
