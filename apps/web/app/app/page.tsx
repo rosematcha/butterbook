@@ -80,6 +80,8 @@ export default function TodayPage() {
     queryKey: ['form-fields', activeOrgId],
     queryFn: () => apiGet<{ data: { fields: FormField[] } }>(`/api/v1/orgs/${activeOrgId}/form`),
     enabled: !!activeOrgId,
+    // Form fields change rarely; no reason to refetch on every remount.
+    staleTime: 5 * 60_000,
   });
   const formFields = fieldsQ.data?.data.fields ?? [];
 

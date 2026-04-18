@@ -42,6 +42,9 @@ export function useActiveDays(orgId: string | null, year: number, month: number)
     queryKey: ['locations', orgId],
     queryFn: () => apiGet<{ data: Location[] }>(`/api/v1/orgs/${orgId}/locations`),
     enabled: !!orgId,
+    // Locations change rarely — admins add/rename one at a time. Long staleTime
+    // avoids re-fetching this on every page the user visits after the first load.
+    staleTime: 5 * 60_000,
   });
 
   const locIds = useMemo(() => (locations.data?.data ?? []).map((l) => l.id), [locations.data]);
@@ -54,6 +57,7 @@ export function useActiveDays(orgId: string | null, year: number, month: number)
           `/api/v1/orgs/${orgId}/locations/${id}/availability/month?year=${year}&month=${month}`,
         ),
       enabled: !!orgId,
+      staleTime: 60_000,
     })),
   });
 
@@ -64,6 +68,7 @@ export function useActiveDays(orgId: string | null, year: number, month: number)
     queryKey: ['events', orgId, year, month],
     queryFn: () => apiGet<{ data: EventRow[] }>(`/api/v1/orgs/${orgId}/events?from=${monthStart}&to=${monthEnd}`),
     enabled: !!orgId,
+    staleTime: 60_000,
   });
 
   const availLoading = avail.some((q) => q.isLoading);
@@ -121,6 +126,9 @@ export function useDayWindow(orgId: string | null, date: Date, enabled = true): 
     queryKey: ['locations', orgId],
     queryFn: () => apiGet<{ data: Location[] }>(`/api/v1/orgs/${orgId}/locations`),
     enabled: !!orgId,
+    // Same queryKey as useActiveDays — TanStack dedupes, so the second hook
+    // just reads this from cache when both mount on the same page.
+    staleTime: 5 * 60_000,
   });
 
   const locs = locations.data?.data ?? [];
@@ -133,6 +141,7 @@ export function useDayWindow(orgId: string | null, date: Date, enabled = true): 
           `/api/v1/orgs/${orgId}/locations/${l.id}/availability?date=${dayKey}`,
         ),
       enabled: enabled && !!orgId,
+      staleTime: 60_000,
     })),
   });
 

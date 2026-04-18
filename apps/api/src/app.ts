@@ -30,7 +30,10 @@ import { registerMetricsRoutes } from './plugins/metrics.js';
 
 export async function buildApp(): Promise<FastifyInstance> {
   const cfg = getConfig();
-  const app = Fastify({
+  // Explicit annotation: fastify 5.8+ infers the HTTP2 overload from some logger
+  // option shapes, which breaks every register*() below because they take the
+  // default HTTP1 FastifyInstance. Pinning the type forces the HTTP1 variant.
+  const app: FastifyInstance = Fastify({
     logger: buildLoggerOptions(),
     genReqId: () => crypto.randomUUID(),
     trustProxy: true,

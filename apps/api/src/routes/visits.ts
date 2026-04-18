@@ -23,25 +23,51 @@ export function registerVisitRoutes(app: FastifyInstance): void {
     await req.requirePermission(orgId, 'visits.view_all');
 
     return withOrgRead(orgId, async (tx) => {
-      let query = tx
+      // Build data and count queries side-by-side so the count respects the
+      // same from/to/location/event/method/status filters as the list — the
+      // previous version counted every visit in the tenant, which scanned the
+      // whole table on every today-page load.
+      let rowsQuery = tx
         .selectFrom('visits')
         .select([
           'id', 'org_id', 'location_id', 'event_id', 'booking_method', 'scheduled_at',
           'status', 'pii_redacted', 'form_response', 'tags', 'created_at',
         ])
         .where('org_id', '=', orgId);
-      if (q.from) query = query.where('scheduled_at', '>=', new Date(q.from));
-      if (q.to) query = query.where('scheduled_at', '<=', new Date(q.to));
-      if (q.location_id) query = query.where('location_id', '=', q.location_id);
-      if (q.event_id) query = query.where('event_id', '=', q.event_id);
-      if (q.method) query = query.where('booking_method', '=', q.method);
-      if (q.status) query = query.where('status', '=', q.status);
-      const totalRow = await tx
+      let countQuery = tx
         .selectFrom('visits')
         .select((eb) => eb.fn.countAll<number>().as('c'))
-        .where('org_id', '=', orgId)
-        .executeTakeFirst();
-      const rows = await query.orderBy('scheduled_at', 'desc').limit(q.limit).offset((q.page - 1) * q.limit).execute();
+        .where('org_id', '=', orgId);
+      if (q.from) {
+        const d = new Date(q.from);
+        rowsQuery = rowsQuery.where('scheduled_at', '>=', d);
+        countQuery = countQuery.where('scheduled_at', '>=', d);
+      }
+      if (q.to) {
+        const d = new Date(q.to);
+        rowsQuery = rowsQuery.where('scheduled_at', '<=', d);
+        countQuery = countQuery.where('scheduled_at', '<=', d);
+      }
+      if (q.location_id) {
+        rowsQuery = rowsQuery.where('location_id', '=', q.location_id);
+        countQuery = countQuery.where('location_id', '=', q.location_id);
+      }
+      if (q.event_id) {
+        rowsQuery = rowsQuery.where('event_id', '=', q.event_id);
+        countQuery = countQuery.where('event_id', '=', q.event_id);
+      }
+      if (q.method) {
+        rowsQuery = rowsQuery.where('booking_method', '=', q.method);
+        countQuery = countQuery.where('booking_method', '=', q.method);
+      }
+      if (q.status) {
+        rowsQuery = rowsQuery.where('status', '=', q.status);
+        countQuery = countQuery.where('status', '=', q.status);
+      }
+      const [rows, totalRow] = await Promise.all([
+        rowsQuery.orderBy('scheduled_at', 'desc').limit(q.limit).offset((q.page - 1) * q.limit).execute(),
+        countQuery.executeTakeFirst(),
+      ]);
       return {
         data: rows.map(publicVisit),
         meta: { page: q.page, limit: q.limit, total: Number(totalRow?.c ?? 0), pages: Math.ceil(Number(totalRow?.c ?? 0) / q.limit) },
