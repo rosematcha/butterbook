@@ -1,8 +1,8 @@
 'use client';
-import { useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { apiPost, setToken, ApiError } from '../../lib/api';
+import { apiGet, apiPost, getToken, setToken, ApiError } from '../../lib/api';
 
 interface LoginResponse {
   data: {
@@ -12,6 +12,8 @@ interface LoginResponse {
   };
 }
 
+const LAST_EMAIL_KEY = 'butterbook.lastEmail';
+
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState('');
@@ -20,6 +22,33 @@ export default function LoginPage() {
   const [needsTotp, setNeedsTotp] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  // Block the form until we know whether an existing token is still valid;
+  // otherwise the form flashes for users who are already signed in.
+  const [checkingSession, setCheckingSession] = useState(true);
+
+  useEffect(() => {
+    const remembered = window.localStorage.getItem(LAST_EMAIL_KEY);
+    if (remembered) setEmail(remembered);
+
+    const token = getToken();
+    if (!token) {
+      setCheckingSession(false);
+      return;
+    }
+    let cancelled = false;
+    apiGet('/api/v1/auth/me')
+      .then(() => {
+        if (!cancelled) router.replace('/app');
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setToken(null);
+        setCheckingSession(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [router]);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -30,6 +59,7 @@ export default function LoginPage() {
       if (needsTotp && totp) body.totpCode = totp;
       const res = await apiPost<LoginResponse>('/api/v1/auth/login', body);
       setToken(res.data.token);
+      window.localStorage.setItem(LAST_EMAIL_KEY, email);
       router.push('/app');
     } catch (err) {
       if (err instanceof ApiError) {
@@ -45,6 +75,14 @@ export default function LoginPage() {
     } finally {
       setPending(false);
     }
+  }
+
+  if (checkingSession) {
+    return (
+      <AuthSplit title={<>Sign in.</>} sub="Pick up where you left off.">
+        <p className="mt-8 text-sm text-paper-500">Checking your session…</p>
+      </AuthSplit>
+    );
   }
 
   return (
