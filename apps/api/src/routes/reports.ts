@@ -59,7 +59,7 @@ export function registerReportRoutes(app: FastifyInstance): void {
       return { data: rows };
     });
   });
-  app.get('/api/v1/orgs/:orgId/reports/visits/export', async (req, reply) => {
+  app.get('/api/v1/orgs/:orgId/reports/visits/export', { config: { rateLimit: { max: 10, timeWindow: '1 hour' } } }, async (req, reply) => {
     const { orgId } = orgParam.parse(req.params);
     const f = visitsFilters.parse(req.query);
     await req.requirePermission(orgId, 'reports.export');
@@ -86,7 +86,7 @@ export function registerReportRoutes(app: FastifyInstance): void {
       return { data: rows };
     });
   });
-  app.get('/api/v1/orgs/:orgId/reports/headcount/export', async (req, reply) => {
+  app.get('/api/v1/orgs/:orgId/reports/headcount/export', { config: { rateLimit: { max: 10, timeWindow: '1 hour' } } }, async (req, reply) => {
     const { orgId } = orgParam.parse(req.params);
     const f = headcountFilters.parse(req.query);
     await req.requirePermission(orgId, 'reports.export');
@@ -114,7 +114,7 @@ export function registerReportRoutes(app: FastifyInstance): void {
       return { data: rows };
     });
   });
-  app.get('/api/v1/orgs/:orgId/reports/booking-sources/export', async (req, reply) => {
+  app.get('/api/v1/orgs/:orgId/reports/booking-sources/export', { config: { rateLimit: { max: 10, timeWindow: '1 hour' } } }, async (req, reply) => {
     const { orgId } = orgParam.parse(req.params);
     const f = baseFilters.parse(req.query);
     await req.requirePermission(orgId, 'reports.export');
@@ -142,7 +142,7 @@ export function registerReportRoutes(app: FastifyInstance): void {
       return { data: rows };
     });
   });
-  app.get('/api/v1/orgs/:orgId/reports/events/export', async (req, reply) => {
+  app.get('/api/v1/orgs/:orgId/reports/events/export', { config: { rateLimit: { max: 10, timeWindow: '1 hour' } } }, async (req, reply) => {
     const { orgId } = orgParam.parse(req.params);
     const f = baseFilters.parse(req.query);
     await req.requirePermission(orgId, 'reports.export');
@@ -174,7 +174,7 @@ export function registerReportRoutes(app: FastifyInstance): void {
       return { data: rows };
     });
   });
-  app.get('/api/v1/orgs/:orgId/reports/intake/export', async (req, reply) => {
+  app.get('/api/v1/orgs/:orgId/reports/intake/export', { config: { rateLimit: { max: 10, timeWindow: '1 hour' } } }, async (req, reply) => {
     const { orgId } = orgParam.parse(req.params);
     const f = intakeFilters.parse(req.query);
     await req.requirePermission(orgId, 'reports.export');

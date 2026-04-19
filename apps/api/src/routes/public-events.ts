@@ -13,13 +13,13 @@ const params = z.object({
 });
 
 export function registerPublicEventRoutes(app: FastifyInstance): void {
-  app.get('/api/v1/public/:orgSlug/:slugPrefix/:slugOrPublicId', async (req) => {
+  app.get('/api/v1/public/:orgSlug/:slugPrefix/:slugOrPublicId', { config: { rateLimit: { max: 60, timeWindow: '1 minute' } } }, async (req) => {
     const p = params.parse(req.params);
     const ev = await resolveEvent(p);
     return { data: publicEvent(ev) };
   });
 
-  app.get('/api/v1/public/:orgSlug/:slugPrefix/:slugOrPublicId/form', async (req) => {
+  app.get('/api/v1/public/:orgSlug/:slugPrefix/:slugOrPublicId/form', { config: { rateLimit: { max: 60, timeWindow: '1 minute' } } }, async (req) => {
     const p = params.parse(req.params);
     const ev = await resolveEvent(p);
     const fields = ev.form_fields ?? (await getDb().selectFrom('orgs').select(['form_fields']).where('id', '=', ev.org_id).executeTakeFirstOrThrow()).form_fields;

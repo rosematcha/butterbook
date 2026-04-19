@@ -33,7 +33,7 @@ function verifyNonce(nonce: string, qrToken: string, ip: string): boolean {
 }
 
 export function registerKioskRoutes(app: FastifyInstance): void {
-  app.get('/api/v1/kiosk/:qrToken/config', async (req) => {
+  app.get('/api/v1/kiosk/:qrToken/config', { config: { rateLimit: { max: 60, timeWindow: '1 minute' } } }, async (req) => {
     const { qrToken } = qrParam.parse(req.params);
     const loc = await getDb()
       .selectFrom('locations')
@@ -65,7 +65,7 @@ export function registerKioskRoutes(app: FastifyInstance): void {
     };
   });
 
-  app.get('/api/v1/kiosk/:qrToken/form', async (req) => {
+  app.get('/api/v1/kiosk/:qrToken/form', { config: { rateLimit: { max: 60, timeWindow: '1 minute' } } }, async (req) => {
     const { qrToken } = qrParam.parse(req.params);
     const row = await getDb()
       .selectFrom('locations')
