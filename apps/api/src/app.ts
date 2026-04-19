@@ -1,6 +1,7 @@
 import Fastify, { type FastifyInstance } from 'fastify';
 import fastifyCors from '@fastify/cors';
 import fastifyRateLimit from '@fastify/rate-limit';
+import { Redis } from 'ioredis';
 import crypto from 'node:crypto';
 import { getConfig } from './config.js';
 import { buildLoggerOptions } from './utils/logger.js';
@@ -48,6 +49,22 @@ export async function buildApp(): Promise<FastifyInstance> {
     credentials: false,
   });
 
+  // Rate-limit state is in-memory by default (fine for a single-instance
+  // deployment). When REDIS_URL is set, use it as a shared store so per-route
+  // limits hold across horizontally scaled API instances — otherwise an
+  // attacker can fan out 5 login attempts across N instances for 5N total.
+  let redisClient: Redis | null = null;
+  if (cfg.REDIS_URL && cfg.NODE_ENV !== 'test') {
+    redisClient = new Redis(cfg.REDIS_URL, {
+      connectTimeout: 500,
+      maxRetriesPerRequest: 1,
+      enableOfflineQueue: false,
+    });
+    app.addHook('onClose', async () => {
+      await redisClient?.quit();
+    });
+  }
+
   await app.register(fastifyRateLimit, {
     global: true,
     max: 300,
@@ -56,6 +73,7 @@ export async function buildApp(): Promise<FastifyInstance> {
       if (req.userId) return `user:${req.userId}`;
       return `ip:${req.ip}`;
     },
+    ...(redisClient ? { redis: redisClient } : {}),
     // Tests fan out hundreds of logins from 127.0.0.1 in seconds; the per-route
     // overrides (e.g. /auth/login max:5/min) would trip on every beforeEach and
     // leave the route matrix red. Skip limits entirely when NODE_ENV=test.

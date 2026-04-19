@@ -27,6 +27,12 @@ const ConfigSchema = z.object({
   // Optional. If set, GET /metrics requires `Authorization: Bearer <METRICS_TOKEN>`.
   // If unset, /metrics is unavailable (returns 404). Do not expose publicly.
   METRICS_TOKEN: z.string().min(16).optional(),
+
+  // Optional. If set, @fastify/rate-limit uses Redis as its shared store so
+  // per-route quotas (e.g. login 5/min) hold across horizontally scaled API
+  // instances. If unset, the default in-memory store is used — fine for a
+  // single-instance deployment, unsafe for multi-instance.
+  REDIS_URL: z.string().url().optional(),
 });
 
 export type AppConfig = z.infer<typeof ConfigSchema>;
