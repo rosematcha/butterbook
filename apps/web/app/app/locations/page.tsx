@@ -76,8 +76,8 @@ export default function LocationsPage() {
                   )}
                 </td>
                 <td className="space-x-3 text-right">
-                  <Link href={`/app/locations/${l.id}/hours`} className="text-xs underline">Hours</Link>
-                  <Link href={`/app/locations/${l.id}/qr`} className="text-xs underline">QR</Link>
+                  <Link href={`/app/locations/hours?id=${l.id}`} className="text-xs underline">Hours</Link>
+                  <Link href={`/app/locations/qr?id=${l.id}`} className="text-xs underline">QR</Link>
                   {!l.isPrimary ? (
                     <button onClick={() => deleteLocation.mutate(l.id)} className="text-xs text-red-600 underline">Delete</button>
                   ) : null}

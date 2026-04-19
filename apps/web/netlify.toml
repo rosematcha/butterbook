@@ -1,0 +1,29 @@
+[build]
+  command = "pnpm --filter @butterbook/web build"
+  publish = "out"
+
+# Back-compat: old kiosk URLs (/kiosk/<token>) → query-param shape.
+[[redirects]]
+  from = "/kiosk/:token"
+  to = "/kiosk?token=:token"
+  status = 301
+  force = true
+
+# Back-compat: old admin dynamic routes.
+[[redirects]]
+  from = "/app/events/:id/waitlist"
+  to = "/app/events/waitlist?id=:id"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "/app/locations/:id/hours"
+  to = "/app/locations/hours?id=:id"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "/app/locations/:id/qr"
+  to = "/app/locations/qr?id=:id"
+  status = 301
+  force = true

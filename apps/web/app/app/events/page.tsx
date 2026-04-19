@@ -157,7 +157,7 @@ export default function EventsPage() {
                       >
                         {e.isPublished ? 'Unpublish' : 'Publish'}
                       </button>
-                      <Link href={`/app/events/${e.id}/waitlist`} className="btn-ghost text-xs">Waitlist</Link>
+                      <Link href={`/app/events/waitlist?id=${e.id}`} className="btn-ghost text-xs">Waitlist</Link>
                       <button
                         onClick={() => onDelete(e.id, e.title)}
                         className="btn-ghost text-xs text-red-700 hover:bg-red-50"

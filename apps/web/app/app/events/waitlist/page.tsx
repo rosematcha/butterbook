@@ -1,8 +1,9 @@
 'use client';
-import { use } from 'react';
+import { Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { apiDelete, apiGet, apiPost } from '../../../../../lib/api';
-import { useSession } from '../../../../../lib/session';
+import { apiDelete, apiGet, apiPost } from '../../../../lib/api';
+import { useSession } from '../../../../lib/session';
 
 interface WaitlistEntry {
   id: string;
@@ -12,15 +13,16 @@ interface WaitlistEntry {
   created_at: string;
 }
 
-export default function WaitlistPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = use(params);
+function WaitlistInner() {
+  const search = useSearchParams();
+  const id = search.get('id') ?? '';
   const { activeOrgId } = useSession();
   const qc = useQueryClient();
 
   const waitlist = useQuery({
     queryKey: ['waitlist', activeOrgId, id],
     queryFn: () => apiGet<{ data: WaitlistEntry[] }>(`/api/v1/orgs/${activeOrgId}/events/${id}/waitlist`),
-    enabled: !!activeOrgId,
+    enabled: !!activeOrgId && !!id,
   });
 
   const promote = useMutation({
@@ -31,6 +33,8 @@ export default function WaitlistPage({ params }: { params: Promise<{ id: string 
     mutationFn: (entryId: string) => apiDelete(`/api/v1/orgs/${activeOrgId}/events/${id}/waitlist/${entryId}`),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['waitlist', activeOrgId, id] }),
   });
+
+  if (!id) return <p className="text-sm text-red-600">Missing event id.</p>;
 
   return (
     <div className="space-y-4">
@@ -70,5 +74,13 @@ export default function WaitlistPage({ params }: { params: Promise<{ id: string 
         </table>
       </div>
     </div>
+  );
+}
+
+export default function WaitlistPage() {
+  return (
+    <Suspense fallback={<p className="text-sm text-slate-500">Loading…</p>}>
+      <WaitlistInner />
+    </Suspense>
   );
 }

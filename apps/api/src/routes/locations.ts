@@ -130,7 +130,7 @@ export function registerLocationRoutes(app: FastifyInstance): void {
       if (!loc) throw new NotFoundError();
       return loc.qr_token;
     });
-    const url = `${getConfig().APP_BASE_URL}/kiosk/${result}?kiosk=true`;
+    const url = `${getConfig().APP_BASE_URL}/kiosk?token=${result}&kiosk=true`;
     const png = await QRCode.toBuffer(url, { type: 'png', margin: 1, width: 512 });
     return reply.type('image/png').send(png);
   });

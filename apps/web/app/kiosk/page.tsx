@@ -1,6 +1,7 @@
 'use client';
-import { use, useEffect, useState, type FormEvent } from 'react';
-import { API_BASE_URL } from '../../../lib/env';
+import { Suspense, useEffect, useState, type FormEvent } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { API_BASE_URL } from '../../lib/env';
 
 interface KioskConfig {
   data: {
@@ -33,8 +34,9 @@ function uuidv4(): string {
   return Math.random().toString(36).slice(2) + Date.now().toString(36);
 }
 
-export default function KioskPage({ params }: { params: Promise<{ qrToken: string }> }) {
-  const { qrToken } = use(params);
+function KioskInner() {
+  const search = useSearchParams();
+  const qrToken = search.get('token') ?? '';
   const [config, setConfig] = useState<KioskConfig['data'] | null>(null);
   const [fields, setFields] = useState<FormField[]>([]);
   const [values, setValues] = useState<Record<string, FieldValue>>({});
@@ -59,6 +61,10 @@ export default function KioskPage({ params }: { params: Promise<{ qrToken: strin
   }
 
   useEffect(() => {
+    if (!qrToken) {
+      setError('Missing kiosk token.');
+      return;
+    }
     void loadConfig();
     // Refresh the nonce every 8 minutes (TTL is 10).
     const t = setInterval(loadConfig, 8 * 60 * 1000);
@@ -188,5 +194,13 @@ export default function KioskPage({ params }: { params: Promise<{ qrToken: strin
         </button>
       </form>
     </main>
+  );
+}
+
+export default function KioskPage() {
+  return (
+    <Suspense fallback={<main className="flex min-h-screen items-center justify-center p-8 text-lg text-slate-500">Loading kiosk…</main>}>
+      <KioskInner />
+    </Suspense>
   );
 }

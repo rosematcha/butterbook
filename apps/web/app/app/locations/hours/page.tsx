@@ -1,9 +1,9 @@
 'use client';
+import { Suspense, useEffect, useState, type FormEvent } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useState, type FormEvent } from 'react';
-import { use } from 'react';
-import { apiDelete, apiGet, apiPost, apiPut } from '../../../../../lib/api';
-import { useSession } from '../../../../../lib/session';
+import { apiDelete, apiGet, apiPost, apiPut } from '../../../../lib/api';
+import { useSession } from '../../../../lib/session';
 
 interface HoursRow { id: string; dayOfWeek: number; openTime: string; closeTime: string; isActive: boolean; }
 interface ClosedDay { id: string; date: string; reason: string | null; }
@@ -11,25 +11,26 @@ interface Override { id: string; date: string; open_time: string | null; close_t
 
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-export default function HoursPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = use(params);
+function HoursInner() {
+  const search = useSearchParams();
+  const id = search.get('id') ?? '';
   const { activeOrgId } = useSession();
   const qc = useQueryClient();
 
   const hoursQ = useQuery({
     queryKey: ['hours', activeOrgId, id],
     queryFn: () => apiGet<{ data: HoursRow[] }>(`/api/v1/orgs/${activeOrgId}/locations/${id}/hours`),
-    enabled: !!activeOrgId,
+    enabled: !!activeOrgId && !!id,
   });
   const overridesQ = useQuery({
     queryKey: ['overrides', activeOrgId, id],
     queryFn: () => apiGet<{ data: Override[] }>(`/api/v1/orgs/${activeOrgId}/locations/${id}/hours/overrides`),
-    enabled: !!activeOrgId,
+    enabled: !!activeOrgId && !!id,
   });
   const closedQ = useQuery({
     queryKey: ['closed', activeOrgId, id],
     queryFn: () => apiGet<{ data: ClosedDay[] }>(`/api/v1/orgs/${activeOrgId}/locations/${id}/closed`),
-    enabled: !!activeOrgId,
+    enabled: !!activeOrgId && !!id,
   });
 
   // editable hours grid
@@ -78,6 +79,8 @@ export default function HoursPage({ params }: { params: Promise<{ id: string }> 
     mutationFn: (oid: string) => apiDelete(`/api/v1/orgs/${activeOrgId}/locations/${id}/hours/overrides/${oid}`),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['overrides', activeOrgId, id] }),
   });
+
+  if (!id) return <p className="text-sm text-red-600">Missing location id.</p>;
 
   return (
     <div className="space-y-6">
@@ -174,5 +177,13 @@ export default function HoursPage({ params }: { params: Promise<{ id: string }> 
         </ul>
       </section>
     </div>
+  );
+}
+
+export default function HoursPage() {
+  return (
+    <Suspense fallback={<p className="text-sm text-slate-500">Loading…</p>}>
+      <HoursInner />
+    </Suspense>
   );
 }

@@ -1,16 +1,18 @@
 'use client';
-import { use, useEffect, useState } from 'react';
-import { apiPost, getToken } from '../../../../../lib/api';
-import { API_BASE_URL } from '../../../../../lib/env';
-import { useSession } from '../../../../../lib/session';
+import { Suspense, useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { apiPost, getToken } from '../../../../lib/api';
+import { API_BASE_URL } from '../../../../lib/env';
+import { useSession } from '../../../../lib/session';
 
-export default function QrPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = use(params);
+function QrInner() {
+  const search = useSearchParams();
+  const id = search.get('id') ?? '';
   const { activeOrgId } = useSession();
   const [pngUrl, setPngUrl] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!activeOrgId) return;
+    if (!activeOrgId || !id) return;
     const url = `${API_BASE_URL}/api/v1/orgs/${activeOrgId}/locations/${id}/qr`;
     fetch(url, { headers: { Authorization: `Bearer ${getToken() ?? ''}` } })
       .then(async (r) => {
@@ -26,6 +28,8 @@ export default function QrPage({ params }: { params: Promise<{ id: string }> }) 
     window.location.reload();
   }
 
+  if (!id) return <p className="text-sm text-red-600">Missing location id.</p>;
+
   return (
     <div className="space-y-4">
       <div className="card flex flex-col items-center">
@@ -40,5 +44,13 @@ export default function QrPage({ params }: { params: Promise<{ id: string }> }) 
       </div>
       <button onClick={rotate} className="btn-danger">Rotate token (invalidates this QR)</button>
     </div>
+  );
+}
+
+export default function QrPage() {
+  return (
+    <Suspense fallback={<p className="text-sm text-slate-500">Loading…</p>}>
+      <QrInner />
+    </Suspense>
   );
 }
