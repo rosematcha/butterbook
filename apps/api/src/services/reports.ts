@@ -209,7 +209,12 @@ export async function reportIntake(
 export function toCsv(headers: string[], rows: Array<Array<string | number | null>>): string {
   const esc = (v: string | number | null): string => {
     if (v === null || v === undefined) return '';
-    const s = String(v);
+    let s = String(v);
+    // OWASP CSV Injection: a leading =, +, -, @, TAB, or CR makes spreadsheet
+    // apps treat the cell as a formula. Prefix with a single quote so Excel /
+    // Sheets / LibreOffice render the value as literal text. Visitors can put
+    // arbitrary strings into form_response, so this runs on untrusted input.
+    if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`;
     if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
     return s;
   };
