@@ -12,6 +12,7 @@ import {
 import { getDb, withOrgContext, withOrgRead, type Tx } from '../db/index.js';
 import { NotFoundError, ValidationError } from '../errors/index.js';
 import { createVisitInTx } from '../services/booking.js';
+import { redactAuditBody } from '../utils/audit.js';
 
 const orgParam = z.object({ orgId: z.string().uuid() });
 const visitParam = z.object({ orgId: z.string().uuid(), visitId: z.string().uuid() });
@@ -92,10 +93,10 @@ export function registerVisitRoutes(app: FastifyInstance): void {
         idempotencyKey: null,
       });
       if (result.kind === 'visit') {
-        await audit({ action: 'visit.created', targetType: 'visit', targetId: result.visitId!, diff: { after: body } });
+        await audit({ action: 'visit.created', targetType: 'visit', targetId: result.visitId!, diff: { after: redactAuditBody(body) } });
         return { data: { id: result.visitId, kind: 'visit' } };
       }
-      await audit({ action: 'waitlist.joined', targetType: 'waitlist_entry', targetId: result.waitlistEntryId!, diff: { after: body } });
+      await audit({ action: 'waitlist.joined', targetType: 'waitlist_entry', targetId: result.waitlistEntryId!, diff: { after: redactAuditBody(body) } });
       return { data: { id: result.waitlistEntryId, kind: 'waitlisted' } };
     });
   });
@@ -149,7 +150,7 @@ export function registerVisitRoutes(app: FastifyInstance): void {
       if (Object.keys(updates).length > 0) {
         await tx.updateTable('visits').set(updates).where('id', '=', visitId).execute();
       }
-      await audit({ action: 'visit.updated', targetType: 'visit', targetId: visitId, diff: { after: updates } });
+      await audit({ action: 'visit.updated', targetType: 'visit', targetId: visitId, diff: { after: redactAuditBody(updates) } });
       return { data: { ok: true } };
     });
   });
@@ -227,6 +228,9 @@ export function registerVisitRoutes(app: FastifyInstance): void {
       const redacted: Record<string, unknown> = {};
       if ('party_size' in form) redacted.party_size = form.party_size;
       await tx.updateTable('visits').set({ pii_redacted: true, form_response: redacted as never }).where('id', '=', visitId).execute();
+      // Note: audit_log is append-only (enforced by the audit_log_no_update
+      // trigger), so historical rows written before redactAuditBody was in
+      // place may still carry formResponse. New writes no longer include it.
       await audit({ action: 'visit.pii_redacted', targetType: 'visit', targetId: visitId });
       return { data: { ok: true } };
     });

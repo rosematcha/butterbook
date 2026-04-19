@@ -5,6 +5,7 @@ import { getDb, withOrgContext, withOrgRead } from '../db/index.js';
 import { NotFoundError } from '../errors/index.js';
 import { createVisitInTx } from '../services/booking.js';
 import { handleIdempotent } from '../middleware/idempotency.js';
+import { redactAuditBody } from '../utils/audit.js';
 
 const bookParams = z.object({ orgSlug: z.string().min(1), locId: z.string().uuid() });
 
@@ -55,7 +56,7 @@ export function registerPublicBookingRoutes(app: FastifyInstance): void {
             action: 'visit.self_booked',
             targetType: 'visit',
             targetId: r.visitId ?? r.waitlistEntryId ?? '',
-            diff: { after: body },
+            diff: { after: redactAuditBody(body) },
           });
           return r;
         });
