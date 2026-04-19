@@ -1,6 +1,9 @@
 [build]
-  command = "pnpm --filter @butterbook/web build"
-  publish = "out"
+  command = "pnpm run build"
+  publish = "apps/web/out"
+
+[build.environment]
+  NETLIFY_NEXT_PLUGIN_SKIP = "true"
 
 # Back-compat: old kiosk URLs (/kiosk/<token>) → query-param shape.
 [[redirects]]
