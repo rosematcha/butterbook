@@ -86,6 +86,8 @@ export function registerOrgRoutes(app: FastifyInstance): void {
 
   app.get('/api/v1/orgs/:orgId/branding', async (req) => {
     const { orgId } = orgIdParam.parse(req.params);
+    req.requireAuth();
+    await req.loadMembershipFor(orgId);
     const org = await getDb()
       .selectFrom('orgs')
       .select(['id', 'name', 'public_slug', 'logo_url', 'theme'])

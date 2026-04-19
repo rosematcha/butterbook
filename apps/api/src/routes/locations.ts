@@ -14,6 +14,8 @@ export function registerLocationRoutes(app: FastifyInstance): void {
   app.get('/api/v1/orgs/:orgId/locations', async (req) => {
     const { orgId } = orgParam.parse(req.params);
     const q = z.object({ include_deleted: z.enum(['true', 'false']).optional() }).parse(req.query);
+    req.requireAuth();
+    await req.loadMembershipFor(orgId);
     const includeDeleted = await allowIncludeDeleted(req, orgId, q.include_deleted);
     return withOrgRead(orgId, async (tx) => {
       let query = tx
@@ -53,6 +55,8 @@ export function registerLocationRoutes(app: FastifyInstance): void {
 
   app.get('/api/v1/orgs/:orgId/locations/:locId', async (req) => {
     const { orgId, locId } = locParam.parse(req.params);
+    req.requireAuth();
+    await req.loadMembershipFor(orgId);
     return withOrgRead(orgId, async (tx) => {
       const loc = await tx
         .selectFrom('locations')

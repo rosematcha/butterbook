@@ -11,6 +11,8 @@ export function registerAvailabilityRoutes(app: FastifyInstance): void {
   app.get('/api/v1/orgs/:orgId/locations/:locId/availability', async (req) => {
     const { orgId, locId } = locParam.parse(req.params);
     const q = z.object({ date: isoDateSchema }).parse(req.query);
+    req.requireAuth();
+    await req.loadMembershipFor(orgId);
     return withOrgRead(orgId, async (tx) => {
       const ctx = await loadCtx(tx, orgId, locId);
       const dayClosed = ctx.closed.some((c) => c.date === q.date);
@@ -61,6 +63,8 @@ export function registerAvailabilityRoutes(app: FastifyInstance): void {
     const q = z
       .object({ year: z.coerce.number().int().min(1970).max(3000), month: z.coerce.number().int().min(1).max(12) })
       .parse(req.query);
+    req.requireAuth();
+    await req.loadMembershipFor(orgId);
     return withOrgRead(orgId, async (tx) => {
       const ctx = await loadCtx(tx, orgId, locId);
       const daysInMonth = new Date(q.year, q.month, 0).getDate();

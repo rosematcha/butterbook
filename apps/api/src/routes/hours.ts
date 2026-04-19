@@ -16,6 +16,8 @@ const idParam = z.object({ orgId: z.string().uuid(), locId: z.string().uuid(), i
 export function registerHoursRoutes(app: FastifyInstance): void {
   app.get('/api/v1/orgs/:orgId/locations/:locId/hours', async (req) => {
     const { orgId, locId } = locParam.parse(req.params);
+    req.requireAuth();
+    await req.loadMembershipFor(orgId);
     return withOrgRead(orgId, async (tx) => {
       await assertOwned(tx, orgId, locId);
       const rows = await tx
@@ -57,6 +59,8 @@ export function registerHoursRoutes(app: FastifyInstance): void {
   app.get('/api/v1/orgs/:orgId/locations/:locId/hours/overrides', async (req) => {
     const { orgId, locId } = locParam.parse(req.params);
     const q = z.object({ from: isoDateSchema.optional(), to: isoDateSchema.optional() }).parse(req.query);
+    req.requireAuth();
+    await req.loadMembershipFor(orgId);
     return withOrgRead(orgId, async (tx) => {
       await assertOwned(tx, orgId, locId);
       let query = tx.selectFrom('location_hour_overrides').selectAll().where('location_id', '=', locId);
@@ -122,6 +126,8 @@ export function registerHoursRoutes(app: FastifyInstance): void {
   app.get('/api/v1/orgs/:orgId/locations/:locId/closed', async (req) => {
     const { orgId, locId } = locParam.parse(req.params);
     const q = z.object({ from: isoDateSchema.optional(), to: isoDateSchema.optional() }).parse(req.query);
+    req.requireAuth();
+    await req.loadMembershipFor(orgId);
     return withOrgRead(orgId, async (tx) => {
       await assertOwned(tx, orgId, locId);
       let query = tx.selectFrom('closed_days').selectAll().where('location_id', '=', locId);

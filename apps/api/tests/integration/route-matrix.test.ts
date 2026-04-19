@@ -66,7 +66,7 @@ const ROUTES: RouteCase[] = [
   // --- orgs ---
   { name: 'GET org', method: 'GET', url: (c) => `/api/v1/orgs/${c.orgId}` },
   { name: 'PATCH org (admin.manage_org)', method: 'PATCH', url: (c) => `/api/v1/orgs/${c.orgId}`, body: () => ({ name: 'New' }), invalidBody: () => ({ name: '' }) },
-  { name: 'GET org branding', method: 'GET', url: (c) => `/api/v1/orgs/${c.orgId}/branding`, skip401: true, skip403: true, public: true },
+  { name: 'GET org branding', method: 'GET', url: (c) => `/api/v1/orgs/${c.orgId}/branding`, skip403: true },
   { name: 'PATCH org branding (admin.manage_org)', method: 'PATCH', url: (c) => `/api/v1/orgs/${c.orgId}/branding`, body: () => ({ theme: { primaryColor: '#112233' } }) },
   { name: 'GET org form (admin.manage_forms)', method: 'GET', url: (c) => `/api/v1/orgs/${c.orgId}/form` },
   { name: 'PUT org form (admin.manage_forms)', method: 'PUT', url: (c) => `/api/v1/orgs/${c.orgId}/form`, body: () => ({
@@ -93,21 +93,21 @@ const ROUTES: RouteCase[] = [
   { name: 'POST invitation', method: 'POST', url: (c) => `/api/v1/orgs/${c.orgId}/invitations`, body: () => ({ email: 'invitee@example.com', roleIds: [] }), invalidBody: () => ({ email: 'not-an-email', roleIds: [] }) },
 
   // --- locations ---
-  { name: 'GET locations', method: 'GET', url: (c) => `/api/v1/orgs/${c.orgId}/locations`, skip401: true, skip403: true, public: true },
+  { name: 'GET locations', method: 'GET', url: (c) => `/api/v1/orgs/${c.orgId}/locations`, skip403: true },
   { name: 'POST location (admin.manage_locations)', method: 'POST', url: (c) => `/api/v1/orgs/${c.orgId}/locations`, body: () => ({ name: 'Gallery 2' }), invalidBody: () => ({ name: '' }) },
-  { name: 'GET single location', method: 'GET', url: (c) => `/api/v1/orgs/${c.orgId}/locations/${c.locationId}`, skip401: true, skip403: true, public: true, notFoundUrl: (c) => `/api/v1/orgs/${c.orgId}/locations/00000000-0000-0000-0000-000000000000` },
+  { name: 'GET single location', method: 'GET', url: (c) => `/api/v1/orgs/${c.orgId}/locations/${c.locationId}`, skip403: true, notFoundUrl: (c) => `/api/v1/orgs/${c.orgId}/locations/00000000-0000-0000-0000-000000000000` },
   { name: 'PATCH location', method: 'PATCH', url: (c) => `/api/v1/orgs/${c.orgId}/locations/${c.locationId}`, body: () => ({ zip: '10002' }) },
   { name: 'POST location set-primary', method: 'POST', url: (c) => `/api/v1/orgs/${c.orgId}/locations/${c.locationId}/set-primary` },
 
   // --- hours ---
-  { name: 'GET location hours', method: 'GET', url: (c) => `/api/v1/orgs/${c.orgId}/locations/${c.locationId}/hours`, skip401: true, skip403: true, public: true },
+  { name: 'GET location hours', method: 'GET', url: (c) => `/api/v1/orgs/${c.orgId}/locations/${c.locationId}/hours`, skip403: true },
   { name: 'PUT location hours', method: 'PUT', url: (c) => `/api/v1/orgs/${c.orgId}/locations/${c.locationId}/hours`, body: () => ({ hours: [{ dayOfWeek: 1, openTime: '09:00', closeTime: '17:00', isActive: true }] }), invalidBody: () => ({ hours: [{ dayOfWeek: 9, openTime: '09:00', closeTime: '08:00', isActive: true }] }) },
-  { name: 'GET overrides', method: 'GET', url: (c) => `/api/v1/orgs/${c.orgId}/locations/${c.locationId}/hours/overrides`, skip401: true, skip403: true, public: true },
-  { name: 'GET closed-days', method: 'GET', url: (c) => `/api/v1/orgs/${c.orgId}/locations/${c.locationId}/closed`, skip401: true, skip403: true, public: true },
+  { name: 'GET overrides', method: 'GET', url: (c) => `/api/v1/orgs/${c.orgId}/locations/${c.locationId}/hours/overrides`, skip403: true },
+  { name: 'GET closed-days', method: 'GET', url: (c) => `/api/v1/orgs/${c.orgId}/locations/${c.locationId}/closed`, skip403: true },
 
   // --- availability ---
-  { name: 'GET availability', method: 'GET', url: (c) => `/api/v1/orgs/${c.orgId}/locations/${c.locationId}/availability?date=2026-04-13`, skip401: true, skip403: true, public: true },
-  { name: 'GET availability month', method: 'GET', url: (c) => `/api/v1/orgs/${c.orgId}/locations/${c.locationId}/availability/month?year=2026&month=4`, skip401: true, skip403: true, public: true },
+  { name: 'GET availability', method: 'GET', url: (c) => `/api/v1/orgs/${c.orgId}/locations/${c.locationId}/availability?date=2026-04-13`, skip403: true },
+  { name: 'GET availability month', method: 'GET', url: (c) => `/api/v1/orgs/${c.orgId}/locations/${c.locationId}/availability/month?year=2026&month=4`, skip403: true },
 
   // --- visits ---
   { name: 'GET visits (visits.view_all)', method: 'GET', url: (c) => `/api/v1/orgs/${c.orgId}/visits` },
