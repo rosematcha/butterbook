@@ -88,7 +88,7 @@ export function MonthPicker({
                   className={[
                     'relative h-9 rounded text-sm tabular-nums transition',
                     !inMonth ? 'text-paper-300' : '',
-                    disabled ? 'cursor-not-allowed text-paper-300' : 'hover:bg-paper-100 text-ink',
+                    disabled ? 'cursor-not-allowed text-paper-300' : isSelected ? '' : 'hover:bg-paper-100 text-ink',
                     isSelected && !disabled ? 'bg-brand-primary text-brand-on-primary hover:bg-brand-primary' : '',
                     isToday && !isSelected ? 'ring-1 ring-inset ring-brand-accent' : '',
                   ].join(' ')}
