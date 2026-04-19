@@ -46,7 +46,6 @@ packages/shared/                  Zod schemas, permission registry, shared types
 packages/eslint-plugin-butterbook/ Local ESLint plugin (no-direct-tenant-db rule)
 docs/adr/                         Architecture Decision Records (001–010)
 docs/                             Schema, API, and permissions references
-wordpress/                        Placeholder for a future plugin
 ```
 
 ## Principles

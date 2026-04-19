@@ -22,7 +22,6 @@ const ConfigSchema = z.object({
 
   FEATURE_EMAIL_NOTIFICATIONS: z.coerce.boolean().default(false),
   FEATURE_PII_AUTO_PURGE: z.coerce.boolean().default(false),
-  FEATURE_WORDPRESS_API: z.coerce.boolean().default(false),
 
   // Optional. If set, GET /metrics requires `Authorization: Bearer <METRICS_TOKEN>`.
   // If unset, /metrics is unavailable (returns 404). Do not expose publicly.

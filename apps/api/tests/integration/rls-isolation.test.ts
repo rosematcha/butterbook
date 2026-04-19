@@ -3,7 +3,7 @@ import type { FastifyInstance } from 'fastify';
 import { createTestOrg, loginToken, makeApp, truncateAll } from '../helpers/factories.js';
 import { getDb, sql } from '../../src/db/index.js';
 
-// Proves the RLS policies defined in 001_init.sql actually filter cross-tenant
+// Proves the RLS policies defined in the baseline schema actually filter cross-tenant
 // reads when the connection is a non-BYPASSRLS role (as in production).
 //
 // CI runs as the `postgres` superuser which unconditionally bypasses RLS, so
