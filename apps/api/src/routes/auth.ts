@@ -27,7 +27,7 @@ export function registerAuthRoutes(app: FastifyInstance): void {
   app.post('/api/v1/auth/register', { config: { rateLimit: { max: 3, timeWindow: '1 minute' } } }, async (req) => {
     const body = registerSchema.parse(req.body);
     try {
-      checkPasswordPolicy(body.password);
+      checkPasswordPolicy(body.password, [body.email, body.displayName ?? ''].filter(Boolean));
     } catch (e) {
       throw new ValidationError((e as Error).message);
     }
@@ -155,13 +155,13 @@ export function registerAuthRoutes(app: FastifyInstance): void {
     async (req) => {
       req.requireAuth();
       const body = changePasswordSchema.parse(req.body);
+      const db = getDb();
+      const user = await db.selectFrom('users').selectAll().where('id', '=', req.userId!).executeTakeFirstOrThrow();
       try {
-        checkPasswordPolicy(body.newPassword);
+        checkPasswordPolicy(body.newPassword, [user.email, user.display_name ?? ''].filter(Boolean));
       } catch (e) {
         throw new ValidationError((e as Error).message);
       }
-      const db = getDb();
-      const user = await db.selectFrom('users').selectAll().where('id', '=', req.userId!).executeTakeFirstOrThrow();
       if (!(await verifyPassword(user.password_hash, body.currentPassword))) {
         throw new AuthenticationError('Invalid password.');
       }

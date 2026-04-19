@@ -1,5 +1,8 @@
 import argon2 from 'argon2';
 import crypto from 'node:crypto';
+import { zxcvbn, zxcvbnOptions } from '@zxcvbn-ts/core';
+import * as zxcvbnCommon from '@zxcvbn-ts/language-common';
+import * as zxcvbnEn from '@zxcvbn-ts/language-en';
 
 const ARGON2_PARAMS: argon2.Options = {
   type: argon2.argon2id,
@@ -24,22 +27,23 @@ export function getDummyHash(): Promise<string> {
   return dummyHashPromise;
 }
 
-// Minimal common-passwords list. In production, bundle top-10k.
-const COMMON_PASSWORDS = new Set<string>([
-  'password123456',
-  'qwertyuiop1234',
-  'letmein12345678',
-  '123456789012',
-  'adminadmin1234',
-  'welcome12345678',
-  'iloveyouyou1234',
-  'changemechangeme',
-]);
+// zxcvbn's dictionary-backed strength estimator catches common passwords,
+// keyboard walks, and personalized patterns (e.g. email-prefix variants) that
+// a short hardcoded list cannot. Loaded once at module init.
+zxcvbnOptions.setOptions({
+  translations: zxcvbnEn.translations,
+  graphs: zxcvbnCommon.adjacencyGraphs,
+  dictionary: { ...zxcvbnCommon.dictionary, ...zxcvbnEn.dictionary },
+});
 
-export function checkPasswordPolicy(password: string): void {
+const MIN_ZXCVBN_SCORE = 3; // 0 too-guessable → 4 very-unguessable
+
+export function checkPasswordPolicy(password: string, userInputs: string[] = []): void {
   if (password.length < 12) throw new Error('Password must be at least 12 characters.');
-  if (COMMON_PASSWORDS.has(password.toLowerCase())) {
-    throw new Error('Password is too common.');
+  const r = zxcvbn(password, userInputs);
+  if (r.score < MIN_ZXCVBN_SCORE) {
+    const hint = r.feedback.warning || r.feedback.suggestions[0] || 'Password is too weak.';
+    throw new Error(`Password is too weak: ${hint}`);
   }
 }
 
