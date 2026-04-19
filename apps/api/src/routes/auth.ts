@@ -10,6 +10,7 @@ import { getDb } from '../db/index.js';
 import { createSession, resolveSession, revokeAllForUser, revokeSession } from '../auth/session.js';
 import {
   checkPasswordPolicy,
+  getDummyHash,
   hashPassword,
   needsRehash,
   verifyPassword,
@@ -51,9 +52,12 @@ export function registerAuthRoutes(app: FastifyInstance): void {
       .where('email', '=', body.email)
       .where('deleted_at', 'is', null)
       .executeTakeFirst();
-    if (!user) throw new AuthenticationError('Invalid credentials.');
-    const ok = await verifyPassword(user.password_hash, body.password);
-    if (!ok) throw new AuthenticationError('Invalid credentials.');
+    // Always run argon2.verify so the missing-user path takes the same ~100ms
+    // as the found-user path. Otherwise an attacker can enumerate registered
+    // emails via response timing.
+    const hashToVerify = user?.password_hash ?? (await getDummyHash());
+    const ok = await verifyPassword(hashToVerify, body.password);
+    if (!user || !ok) throw new AuthenticationError('Invalid credentials.');
     if (user.totp_enabled) {
       if (!body.totpCode) throw new AuthenticationError('TOTP code required.');
       const secret = decryptSecret(user.totp_secret_enc!);

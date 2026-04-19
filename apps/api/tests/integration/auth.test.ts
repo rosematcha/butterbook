@@ -63,4 +63,40 @@ describe('auth', () => {
     expect(res.statusCode).toBe(401);
     expect(JSON.parse(res.body).type).toContain('authentication_required');
   });
+
+  it('login timing is roughly constant between registered and unregistered emails', async () => {
+    // If the unregistered-email path short-circuited (no argon2 call), the
+    // timing gap would be ~100ms. The equalized path should be well under 50ms
+    // apart. Use a generous margin to stay non-flaky on slower CI hardware.
+    await app.inject({
+      method: 'POST',
+      url: '/api/v1/auth/register',
+      payload: { email: 'exists@example.com', password: 'longenoughpass1234' },
+    });
+    // Warm the dummy-hash cache so the first unregistered call doesn't pay the
+    // one-time computation cost.
+    await app.inject({
+      method: 'POST',
+      url: '/api/v1/auth/login',
+      payload: { email: 'warmup@example.com', password: 'wrongwrongwrong12' },
+    });
+    const time = async (email: string): Promise<number> => {
+      const t0 = performance.now();
+      await app.inject({
+        method: 'POST',
+        url: '/api/v1/auth/login',
+        payload: { email, password: 'wrongwrongwrong12' },
+      });
+      return performance.now() - t0;
+    };
+    const existing: number[] = [];
+    const missing: number[] = [];
+    for (let i = 0; i < 5; i++) {
+      existing.push(await time('exists@example.com'));
+      missing.push(await time('never-registered-' + i + '@example.com'));
+    }
+    const avg = (xs: number[]): number => xs.reduce((a, b) => a + b, 0) / xs.length;
+    const diff = Math.abs(avg(existing) - avg(missing));
+    expect(diff).toBeLessThan(50);
+  });
 });
