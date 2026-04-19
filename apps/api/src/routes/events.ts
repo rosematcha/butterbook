@@ -11,6 +11,7 @@ import { withOrgContext, withOrgRead } from '../db/index.js';
 import { ConflictError, NotFoundError } from '../errors/index.js';
 import { newPublicId } from '../utils/ids.js';
 import { allowIncludeDeleted } from '../utils/soft-delete.js';
+import { assertSafeFormFieldPatterns } from '../utils/safe-regex.js';
 
 const orgParam = z.object({ orgId: z.string().uuid() });
 const eventParam = z.object({ orgId: z.string().uuid(), eventId: z.string().uuid() });
@@ -44,6 +45,7 @@ export function registerEventRoutes(app: FastifyInstance): void {
   app.post('/api/v1/orgs/:orgId/events', async (req) => {
     const { orgId } = orgParam.parse(req.params);
     const body = createEventSchema.parse(req.body);
+    if (body.formFields) assertSafeFormFieldPatterns(body.formFields);
     await req.requirePermission(orgId, 'events.create');
     const m = await req.loadMembershipFor(orgId);
     return withOrgContext(orgId, req.actorForOrg(orgId, m), async ({ tx, audit }) => {
@@ -90,6 +92,7 @@ export function registerEventRoutes(app: FastifyInstance): void {
   app.patch('/api/v1/orgs/:orgId/events/:eventId', async (req) => {
     const { orgId, eventId } = eventParam.parse(req.params);
     const body = updateEventSchema.parse(req.body);
+    if (body.formFields) assertSafeFormFieldPatterns(body.formFields);
     await req.requirePermission(orgId, 'events.edit');
     const m = await req.loadMembershipFor(orgId);
     return withOrgContext(orgId, req.actorForOrg(orgId, m), async ({ tx, audit }) => {

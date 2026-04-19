@@ -10,6 +10,7 @@ import {
 import { getDb, withOrgContext, withOrgRead } from '../db/index.js';
 import { createOrgWithOwner } from '../services/orgs.js';
 import { ConflictError, NotFoundError } from '../errors/index.js';
+import { assertSafeFormFieldPatterns } from '../utils/safe-regex.js';
 
 const orgIdParam = z.object({ orgId: z.string().uuid() });
 
@@ -135,6 +136,7 @@ export function registerOrgRoutes(app: FastifyInstance): void {
   app.put('/api/v1/orgs/:orgId/form', async (req) => {
     const { orgId } = orgIdParam.parse(req.params);
     const body = putFormSchema.parse(req.body);
+    assertSafeFormFieldPatterns(body.fields);
     await req.requirePermission(orgId, 'admin.manage_forms');
     const m = await req.loadMembershipFor(orgId);
     return withOrgContext(orgId, req.actorForOrg(orgId, m), async ({ tx, audit }) => {
