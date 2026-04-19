@@ -12,6 +12,7 @@
 // straight off the pg Pool.
 
 import type { FastifyInstance } from 'fastify';
+import crypto from 'node:crypto';
 import { getPool } from '../db/index.js';
 import { getConfig } from '../config.js';
 
@@ -76,7 +77,10 @@ export function registerMetricsRoutes(app: FastifyInstance): void {
       });
     }
     const auth = req.headers['authorization'];
-    if (typeof auth !== 'string' || auth !== `Bearer ${token}`) {
+    const expected = `Bearer ${token}`;
+    const a = Buffer.from(typeof auth === 'string' ? auth : '');
+    const b = Buffer.from(expected);
+    if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
       return reply.status(401).type('application/problem+json').send({
         type: 'https://scheduler.app/errors/authentication_required',
         title: 'Authentication Required',

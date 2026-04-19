@@ -60,7 +60,7 @@ export const formFieldValidationSchema = z
 export const formFieldSchema = z
   .object({
     fieldKey: fieldKeySchema,
-    label: z.string().min(1).max(200),
+    label: z.string().min(1).max(200).regex(/^[^<>]*$/, 'HTML tags are not allowed in labels'),
     fieldType: fieldTypeSchema,
     required: z.boolean(),
     /**
