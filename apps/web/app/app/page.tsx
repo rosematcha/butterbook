@@ -11,6 +11,8 @@ import { Timeline, type TimelineVisit } from '../components/timeline';
 import { AddVisitorModal } from '../components/add-visitor-modal';
 import { EditVisitorModal } from '../components/edit-visitor-modal';
 import { MonthPicker } from '../components/month-picker';
+import { ScaleControl } from '../components/scale-control';
+import { useTodayZoom } from '../../lib/use-today-zoom';
 
 function toLocalDateKey(d: Date): string {
   const pad = (n: number) => n.toString().padStart(2, '0');
@@ -47,6 +49,7 @@ export default function TodayPage() {
   const [date, setDate] = useState<Date>(() => new Date());
   const [addOpen, setAddOpen] = useState(false);
   const [editing, setEditing] = useState<TimelineVisit | null>(null);
+  const [zoom, setZoom] = useTodayZoom();
 
   // Honor `?add=1` from the command palette so "Add visitor on Today" deep-links here.
   useEffect(() => {
@@ -267,6 +270,7 @@ export default function TodayPage() {
             <button onClick={() => shiftToActive(1)} className="px-2.5 py-1.5 text-sm text-paper-600 hover:text-ink" aria-label="Next open day">›</button>
           </div>
           <MonthPicker value={date} onChange={setDate} />
+          <ScaleControl value={zoom} onChange={setZoom} />
           <button className="btn" onClick={() => setAddOpen(true)} disabled={!dayIsActive && !active.isLoading}>
             + Add visitor
           </button>
@@ -307,6 +311,7 @@ export default function TodayPage() {
           onReconfirm={(id) => reconfirm.mutate(id)}
           onEdit={(v) => setEditing(v)}
           onTagsChange={(id, tags) => tagsMut.mutate({ id, tags })}
+          zoom={zoom}
         />
       )}
 

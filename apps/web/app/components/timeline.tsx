@@ -38,7 +38,7 @@ export interface TimelineVisit {
   tags?: string[];
 }
 
-const HOUR_HEIGHT = 96; // more vertical breathing room
+const BASE_HOUR_HEIGHT = 96; // more vertical breathing room
 const CARD_MINUTES = 45;
 
 function isSameDay(a: Date, b: Date): boolean {
@@ -83,6 +83,7 @@ export function Timeline({
   onReconfirm,
   onEdit,
   onTagsChange,
+  zoom = 1,
 }: {
   date: Date;
   visits: TimelineVisit[];
@@ -92,10 +93,14 @@ export function Timeline({
   startHour?: number;
   /** Last hour (0–24) shown at the bottom of the grid. Must be > startHour. */
   endHour?: number;
+  /** Vertical zoom factor. Scales hour row height so scroll + hit-testing
+   *  stay accurate (unlike CSS `zoom`, which distorts layout math). */
+  zoom?: number;
 } & TimelineHandlers) {
   const START_HOUR = startHour;
   const END_HOUR = endHour;
   const TOTAL_HOURS = Math.max(1, END_HOUR - START_HOUR);
+  const HOUR_HEIGHT = BASE_HOUR_HEIGHT * zoom;
 
   const topFor = (d: Date): number => {
     const h = d.getHours() + d.getMinutes() / 60;
@@ -147,7 +152,10 @@ export function Timeline({
           return (
             <div key={h} className="absolute left-0 right-0" style={{ top: i * HOUR_HEIGHT }}>
               <div className="absolute left-20 right-0 top-0 border-t border-paper-200" />
-              <div className="-mt-2 w-16 pr-3 text-right font-display text-xs text-paper-500">
+              <div
+                className="-mt-2 w-16 pr-3 text-right font-display text-paper-500"
+                style={{ fontSize: `${12 * zoom}px` }}
+              >
                 {fmtHour(h)}
               </div>
             </div>
@@ -192,6 +200,7 @@ export function Timeline({
                 key={v.id}
                 visit={v}
                 fields={fields ?? []}
+                zoom={zoom}
                 style={{
                   top: top + 3,
                   height: (CARD_MINUTES / 60) * HOUR_HEIGHT - 6,
@@ -221,11 +230,13 @@ function VisitCard({
   fields,
   style,
   handlers,
+  zoom,
 }: {
   visit: TimelineVisit;
   fields: FormField[];
   style: React.CSSProperties;
   handlers: TimelineHandlers;
+  zoom: number;
 }) {
   const d = new Date(visit.scheduledAt);
   const name = visit.piiRedacted
@@ -269,30 +280,30 @@ function VisitCard({
     <div
       ref={cardRef}
       className={`group absolute flex rounded-md bg-white transition hover:ring-1 hover:ring-paper-300 ${dim ? 'opacity-60' : ''}`}
-      style={style}
+      style={{ ...style, fontSize: `${15 * zoom}px` }}
     >
       <div className={`w-1 shrink-0 rounded-l-md ${statusLeftBar(visit.status)}`} />
-      <div className="flex min-w-0 flex-1 items-start justify-between gap-2 px-3 py-2">
+      <div className="flex min-w-0 flex-1 items-start justify-between gap-[0.53em] px-[0.8em] py-[0.53em]">
         <div className="min-w-0 flex-1">
-          <div className="flex items-baseline gap-2">
-            <span className="font-display text-sm font-medium tabular-nums text-paper-700">
+          <div className="flex items-baseline gap-[0.53em]">
+            <span className="font-display text-[0.93em] font-medium tabular-nums text-paper-700">
               {d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }).toLowerCase()}
             </span>
-            <span className="text-[10px] uppercase tracking-wider text-paper-400">{methodTag(visit.bookingMethod)}</span>
+            <span className="text-[0.67em] uppercase tracking-wider text-paper-400">{methodTag(visit.bookingMethod)}</span>
             {visit.status !== 'confirmed' ? (
-              <span className="text-[10px] uppercase tracking-wider text-paper-500">· {visit.status.replace('_', ' ')}</span>
+              <span className="text-[0.67em] uppercase tracking-wider text-paper-500">· {visit.status.replace('_', ' ')}</span>
             ) : null}
           </div>
-          <div className="mt-0.5 truncate text-[15px] font-medium text-ink">{name}</div>
-          <div className="mt-0.5 flex items-center gap-1.5 text-xs text-paper-500">
+          <div className="mt-[0.13em] truncate text-[1em] font-medium text-ink">{name}</div>
+          <div className="mt-[0.13em] flex items-center gap-[0.4em] text-[0.8em] text-paper-500">
             {party ? <span>Party of {party}</span> : null}
             {party && tags.length ? <span className="text-paper-300">·</span> : null}
             {tags.length ? (
-              <div className="flex min-w-0 flex-wrap gap-1">
+              <div className="flex min-w-0 flex-wrap gap-[0.33em]">
                 {tags.map((t) => (
                   <span
                     key={t}
-                    className="group/tag inline-flex items-center gap-1 rounded-full bg-brand-accent/10 px-1.5 py-0.5 text-[10px] font-medium text-brand-accent"
+                    className="group/tag inline-flex items-center gap-[0.33em] rounded-full bg-brand-accent/10 px-[0.5em] py-[0.17em] text-[0.83em] font-medium text-brand-accent"
                   >
                     {t}
                     {handlers.onTagsChange ? (
@@ -312,12 +323,12 @@ function VisitCard({
           </div>
         </div>
 
-        <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition focus-within:opacity-100 group-hover:opacity-100">
+        <div className="flex shrink-0 items-center gap-[0.13em] opacity-0 transition focus-within:opacity-100 group-hover:opacity-100">
           {handlers.onTagsChange ? (
             <button
               type="button"
               onClick={openTagPopover}
-              className="btn-ghost px-1.5 text-[11px]"
+              className="btn-ghost px-[0.4em] text-[0.73em]"
               title="Add a tag"
               aria-label="Add a tag"
             >
@@ -327,7 +338,7 @@ function VisitCard({
           <button
             type="button"
             onClick={openMenu}
-            className="btn-ghost px-1.5 text-sm leading-none"
+            className="btn-ghost px-[0.4em] text-[0.93em] leading-none"
             title="More actions"
             aria-label="More actions"
           >
