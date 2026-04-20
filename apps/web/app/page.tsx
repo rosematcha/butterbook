@@ -67,7 +67,7 @@ function MkHero() {
           <h1
             className="font-display text-balance"
             style={{
-              fontSize: 'clamp(52px, 7vw, 108px)',
+              fontSize: 'clamp(52px, 4.75vw, 74px)',
               lineHeight: 0.94,
               letterSpacing: '-0.035em',
               fontWeight: 380,
