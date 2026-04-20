@@ -1,5 +1,6 @@
 import Fastify, { type FastifyInstance } from 'fastify';
 import fastifyCors from '@fastify/cors';
+import fastifyEtag from '@fastify/etag';
 import fastifyRateLimit from '@fastify/rate-limit';
 import { Redis } from 'ioredis';
 import crypto from 'node:crypto';
@@ -84,9 +85,24 @@ export async function buildApp(): Promise<FastifyInstance> {
   registerErrorHandler(app);
   registerAuthContext(app);
 
-  // Request-id echo.
+  // Hash-based ETag on every response; @fastify/etag also returns 304 when
+  // the incoming If-None-Match matches, so repeat dashboard refetches
+  // round-trip with no body.
+  await app.register(fastifyEtag);
+
+  // Tell browsers / TanStack that per-org reads are revalidatable but must
+  // always check with the server. Paired with the ETag above, a warm
+  // navigation issues a conditional GET and gets back a 304.
+  // Skip auth/kiosk/public/meta/health — they either have no revalidation
+  // semantics or are shared cache-hostile. Skip the streaming export too;
+  // it sets its own headers via reply.hijack().
   app.addHook('onSend', async (req, reply, payload) => {
     reply.header('X-Request-Id', req.id);
+    if (req.method === 'GET' && req.url.startsWith('/api/v1/orgs/') && !req.url.includes('/export')) {
+      // `private`: don't cache in shared proxies (responses are user-scoped).
+      // `max-age=0, must-revalidate`: always revalidate via If-None-Match.
+      reply.header('Cache-Control', 'private, max-age=0, must-revalidate');
+    }
     return payload;
   });
 
