@@ -4,6 +4,7 @@ import { useState, type FormEvent } from 'react';
 import Link from 'next/link';
 import { apiDelete, apiGet, apiPost } from '../../../lib/api';
 import { useSession } from '../../../lib/session';
+import { SkeletonRows } from '../../components/skeleton-rows';
 
 interface Location {
   id: string;
@@ -64,26 +65,32 @@ export default function LocationsPage() {
             </tr>
           </thead>
           <tbody>
-            {(locations.data?.data ?? []).map((l) => (
-              <tr key={l.id} className="border-t border-slate-100">
-                <td className="py-2">{l.name}</td>
-                <td>{l.address ?? '—'}</td>
-                <td>
-                  {l.isPrimary ? (
-                    <span className="rounded bg-slate-900 px-2 py-0.5 text-xs text-white">Primary</span>
-                  ) : (
-                    <button onClick={() => setPrimary.mutate(l.id)} className="text-xs underline">Make primary</button>
-                  )}
-                </td>
-                <td className="space-x-3 text-right">
-                  <Link href={`/app/locations/hours?id=${l.id}`} className="text-xs underline">Hours</Link>
-                  <Link href={`/app/locations/qr?id=${l.id}`} className="text-xs underline">QR</Link>
-                  {!l.isPrimary ? (
-                    <button onClick={() => deleteLocation.mutate(l.id)} className="text-xs text-red-600 underline">Delete</button>
-                  ) : null}
-                </td>
-              </tr>
-            ))}
+            {locations.isPending ? (
+              <SkeletonRows cols={4} rows={3} />
+            ) : (locations.data?.data ?? []).length === 0 ? (
+              <tr><td colSpan={4} className="py-4 text-center text-slate-500">No locations yet. Add one above.</td></tr>
+            ) : (
+              (locations.data?.data ?? []).map((l) => (
+                <tr key={l.id} className="border-t border-slate-100">
+                  <td className="py-2">{l.name}</td>
+                  <td>{l.address ?? '—'}</td>
+                  <td>
+                    {l.isPrimary ? (
+                      <span className="rounded bg-slate-900 px-2 py-0.5 text-xs text-white">Primary</span>
+                    ) : (
+                      <button onClick={() => setPrimary.mutate(l.id)} className="text-xs underline">Make primary</button>
+                    )}
+                  </td>
+                  <td className="space-x-3 text-right">
+                    <Link href={`/app/locations/hours?id=${l.id}`} className="text-xs underline">Hours</Link>
+                    <Link href={`/app/locations/qr?id=${l.id}`} className="text-xs underline">QR</Link>
+                    {!l.isPrimary ? (
+                      <button onClick={() => deleteLocation.mutate(l.id)} className="text-xs text-red-600 underline">Delete</button>
+                    ) : null}
+                  </td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </section>

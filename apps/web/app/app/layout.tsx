@@ -1,37 +1,45 @@
 'use client';
-import { useEffect } from 'react';
+import { Suspense, useEffect, useMemo } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiGet, getToken, setToken } from '../../lib/api';
 import { useSession, type Membership, type User } from '../../lib/session';
 import { useApplyBranding } from '../../lib/branding';
 import { useTerminology } from '../../lib/use-terminology';
+import { makePrefetchers } from '../../lib/prefetch';
 import { CommandPalette } from '../components/command-palette';
 import { ShortcutHelp } from '../components/shortcut-help';
+import { PrefetchLink } from '../components/prefetch-link';
+import { SkeletonBlock } from '../components/skeleton-rows';
 
-interface NavItem { href: string; label: string }
+type PrefetchKey = keyof ReturnType<typeof makePrefetchers>;
+interface NavItem { href: string; label: string; prefetch?: PrefetchKey }
 
 const SETTINGS_NAV: NavItem[] = [
-  { href: '/app/locations', label: 'Locations' },
-  { href: '/app/form', label: 'Form fields' },
-  { href: '/app/members', label: 'Members' },
-  { href: '/app/roles', label: 'Roles' },
-  { href: '/app/branding', label: 'Branding' },
-  { href: '/app/audit', label: 'Audit log' },
+  { href: '/app/locations', label: 'Locations', prefetch: 'locations' },
+  { href: '/app/form', label: 'Form fields', prefetch: 'form' },
+  { href: '/app/members', label: 'Members', prefetch: 'members' },
+  { href: '/app/roles', label: 'Roles', prefetch: 'roles' },
+  { href: '/app/branding', label: 'Branding', prefetch: 'branding' },
+  { href: '/app/audit', label: 'Audit log', prefetch: 'audit' },
 ];
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
+  const qc = useQueryClient();
   const { user, memberships, activeOrgId, setSession, setActiveOrgId, clear } = useSession();
   const term = useTerminology();
 
   const mainNav: NavItem[] = [
-    { href: '/app', label: 'Today' },
-    { href: '/app/visits', label: `All ${term.nounPlural}` },
-    { href: '/app/events', label: 'Events' },
+    { href: '/app', label: 'Today', prefetch: 'today' },
+    { href: '/app/visits', label: `All ${term.nounPlural}`, prefetch: 'visits' },
+    { href: '/app/events', label: 'Events', prefetch: 'events' },
   ];
+
+  // Prefetchers reset when orgId flips so we don't warm the wrong org's data.
+  const prefetchers = useMemo(() => makePrefetchers(qc, activeOrgId), [qc, activeOrgId]);
 
   // Paints the org's palette onto <html> via CSS custom properties so every
   // `bg-brand-*` / `text-brand-*` class on the page picks it up.
@@ -68,16 +76,18 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     }
     setToken(null);
     clear();
+    qc.clear();
+    if (typeof window !== 'undefined') window.localStorage.removeItem('butterbook.qc');
     router.replace('/login');
   }
 
   const active = memberships.find((m) => m.orgId === activeOrgId);
 
-  if (me.isLoading || !user) {
-    return <main className="p-6 text-sm text-paper-500">Loading…</main>;
-  }
-
-  if (memberships.length === 0) {
+  // Only show the "set up your organization" empty state once /me has
+  // resolved AND the session effect has synced memberships into Zustand.
+  // Otherwise we'd briefly flash the empty state while memberships defaults
+  // to [] between fetch resolution and setSession firing.
+  if (me.isSuccess && user !== null && memberships.length === 0) {
     // Let the new-org route (and any other /app/orgs/* bootstrap route) render
     // through; otherwise the "Create one" link would navigate into this same
     // layout and stay stuck on the empty state forever.
@@ -131,37 +141,65 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
         <div className="mb-4 px-2.5">
           <div className="h-eyebrow">Organization</div>
-          <select
-            value={activeOrgId ?? ''}
-            onChange={(e) => setActiveOrgId(e.target.value || null)}
-            className="input mt-1.5"
-          >
-            {memberships.map((m) => (
-              <option key={m.orgId} value={m.orgId}>
-                {m.orgName}
-                {m.isSuperadmin ? ' ★' : ''}
-              </option>
-            ))}
-          </select>
+          {memberships.length > 0 ? (
+            <select
+              value={activeOrgId ?? ''}
+              onChange={(e) => {
+                const next = e.target.value || null;
+                const prev = activeOrgId;
+                // Drop cached queries scoped to the previous org so the new org's
+                // tables show a skeleton instead of briefly flashing the wrong
+                // org's rows under the new org's header.
+                if (prev && prev !== next) {
+                  qc.removeQueries({
+                    predicate: (q) => q.queryKey.some((p) => p === prev),
+                  });
+                }
+                setActiveOrgId(next);
+              }}
+              className="input mt-1.5"
+            >
+              {memberships.map((m) => (
+                <option key={m.orgId} value={m.orgId}>
+                  {m.orgName}
+                  {m.isSuperadmin ? ' ★' : ''}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <div className="mt-1.5"><SkeletonBlock className="h-9 w-full" /></div>
+          )}
         </div>
 
         <nav className="flex flex-1 flex-col gap-0.5">
           {mainNav.map((n) => (
-            <Link key={n.href} href={n.href} className={`nav-link ${isActive(n.href) ? 'nav-link-active' : ''}`}>
+            <PrefetchLink
+              key={n.href}
+              href={n.href}
+              className={`nav-link ${isActive(n.href) ? 'nav-link-active' : ''}`}
+              prefetchData={n.prefetch ? prefetchers[n.prefetch] : undefined}
+            >
               {n.label}
-            </Link>
+            </PrefetchLink>
           ))}
           <div className="nav-section">Settings</div>
           {SETTINGS_NAV.map((n) => (
-            <Link key={n.href} href={n.href} className={`nav-link ${isActive(n.href) ? 'nav-link-active' : ''}`}>
+            <PrefetchLink
+              key={n.href}
+              href={n.href}
+              className={`nav-link ${isActive(n.href) ? 'nav-link-active' : ''}`}
+              prefetchData={n.prefetch ? prefetchers[n.prefetch] : undefined}
+            >
               {n.label}
-            </Link>
+            </PrefetchLink>
           ))}
         </nav>
 
         <div className="mt-6 border-t border-paper-200 pt-4">
           <div className="px-2.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-paper-400">Signed in</div>
-          <div className="truncate px-2.5 text-sm">{user.email}</div>
+          <div className="truncate px-2.5 text-sm">
+            {user?.email ?? <SkeletonBlock className="h-3 w-32" />}
+          </div>
           <button onClick={handleLogout} className="btn-ghost mt-2 w-full justify-start px-2.5">Sign out</button>
         </div>
       </aside>
@@ -170,7 +208,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         <header className="flex items-center justify-between border-b border-paper-200 bg-white/70 px-10 py-4 backdrop-blur">
           <div className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.14em] text-paper-600">
             <span className="inline-block h-1.5 w-1.5 rounded-full bg-brand-accent" aria-hidden />
-            {active?.orgName ?? 'No org'}
+            {active?.orgName ?? (me.isPending ? <SkeletonBlock className="h-3 w-28" /> : 'No org')}
           </div>
           <button
             type="button"
@@ -188,8 +226,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </header>
         <main className="px-10 py-8">{children}</main>
       </div>
-      <CommandPalette />
-      <ShortcutHelp />
+      {/* ShortcutHelp reads useSearchParams; wrap in Suspense so the route
+          isn't force-dynamic just for the keyboard overlay. */}
+      <Suspense fallback={null}>
+        <CommandPalette />
+        <ShortcutHelp />
+      </Suspense>
     </div>
   );
 }

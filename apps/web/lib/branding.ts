@@ -1,16 +1,34 @@
 'use client';
 import { useEffect } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, type UseQueryResult } from '@tanstack/react-query';
 import { apiGet } from './api';
 
-interface BrandingPayload {
+export type BrandingFont = 'system' | 'serif' | 'sans' | 'mono';
+export type BrandingRadius = 'none' | 'small' | 'medium' | 'large' | 'full';
+
+export interface BrandingPayload {
   data: {
+    id: string;
+    name: string;
+    publicSlug: string;
+    logoUrl: string | null;
     theme: {
       primaryColor?: string;
       secondaryColor?: string;
       accentColor?: string;
+      fontFamily?: BrandingFont;
+      buttonRadius?: BrandingRadius;
     };
   };
+}
+
+export function useBrandingQuery(orgId: string | null): UseQueryResult<BrandingPayload> {
+  return useQuery({
+    queryKey: ['branding', orgId],
+    queryFn: () => apiGet<BrandingPayload>(`/api/v1/orgs/${orgId}/branding`),
+    enabled: !!orgId,
+    staleTime: 5 * 60_000,
+  });
 }
 
 /** "#da4599" → "218 69 153" (space-separated RGB for use with rgb(var()/<a>)). */
@@ -41,13 +59,7 @@ function luminanceFromTuple(rgb: string): number {
  * on those surfaces stays readable regardless of hue.
  */
 export function useApplyBranding(orgId: string | null): void {
-  const q = useQuery({
-    queryKey: ['branding', orgId],
-    queryFn: () =>
-      apiGet<BrandingPayload>(`/api/v1/orgs/${orgId}/branding`),
-    enabled: !!orgId,
-    staleTime: 60_000,
-  });
+  const q = useBrandingQuery(orgId);
 
   useEffect(() => {
     const root = document.documentElement;

@@ -1,7 +1,7 @@
 'use client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
-import { useEffect, useState, type FormEvent } from 'react';
+import { Suspense, useEffect, useState, type FormEvent } from 'react';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import { apiDelete, apiGet, apiPost, ApiError } from '../../../lib/api';
 import { useSession } from '../../../lib/session';
@@ -10,6 +10,7 @@ import { useToast } from '../../../lib/toast';
 import { CopyButton } from '../../components/copy-button';
 import { Timestamp } from '../../components/timestamp';
 import { EmptyState } from '../../components/empty-state';
+import { SkeletonRows } from '../../components/skeleton-rows';
 
 interface EventRow {
   id: string;
@@ -25,6 +26,14 @@ interface EventRow {
 interface Location { id: string; name: string; }
 
 export default function EventsPage() {
+  return (
+    <Suspense fallback={null}>
+      <EventsPageInner />
+    </Suspense>
+  );
+}
+
+function EventsPageInner() {
   const { activeOrgId } = useSession();
   const qc = useQueryClient();
   const confirm = useConfirm();
@@ -113,7 +122,7 @@ export default function EventsPage() {
         />
       ) : null}
 
-      {rows.length === 0 && !events.isLoading ? (
+      {events.isSuccess && rows.length === 0 ? (
         <EmptyState
           title="No events yet."
           description="Create one to publish a public booking page and start taking registrations."
@@ -132,7 +141,7 @@ export default function EventsPage() {
               </tr>
             </thead>
             <tbody>
-              {rows.map((e) => {
+              {events.isPending ? <SkeletonRows cols={5} rows={4} /> : rows.map((e) => {
                 const publicUrl = `${origin}/events/${e.slug ?? e.publicId}`;
                 return (
                   <tr key={e.id} className="border-t border-paper-100">

@@ -1,27 +1,12 @@
 'use client';
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
-import { apiGet, apiPatch, ApiError } from '../../../lib/api';
+import { apiPatch, ApiError } from '../../../lib/api';
 import { useSession } from '../../../lib/session';
 import { PALETTES, type Palette } from '../../../lib/palettes';
+import { useBrandingQuery, type BrandingFont, type BrandingRadius } from '../../../lib/branding';
 
-type FontFamily = 'system' | 'serif' | 'sans' | 'mono';
-type ButtonRadius = 'none' | 'small' | 'medium' | 'large' | 'full';
-
-interface Branding {
-  data: {
-    id: string;
-    name: string;
-    publicSlug: string;
-    logoUrl: string | null;
-    theme: {
-      primaryColor?: string;
-      secondaryColor?: string;
-      accentColor?: string;
-      fontFamily?: FontFamily;
-      buttonRadius?: ButtonRadius;
-    };
-  };
-}
+type FontFamily = BrandingFont;
+type ButtonRadius = BrandingRadius;
 
 const RADIUS_PX: Record<ButtonRadius, string> = {
   none: '0',
@@ -92,6 +77,7 @@ function ColorField({
 
 export default function BrandingPage() {
   const { activeOrgId } = useSession();
+  const branding = useBrandingQuery(activeOrgId);
   const [logoUrl, setLogoUrl] = useState('');
   const [primary, setPrimary] = useState('');
   const [secondary, setSecondary] = useState('');
@@ -104,16 +90,15 @@ export default function BrandingPage() {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (!activeOrgId) return;
-    apiGet<Branding>(`/api/v1/orgs/${activeOrgId}/branding`).then((b) => {
-      setLogoUrl(b.data.logoUrl ?? '');
-      setPrimary(b.data.theme.primaryColor ?? '');
-      setSecondary(b.data.theme.secondaryColor ?? '');
-      setAccent(b.data.theme.accentColor ?? '');
-      setFontFamily(b.data.theme.fontFamily ?? 'system');
-      setRadius(b.data.theme.buttonRadius ?? 'medium');
-    }).catch(() => { /* ignore — page still usable */ });
-  }, [activeOrgId]);
+    const b = branding.data;
+    if (!b) return;
+    setLogoUrl(b.data.logoUrl ?? '');
+    setPrimary(b.data.theme.primaryColor ?? '');
+    setSecondary(b.data.theme.secondaryColor ?? '');
+    setAccent(b.data.theme.accentColor ?? '');
+    setFontFamily(b.data.theme.fontFamily ?? 'system');
+    setRadius(b.data.theme.buttonRadius ?? 'medium');
+  }, [branding.data]);
 
   const selectedPalette = useMemo(() => {
     if (!primary || !secondary || !accent) return null;

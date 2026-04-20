@@ -8,6 +8,7 @@ import { useConfirm } from '../../../lib/confirm';
 import { CopyButton } from '../../components/copy-button';
 import { Timestamp } from '../../components/timestamp';
 import { EmptyState } from '../../components/empty-state';
+import { SkeletonRows } from '../../components/skeleton-rows';
 
 interface Member {
   memberId: string;
@@ -152,7 +153,7 @@ export default function MembersPage() {
 
       <section>
         <h2 className="h-eyebrow">Current members</h2>
-        {memberRows.length === 0 && !members.isLoading ? (
+        {members.isSuccess && memberRows.length === 0 ? (
           <EmptyState title="Just you for now." description="Invite a colleague above to share the workload." />
         ) : (
           <div className="panel mt-3 overflow-hidden">
@@ -166,7 +167,7 @@ export default function MembersPage() {
                 </tr>
               </thead>
               <tbody>
-                {memberRows.map((m) => (
+                {members.isPending ? <SkeletonRows cols={4} rows={4} /> : memberRows.map((m) => (
                   <tr key={m.memberId} className="border-t border-paper-100">
                     <td className="px-4 py-3">
                       <div className="font-medium text-ink">{m.email}</div>

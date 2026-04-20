@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useMemo, useState } from 'react';
+import { Suspense, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { FormField } from '@butterbook/shared';
@@ -12,6 +12,7 @@ import { AddVisitorModal } from '../components/add-visitor-modal';
 import { EditVisitorModal } from '../components/edit-visitor-modal';
 import { MonthPicker } from '../components/month-picker';
 import { ScaleControl } from '../components/scale-control';
+import { SkeletonBlock } from '../components/skeleton-rows';
 import { useTodayZoom } from '../../lib/use-today-zoom';
 
 function toLocalDateKey(d: Date): string {
@@ -39,7 +40,19 @@ function isSameDay(a: Date, b: Date): boolean {
   return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
 }
 
+// Wrap the real page in Suspense so `useSearchParams` below doesn't trip
+// Next's CSR-bailout error during the static export build. Fallback is
+// null because the TodayPage itself renders skeleton states while data
+// loads — a second layer of loading UI would just flicker.
 export default function TodayPage() {
+  return (
+    <Suspense fallback={null}>
+      <TodayPageInner />
+    </Suspense>
+  );
+}
+
+function TodayPageInner() {
   const { activeOrgId } = useSession();
   const qc = useQueryClient();
   const toast = useToast();
@@ -279,7 +292,7 @@ export default function TodayPage() {
 
       {!dayIsActive ? (
         active.isLoading ? (
-          <p className="text-sm text-paper-500">Loading…</p>
+          <TimelineSkeleton />
         ) : (
           <div className="mt-16 max-w-md">
             <h2 className="font-display text-2xl font-medium tracking-tight-er text-ink">Closed.</h2>
@@ -291,8 +304,8 @@ export default function TodayPage() {
             <button className="btn-secondary mt-5" onClick={() => shiftToActive(1)}>Jump to next open day</button>
           </div>
         )
-      ) : visits.isLoading && !visits.isPlaceholderData ? (
-        <p className="text-sm text-paper-500">Loading…</p>
+      ) : visits.isPending ? (
+        <TimelineSkeleton />
       ) : list.length === 0 ? (
         <div className="mt-16 max-w-md">
           <h2 className="font-display text-2xl font-medium tracking-tight-er text-ink">A quiet day.</h2>
@@ -317,6 +330,20 @@ export default function TodayPage() {
 
       <AddVisitorModal open={addOpen} onClose={() => setAddOpen(false)} defaultDate={date} />
       <EditVisitorModal visit={editing} onClose={() => setEditing(null)} />
+    </div>
+  );
+}
+
+function TimelineSkeleton() {
+  return (
+    <div className="mt-2 space-y-2">
+      <SkeletonBlock className="h-8 w-full" />
+      {Array.from({ length: 6 }).map((_, i) => (
+        <div key={i} className="flex items-center gap-3">
+          <SkeletonBlock className="h-4 w-14" />
+          <SkeletonBlock className="h-10 flex-1" />
+        </div>
+      ))}
     </div>
   );
 }

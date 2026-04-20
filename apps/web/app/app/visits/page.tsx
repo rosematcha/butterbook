@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { apiGet, apiPost } from '../../../lib/api';
 import { useSession } from '../../../lib/session';
+import { SkeletonRows } from '../../components/skeleton-rows';
 
 interface Visit {
   id: string;
@@ -55,26 +56,29 @@ export default function VisitsPage() {
             </tr>
           </thead>
           <tbody>
-            {(visits.data?.data ?? []).map((v) => (
-              <tr key={v.id} className="border-t border-slate-100">
-                <td className="py-2">{new Date(v.scheduledAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td>
-                <td>{v.piiRedacted ? <em className="text-slate-400">[redacted]</em> : String(v.formResponse.name ?? '—')}</td>
-                <td>{String(v.formResponse.party_size ?? '—')}</td>
-                <td>{v.bookingMethod}</td>
-                <td>{v.status}</td>
-                <td className="space-x-3 text-right">
-                  {v.status === 'confirmed' ? (
-                    <>
-                      <button onClick={() => cancel.mutate(v.id)} className="text-xs text-red-600 underline">Cancel</button>
-                      <button onClick={() => noShow.mutate(v.id)} className="text-xs underline">No-show</button>
-                    </>
-                  ) : null}
-                </td>
-              </tr>
-            ))}
-            {visits.data && visits.data.data.length === 0 ? (
+            {visits.isPending ? (
+              <SkeletonRows cols={6} rows={6} />
+            ) : (visits.data?.data ?? []).length === 0 ? (
               <tr><td colSpan={6} className="py-4 text-center text-slate-500">No visits.</td></tr>
-            ) : null}
+            ) : (
+              (visits.data?.data ?? []).map((v) => (
+                <tr key={v.id} className="border-t border-slate-100">
+                  <td className="py-2">{new Date(v.scheduledAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td>
+                  <td>{v.piiRedacted ? <em className="text-slate-400">[redacted]</em> : String(v.formResponse.name ?? '—')}</td>
+                  <td>{String(v.formResponse.party_size ?? '—')}</td>
+                  <td>{v.bookingMethod}</td>
+                  <td>{v.status}</td>
+                  <td className="space-x-3 text-right">
+                    {v.status === 'confirmed' ? (
+                      <>
+                        <button onClick={() => cancel.mutate(v.id)} className="text-xs text-red-600 underline">Cancel</button>
+                        <button onClick={() => noShow.mutate(v.id)} className="text-xs underline">No-show</button>
+                      </>
+                    ) : null}
+                  </td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </div>
