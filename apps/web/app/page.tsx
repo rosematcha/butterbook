@@ -534,13 +534,13 @@ function MkPricing() {
     {
       name: 'Free',
       price: '$0',
-      tag: 'Forever free',
-      blurb: 'For small spaces just getting started.',
+      tag: 'Try before you pay',
+      blurb: 'Poke around, book a few guests, see if it fits.',
       features: [
-        '50 contacts',
+        '10 contacts',
+        '50 visits / month',
         '4 events / month',
         'Public booking page',
-        'Visit register & export',
       ],
     },
     {
