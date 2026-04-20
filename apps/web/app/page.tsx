@@ -73,13 +73,13 @@ function MkHero() {
               fontWeight: 380,
             }}
           >
-            The quiet software<br />
-            <span className="italic text-brand-accent">small places</span><br />
-            run on.
+            Reservations, events,<br />
+            <span className="italic text-brand-accent">and everyone</span><br />
+            who walks in.
           </h1>
-          <p className="mt-8 max-w-[32ch] text-[19px] leading-relaxed text-paper-600">
-            Butterbook helps art museums, community studios, and solo practitioners understand
-            who&apos;s coming and when, without making a warm welcome feel transactional.
+          <p className="mt-8 max-w-[36ch] text-[19px] leading-relaxed text-paper-600">
+            Butterbook runs bookings, events, payments, and visitor records for art museums,
+            community studios, and solo practitioners. One tool for the whole day and the whole season.
           </p>
           <div className="mt-10 flex items-center gap-3">
             <Link
@@ -189,10 +189,10 @@ function HeroVisual() {
 /* ---------- Principles band ---------- */
 function MkProof() {
   const principles = [
-    { kicker: 'Principle 01', title: 'Soft signals, not hard gates', body: "Reservations tell you who's coming. They aren't contracts. We warn when a slot is busy instead of turning people away." },
-    { kicker: 'Principle 02', title: 'Flat-rate, forever', body: 'No per-visitor fees, no ticketing cut. Pricing you can put in a grant application.' },
-    { kicker: 'Principle 03', title: 'Yours to export', body: 'Visitor data leaves as clean CSV anytime. No lock-in, no renegotiations.' },
-    { kicker: 'Principle 04', title: 'Built in public', body: 'Open changelog, open roadmap. You can see what we shipped this week.' },
+    { kicker: 'Principle 01', title: 'Busy slots warn your team', body: 'Your staff still decides who comes in. No algorithm turns a family away at the door.' },
+    { kicker: 'Principle 02', title: 'One price, every guest', body: 'A flat monthly rate that fits a grant line, so you can plan a season without ticket math.' },
+    { kicker: 'Principle 03', title: 'Your data, ready to travel', body: 'Clean CSV and JSON exports on demand. Take your register to the board meeting, the auditor, the next platform.' },
+    { kicker: 'Principle 04', title: 'You can read the code', body: 'Open changelog, open roadmap, open repo. Self-host if you want the keys.' },
   ];
   return (
     <section className="border-y border-paper-200 bg-paper-100 py-14">
@@ -367,12 +367,12 @@ function MkFeatureGrid() {
                 fontWeight: 380,
               }}
             >
-              A small kit for <span className="italic text-brand-accent">a front desk.</span>
+              Bookings, events, <span className="italic text-brand-accent">and everything after.</span>
             </h2>
           </div>
           <p className="max-w-[34ch] text-[15px] text-paper-600">
-            The audit log is append-only. PII is redactable per field. Every mutation carries an
-            actor and a reason.
+            Your register tracks every visit. Your events hold capacity. Your audit log keeps
+            receipts. Your team sees who did what, and why.
           </p>
         </div>
         <div
@@ -414,9 +414,8 @@ function MkKiosk() {
             <span className="italic">wherever they are.</span>
           </h2>
           <p className="mt-6 max-w-[38ch] text-[17px] leading-relaxed text-paper-600">
-            The same page that lives on your website works on a shared tablet at the door.
-            Tape a QR code to the wall. Visitors fill in their name and go, without accounts
-            or app installs.
+            The booking page runs on your website, on a tablet by the door, or behind a taped-up
+            QR code. Visitors add their name and go. No accounts, no app installs, no sign-in screens.
           </p>
           <Link
             href="/register"
@@ -547,8 +546,8 @@ function MkPricing() {
     {
       name: 'Starter',
       price: '$8',
-      tag: 'For quiet months',
-      blurb: 'A little more room as things pick up.',
+      tag: 'For growing calendars',
+      blurb: 'Room for a busier season and the forms to go with it.',
       features: [
         '250 contacts',
         '10 events / month',
@@ -596,7 +595,7 @@ function MkPricing() {
             fontWeight: 380,
           }}
         >
-          Flat-rate, per&nbsp;organization. No <span className="italic">per-visitor</span> anything.
+          One flat rate. Built for the <span className="italic">whole organization.</span>
         </h2>
         <div className="mt-12 grid gap-5 md:grid-cols-2 lg:grid-cols-4">
           {plans.map((p) => (
@@ -740,7 +739,7 @@ function MkFooter() {
         <div>
           <Wordmark size={20} />
           <p className="mt-4 max-w-[30ch] text-[13px] text-paper-600">
-            Reservation software for small organizations.
+            Reservation software for places that know their guests by name.
           </p>
         </div>
         {cols.map(([title, links]) => (
