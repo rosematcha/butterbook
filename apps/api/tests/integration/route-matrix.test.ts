@@ -64,8 +64,9 @@ const ROUTES: RouteCase[] = [
   // --- auth (skipping since covered in auth.test.ts) ---
 
   // --- orgs ---
+  { name: 'GET slug-check', method: 'GET', url: () => `/api/v1/orgs/slug-check?slug=some-new-slug`, skip403: true },
   { name: 'GET org', method: 'GET', url: (c) => `/api/v1/orgs/${c.orgId}` },
-  { name: 'PATCH org (admin.manage_org)', method: 'PATCH', url: (c) => `/api/v1/orgs/${c.orgId}`, body: () => ({ name: 'New' }), invalidBody: () => ({ name: '' }) },
+  { name: 'PATCH org (admin.manage_org)', method: 'PATCH', url: (c) => `/api/v1/orgs/${c.orgId}`, body: () => ({ name: 'New', terminology: 'appointment', timeModel: 'start_end', country: 'US', city: 'Brooklyn', state: 'NY' }), invalidBody: () => ({ terminology: 'bogus' }) },
   { name: 'GET org branding', method: 'GET', url: (c) => `/api/v1/orgs/${c.orgId}/branding`, skip403: true },
   { name: 'PATCH org branding (admin.manage_org)', method: 'PATCH', url: (c) => `/api/v1/orgs/${c.orgId}/branding`, body: () => ({ theme: { primaryColor: '#112233' } }) },
   { name: 'GET org form (admin.manage_forms)', method: 'GET', url: (c) => `/api/v1/orgs/${c.orgId}/form` },

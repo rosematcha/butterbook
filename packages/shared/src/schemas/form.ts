@@ -151,6 +151,13 @@ export const DEFAULT_FORM_FIELDS: FormField[] = [
 ];
 
 /**
+ * Minimum viable intake form — just the visitor's name. The setup wizard
+ * starts the user here so they can add fields from a clean slate. Other
+ * callers (bootstrap CLI, tests) continue to use DEFAULT_FORM_FIELDS.
+ */
+export const MINIMAL_NAME_FIELD: FormField[] = [DEFAULT_FORM_FIELDS[0]!];
+
+/**
  * Build a Zod validator for a form response from the list of form fields.
  * Handles all supported field types, including implicit regexes for
  * email/phone/url/date/time and custom user-supplied patterns for text.

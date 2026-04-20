@@ -4,6 +4,11 @@ import { themeSchema } from './theme.js';
 import { formFieldsArraySchema } from './form.js';
 
 export const slotRoundingSchema = z.enum(['freeform', '5', '10', '15', '30']);
+export const terminologySchema = z.enum(['appointment', 'visit']);
+export const timeModelSchema = z.enum(['start_end', 'start_only', 'untimed']);
+
+// ISO 3166-1 alpha-2, upper-case. Not an exhaustive list — just a shape check.
+const countrySchema = z.string().length(2).regex(/^[A-Z]{2}$/);
 
 export const createOrgSchema = z
   .object({
@@ -12,6 +17,12 @@ export const createOrgSchema = z
     zip: z.string().min(1).max(20),
     timezone: ianaTimezoneSchema,
     publicSlug: slugSchema.optional(),
+    country: countrySchema.optional(),
+    city: z.string().min(1).max(120).optional(),
+    state: z.string().min(1).max(120).optional(),
+    terminology: terminologySchema.optional(),
+    timeModel: timeModelSchema.optional(),
+    formFields: formFieldsArraySchema.optional(),
   })
   .strict();
 
@@ -25,6 +36,11 @@ export const updateOrgSchema = z
     slotRounding: slotRoundingSchema.optional(),
     kioskResetSeconds: z.number().int().min(3).max(300).optional(),
     publicSlug: slugSchema.optional(),
+    country: countrySchema.optional(),
+    city: z.string().min(1).max(120).optional(),
+    state: z.string().min(1).max(120).optional(),
+    terminology: terminologySchema.optional(),
+    timeModel: timeModelSchema.optional(),
   })
   .strict();
 

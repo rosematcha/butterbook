@@ -6,6 +6,7 @@ export interface Membership {
   orgName: string;
   publicSlug: string;
   isSuperadmin: boolean;
+  terminology?: 'appointment' | 'visit';
 }
 
 export interface User {

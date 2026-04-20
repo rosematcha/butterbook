@@ -15,14 +15,45 @@ import { assertSafeFormFieldPatterns } from '../utils/safe-regex.js';
 const orgIdParam = z.object({ orgId: z.string().uuid() });
 
 export function registerOrgRoutes(app: FastifyInstance): void {
+  // Registered BEFORE /api/v1/orgs/:orgId so the literal "slug-check" path
+  // never gets interpreted as an orgId by the router.
+  app.get(
+    '/api/v1/orgs/slug-check',
+    { config: { rateLimit: { max: 30, timeWindow: '1 minute' } } },
+    async (req) => {
+      req.requireAuth();
+      const { slug } = z.object({ slug: z.string().min(1).max(100) }).parse(req.query);
+      const parsed = slugSchema.safeParse(slug);
+      if (!parsed.success) return { data: { available: false, reason: 'invalid' } };
+      // Note: we DO NOT filter deleted_at here. The orgs.public_slug UNIQUE
+      // constraint is global, so a soft-deleted row still blocks the slug.
+      const hit = await getDb()
+        .selectFrom('orgs')
+        .select('id')
+        .where('public_slug', '=', parsed.data)
+        .executeTakeFirst();
+      if (!hit) return { data: { available: true } };
+      return { data: { available: false, suggestion: await generateSlug(parsed.data) } };
+    },
+  );
+
   app.post('/api/v1/orgs', async (req) => {
     req.requireAuth();
     const body = createOrgSchema.parse(req.body);
     const publicSlug = body.publicSlug ?? (await generateSlug(body.name));
     slugSchema.parse(publicSlug);
     const { orgId } = await createOrgWithOwner({
-      ...body,
+      name: body.name,
+      address: body.address,
+      zip: body.zip,
+      timezone: body.timezone,
       publicSlug,
+      ...(body.country !== undefined ? { country: body.country } : {}),
+      ...(body.city !== undefined ? { city: body.city } : {}),
+      ...(body.state !== undefined ? { state: body.state } : {}),
+      ...(body.terminology !== undefined ? { terminology: body.terminology } : {}),
+      ...(body.timeModel !== undefined ? { timeModel: body.timeModel } : {}),
+      ...(body.formFields !== undefined ? { formFields: body.formFields } : {}),
       ownerUserId: req.userId!,
       actor: req.actor(),
     });
@@ -64,6 +95,11 @@ export function registerOrgRoutes(app: FastifyInstance): void {
       if (body.slotRounding !== undefined) updates.slot_rounding = body.slotRounding;
       if (body.kioskResetSeconds !== undefined) updates.kiosk_reset_seconds = body.kioskResetSeconds;
       if (body.publicSlug !== undefined) updates.public_slug = body.publicSlug;
+      if (body.country !== undefined) updates.country = body.country;
+      if (body.city !== undefined) updates.city = body.city;
+      if (body.state !== undefined) updates.state = body.state;
+      if (body.terminology !== undefined) updates.terminology = body.terminology;
+      if (body.timeModel !== undefined) updates.time_model = body.timeModel;
       if (Object.keys(updates).length > 0) {
         const res = await tx.updateTable('orgs').set(updates).where('id', '=', orgId).returning(['id']).executeTakeFirst();
         if (!res) throw new NotFoundError();
@@ -152,11 +188,16 @@ function publicOrg(o: {
   name: string;
   address: string;
   zip: string;
+  country: string;
+  city: string | null;
+  state: string | null;
   timezone: string;
   public_slug: string;
   slug_prefix: string;
   slot_rounding: string;
   kiosk_reset_seconds: number;
+  terminology: string;
+  time_model: string;
   logo_url: string | null;
   theme: unknown;
   form_fields: unknown;
@@ -166,11 +207,16 @@ function publicOrg(o: {
     name: o.name,
     address: o.address,
     zip: o.zip,
+    country: o.country,
+    city: o.city,
+    state: o.state,
     timezone: o.timezone,
     publicSlug: o.public_slug,
     slugPrefix: o.slug_prefix,
     slotRounding: o.slot_rounding,
     kioskResetSeconds: o.kiosk_reset_seconds,
+    terminology: o.terminology,
+    timeModel: o.time_model,
     logoUrl: o.logo_url,
     theme: o.theme,
     formFields: o.form_fields,

@@ -6,16 +6,11 @@ import { useQuery } from '@tanstack/react-query';
 import { apiGet, getToken, setToken } from '../../lib/api';
 import { useSession, type Membership, type User } from '../../lib/session';
 import { useApplyBranding } from '../../lib/branding';
+import { useTerminology } from '../../lib/use-terminology';
 import { CommandPalette } from '../components/command-palette';
 import { ShortcutHelp } from '../components/shortcut-help';
 
 interface NavItem { href: string; label: string }
-
-const MAIN_NAV: NavItem[] = [
-  { href: '/app', label: 'Today' },
-  { href: '/app/visits', label: 'All visits' },
-  { href: '/app/events', label: 'Events' },
-];
 
 const SETTINGS_NAV: NavItem[] = [
   { href: '/app/locations', label: 'Locations' },
@@ -30,6 +25,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const { user, memberships, activeOrgId, setSession, setActiveOrgId, clear } = useSession();
+  const term = useTerminology();
+
+  const mainNav: NavItem[] = [
+    { href: '/app', label: 'Today' },
+    { href: '/app/visits', label: `All ${term.nounPlural}` },
+    { href: '/app/events', label: 'Events' },
+  ];
 
   // Paints the org's palette onto <html> via CSS custom properties so every
   // `bg-brand-*` / `text-brand-*` class on the page picks it up.
@@ -144,7 +146,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </div>
 
         <nav className="flex flex-1 flex-col gap-0.5">
-          {MAIN_NAV.map((n) => (
+          {mainNav.map((n) => (
             <Link key={n.href} href={n.href} className={`nav-link ${isActive(n.href) ? 'nav-link-active' : ''}`}>
               {n.label}
             </Link>
