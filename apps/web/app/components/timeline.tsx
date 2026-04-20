@@ -38,7 +38,7 @@ export interface TimelineVisit {
   tags?: string[];
 }
 
-const HOUR_HEIGHT = 96; // more vertical breathing room
+const BASE_HOUR_HEIGHT = 96; // more vertical breathing room
 const CARD_MINUTES = 45;
 
 function isSameDay(a: Date, b: Date): boolean {
@@ -83,6 +83,7 @@ export function Timeline({
   onReconfirm,
   onEdit,
   onTagsChange,
+  zoom = 1,
 }: {
   date: Date;
   visits: TimelineVisit[];
@@ -92,10 +93,14 @@ export function Timeline({
   startHour?: number;
   /** Last hour (0–24) shown at the bottom of the grid. Must be > startHour. */
   endHour?: number;
+  /** Vertical zoom factor. Scales hour row height so scroll + hit-testing
+   *  stay accurate (unlike CSS `zoom`, which distorts layout math). */
+  zoom?: number;
 } & TimelineHandlers) {
   const START_HOUR = startHour;
   const END_HOUR = endHour;
   const TOTAL_HOURS = Math.max(1, END_HOUR - START_HOUR);
+  const HOUR_HEIGHT = BASE_HOUR_HEIGHT * zoom;
 
   const topFor = (d: Date): number => {
     const h = d.getHours() + d.getMinutes() / 60;
