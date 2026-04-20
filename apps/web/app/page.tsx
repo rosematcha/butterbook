@@ -86,7 +86,7 @@ function MkHero() {
               href="/register"
               className="inline-flex items-center justify-center gap-1.5 rounded-md bg-brand-accent px-6 py-3.5 text-[15px] font-medium text-brand-on-accent shadow-[0_1px_0_rgb(0_0_0/0.08)] transition hover:-translate-y-px hover:bg-brand-accent/90"
             >
-              Start free for 30 days
+              Start free
             </Link>
             <Link
               href="/login"
@@ -421,7 +421,7 @@ function MkKiosk() {
             href="/register"
             className="btn-secondary mt-8 inline-flex items-center gap-1.5"
           >
-            Start your trial <ArrowIcon />
+            Start free <ArrowIcon />
           </Link>
         </div>
       </div>
@@ -538,8 +538,8 @@ function MkPricing() {
       blurb: 'Poke around, book a few guests, see if it fits.',
       features: [
         '10 contacts',
-        '50 visits / month',
         '4 events / month',
+        '50 appointments / month',
         'Public booking page',
       ],
     },
@@ -551,7 +551,7 @@ function MkPricing() {
       features: [
         '250 contacts',
         '10 events / month',
-        '1,200 visits / month',
+        '1,200 appointments / month',
         'Custom form fields',
       ],
     },
@@ -563,7 +563,7 @@ function MkPricing() {
       features: [
         '1,000 contacts',
         '50 events / month',
-        '5,000 visits / month',
+        '5,000 appointments / month',
         'Email verification',
         'Payment processor integration',
       ],
@@ -577,7 +577,7 @@ function MkPricing() {
       features: [
         '5,000 contacts',
         '100 events / month',
-        '20,000 visits / month',
+        '20,000 appointments / month',
         'Email verification',
         'Payment processor integration',
         'Priority support',
