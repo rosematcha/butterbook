@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState, type FormEvent } from 'react';
 import { apiDelete, apiGet, apiPost, apiPut, ApiError } from '../../../lib/api';
 import { useSession } from '../../../lib/session';
+import { SkeletonRows } from '../../components/skeleton-rows';
 
 interface Role {
   id: string;
@@ -83,16 +84,22 @@ export default function RolesPage() {
             </tr>
           </thead>
           <tbody>
-            {(roles.data?.data ?? []).map((r) => (
-              <tr key={r.id} className="border-t border-slate-100">
-                <td className="py-2">{r.name}</td>
-                <td>{r.description ?? '—'}</td>
-                <td className="text-right">
-                  <button onClick={() => openPermissions(r.id)} className="text-xs underline mr-3">Permissions</button>
-                  <button onClick={() => deleteRole.mutate(r.id)} className="text-xs text-red-600 underline">Delete</button>
-                </td>
-              </tr>
-            ))}
+            {roles.isPending ? (
+              <SkeletonRows cols={3} rows={3} />
+            ) : (roles.data?.data ?? []).length === 0 ? (
+              <tr><td colSpan={3} className="py-4 text-center text-slate-500">No custom roles yet.</td></tr>
+            ) : (
+              (roles.data?.data ?? []).map((r) => (
+                <tr key={r.id} className="border-t border-slate-100">
+                  <td className="py-2">{r.name}</td>
+                  <td>{r.description ?? '—'}</td>
+                  <td className="text-right">
+                    <button onClick={() => openPermissions(r.id)} className="text-xs underline mr-3">Permissions</button>
+                    <button onClick={() => deleteRole.mutate(r.id)} className="text-xs text-red-600 underline">Delete</button>
+                  </td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </section>

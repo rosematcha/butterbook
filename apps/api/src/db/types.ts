@@ -29,11 +29,16 @@ export interface OrgsTable {
   name: string;
   address: string;
   zip: string;
+  country: Generated<string>;
+  city: string | null;
+  state: string | null;
   timezone: string;
   public_slug: string;
   slug_prefix: Generated<string>;
   slot_rounding: Generated<string>;
   kiosk_reset_seconds: Generated<number>;
+  terminology: Generated<'appointment' | 'visit'>;
+  time_model: Generated<'start_end' | 'start_only' | 'untimed'>;
   logo_url: string | null;
   theme: Generated<Jsonb>;
   form_fields: Generated<Jsonb>;
@@ -48,6 +53,9 @@ export interface LocationsTable {
   name: string;
   address: string | null;
   zip: string | null;
+  country: string | null;
+  city: string | null;
+  state: string | null;
   qr_token: Generated<string>;
   is_primary: Generated<boolean>;
   created_at: Generated<Timestamp>;

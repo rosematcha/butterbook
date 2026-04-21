@@ -5,6 +5,7 @@ import { apiGet } from '../../../lib/api';
 import { useSession } from '../../../lib/session';
 import { Timestamp } from '../../components/timestamp';
 import { EmptyState } from '../../components/empty-state';
+import { SkeletonRows } from '../../components/skeleton-rows';
 
 interface AuditRow {
   id: string;
@@ -78,7 +79,8 @@ export default function AuditPage() {
             </tr>
           </thead>
           <tbody>
-            {filtered.length === 0 && !audit.isLoading ? (
+            {audit.isPending ? <SkeletonRows cols={4} rows={8} /> : null}
+            {audit.isSuccess && filtered.length === 0 ? (
               <tr>
                 <td colSpan={4} className="px-4 py-6 text-center text-sm text-paper-500">
                   {q ? 'No rows match that filter.' : 'No events recorded on this page.'}

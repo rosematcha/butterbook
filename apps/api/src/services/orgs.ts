@@ -1,4 +1,4 @@
-import { DEFAULT_FORM_FIELDS } from '@butterbook/shared';
+import { DEFAULT_FORM_FIELDS, type FormField } from '@butterbook/shared';
 import { getDb, withGlobalContext, type Tx } from '../db/index.js';
 import { ConflictError } from '../errors/index.js';
 import type { ActorContext } from '@butterbook/shared';
@@ -11,22 +11,35 @@ export async function createOrgWithOwner(input: {
   publicSlug: string;
   ownerUserId: string;
   actor: ActorContext;
+  country?: string;
+  city?: string | null;
+  state?: string | null;
+  terminology?: 'appointment' | 'visit';
+  timeModel?: 'start_end' | 'start_only' | 'untimed';
+  formFields?: FormField[];
 }): Promise<{ orgId: string; memberId: string; locationId: string }> {
   const db = getDb();
   const slugInUse = await db.selectFrom('orgs').select('id').where('public_slug', '=', input.publicSlug).executeTakeFirst();
   if (slugInUse) throw new ConflictError('publicSlug already in use.');
 
   return withGlobalContext(async (tx) => {
+    const orgValues: Record<string, unknown> = {
+      name: input.name,
+      address: input.address,
+      zip: input.zip,
+      timezone: input.timezone,
+      public_slug: input.publicSlug,
+      form_fields: JSON.stringify(input.formFields ?? DEFAULT_FORM_FIELDS),
+    };
+    if (input.country !== undefined) orgValues.country = input.country;
+    if (input.city !== undefined) orgValues.city = input.city;
+    if (input.state !== undefined) orgValues.state = input.state;
+    if (input.terminology !== undefined) orgValues.terminology = input.terminology;
+    if (input.timeModel !== undefined) orgValues.time_model = input.timeModel;
+
     const org = await tx
       .insertInto('orgs')
-      .values({
-        name: input.name,
-        address: input.address,
-        zip: input.zip,
-        timezone: input.timezone,
-        public_slug: input.publicSlug,
-        form_fields: JSON.stringify(DEFAULT_FORM_FIELDS),
-      })
+      .values(orgValues as never)
       .returning(['id'])
       .executeTakeFirstOrThrow();
 
@@ -38,7 +51,16 @@ export async function createOrgWithOwner(input: {
 
     const location = await tx
       .insertInto('locations')
-      .values({ org_id: org.id, name: input.name, is_primary: true, address: input.address, zip: input.zip })
+      .values({
+        org_id: org.id,
+        name: input.name,
+        is_primary: true,
+        address: input.address,
+        zip: input.zip,
+        country: input.country ?? null,
+        city: input.city ?? null,
+        state: input.state ?? null,
+      })
       .returning(['id'])
       .executeTakeFirstOrThrow();
 
@@ -49,7 +71,17 @@ export async function createOrgWithOwner(input: {
       action: 'org.created',
       target_type: 'org',
       target_id: org.id,
-      diff: { after: { name: input.name, publicSlug: input.publicSlug } },
+      diff: {
+        after: {
+          name: input.name,
+          publicSlug: input.publicSlug,
+          ...(input.country !== undefined ? { country: input.country } : {}),
+          ...(input.city !== undefined ? { city: input.city } : {}),
+          ...(input.state !== undefined ? { state: input.state } : {}),
+          ...(input.terminology !== undefined ? { terminology: input.terminology } : {}),
+          ...(input.timeModel !== undefined ? { timeModel: input.timeModel } : {}),
+        },
+      },
       ip_address: input.actor.ip,
       user_agent: input.actor.userAgent,
     }).execute();

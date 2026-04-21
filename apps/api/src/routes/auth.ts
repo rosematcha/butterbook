@@ -104,6 +104,7 @@ export function registerAuthRoutes(app: FastifyInstance): void {
         'org_members.is_superadmin as isSuperadmin',
         'orgs.name as orgName',
         'orgs.public_slug as publicSlug',
+        'orgs.terminology as terminology',
       ])
       .where('org_members.user_id', '=', req.userId!)
       .where('org_members.deleted_at', 'is', null)

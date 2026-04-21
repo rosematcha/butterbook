@@ -167,7 +167,12 @@ export function registerVisitRoutes(app: FastifyInstance): void {
       await audit({ action: 'visit.cancelled', targetType: 'visit', targetId: visitId });
 
       if (visit.event_id) {
-        const event = await tx.selectFrom('events').select(['id', 'waitlist_auto_promote']).where('id', '=', visit.event_id).where('deleted_at', 'is', null).executeTakeFirst();
+        const event = await tx
+          .selectFrom('events')
+          .select(['id', 'waitlist_auto_promote', 'starts_at', 'location_id'])
+          .where('id', '=', visit.event_id)
+          .where('deleted_at', 'is', null)
+          .executeTakeFirst();
         if (event?.waitlist_auto_promote) {
           const next = await tx
             .selectFrom('waitlist_entries')
@@ -178,16 +183,15 @@ export function registerVisitRoutes(app: FastifyInstance): void {
             .limit(1)
             .executeTakeFirst();
           if (next) {
-            const ev = await tx.selectFrom('events').select(['starts_at', 'location_id']).where('id', '=', event.id).executeTakeFirstOrThrow();
             const newVisit = await tx
               .insertInto('visits')
               .values({
                 org_id: orgId,
-                location_id: ev.location_id,
+                location_id: event.location_id,
                 event_id: event.id,
                 booked_by: null,
                 booking_method: 'self',
-                scheduled_at: ev.starts_at,
+                scheduled_at: event.starts_at,
                 form_response: next.form_response,
               })
               .returning(['id'])

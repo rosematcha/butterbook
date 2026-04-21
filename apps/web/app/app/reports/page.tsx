@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { apiGet, getToken } from '../../../lib/api';
 import { API_BASE_URL } from '../../../lib/env';
 import { useSession } from '../../../lib/session';
+import { SkeletonRows } from '../../components/skeleton-rows';
 
 type HeadcountBucket = 'day' | 'week' | 'month';
 
@@ -78,9 +79,15 @@ export default function ReportsPage() {
         <table className="mt-3 w-full text-sm">
           <thead><tr className="text-left text-slate-500"><th className="py-1">Bucket</th><th>Visits</th><th>Headcount</th></tr></thead>
           <tbody>
-            {(headcount.data?.data ?? []).map((r) => (
-              <tr key={r.bucket} className="border-t border-slate-100"><td className="py-2">{r.bucket}</td><td>{r.visits}</td><td>{r.headcount}</td></tr>
-            ))}
+            {headcount.isPending ? (
+              <SkeletonRows cols={3} rows={4} />
+            ) : (headcount.data?.data ?? []).length === 0 ? (
+              <tr><td colSpan={3} className="py-4 text-center text-slate-500">No data for this range.</td></tr>
+            ) : (
+              (headcount.data?.data ?? []).map((r) => (
+                <tr key={r.bucket} className="border-t border-slate-100"><td className="py-2">{r.bucket}</td><td>{r.visits}</td><td>{r.headcount}</td></tr>
+              ))
+            )}
           </tbody>
         </table>
       </section>
@@ -93,9 +100,15 @@ export default function ReportsPage() {
         <table className="mt-3 w-full text-sm">
           <thead><tr className="text-left text-slate-500"><th className="py-1">Method</th><th>Visits</th><th>Headcount</th></tr></thead>
           <tbody>
-            {(sources.data?.data ?? []).map((r) => (
-              <tr key={r.booking_method} className="border-t border-slate-100"><td className="py-2">{r.booking_method}</td><td>{r.visits}</td><td>{r.headcount}</td></tr>
-            ))}
+            {sources.isPending ? (
+              <SkeletonRows cols={3} rows={3} />
+            ) : (sources.data?.data ?? []).length === 0 ? (
+              <tr><td colSpan={3} className="py-4 text-center text-slate-500">No data for this range.</td></tr>
+            ) : (
+              (sources.data?.data ?? []).map((r) => (
+                <tr key={r.booking_method} className="border-t border-slate-100"><td className="py-2">{r.booking_method}</td><td>{r.visits}</td><td>{r.headcount}</td></tr>
+              ))
+            )}
           </tbody>
         </table>
       </section>
@@ -108,16 +121,22 @@ export default function ReportsPage() {
         <table className="mt-3 w-full text-sm">
           <thead><tr className="text-left text-slate-500"><th className="py-1">Event</th><th>Starts</th><th>Cap</th><th>Confirmed</th><th>Cancelled</th><th>Waitlisted</th></tr></thead>
           <tbody>
-            {(events.data?.data ?? []).map((r) => (
-              <tr key={r.event_id} className="border-t border-slate-100">
-                <td className="py-2">{r.title}</td>
-                <td>{new Date(r.starts_at).toLocaleString()}</td>
-                <td>{r.capacity ?? '—'}</td>
-                <td>{r.confirmed}</td>
-                <td>{r.cancelled}</td>
-                <td>{r.waitlisted}</td>
-              </tr>
-            ))}
+            {events.isPending ? (
+              <SkeletonRows cols={6} rows={3} />
+            ) : (events.data?.data ?? []).length === 0 ? (
+              <tr><td colSpan={6} className="py-4 text-center text-slate-500">No events in this range.</td></tr>
+            ) : (
+              (events.data?.data ?? []).map((r) => (
+                <tr key={r.event_id} className="border-t border-slate-100">
+                  <td className="py-2">{r.title}</td>
+                  <td>{new Date(r.starts_at).toLocaleString()}</td>
+                  <td>{r.capacity ?? '—'}</td>
+                  <td>{r.confirmed}</td>
+                  <td>{r.cancelled}</td>
+                  <td>{r.waitlisted}</td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </section>

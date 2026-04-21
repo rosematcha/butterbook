@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { FormField, FieldType } from '@butterbook/shared';
 import { apiGet, apiPut, ApiError } from '../../../lib/api';
 import { useSession } from '../../../lib/session';
+import { SkeletonBlock } from '../../components/skeleton-rows';
 
 type Draft = FormField & { _id: string };
 
@@ -189,8 +190,15 @@ export default function FormFieldsPage() {
         </div>
       ) : null}
 
-      {q.isLoading ? (
-        <p className="text-sm text-paper-500">Loading…</p>
+      {q.isPending ? (
+        <div className="space-y-2">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="rounded-md border border-paper-200 bg-white px-3 py-3">
+              <SkeletonBlock className="h-4 w-48" />
+              <SkeletonBlock className="mt-2 h-3 w-24" />
+            </div>
+          ))}
+        </div>
       ) : (
         <div className="space-y-2">
           {drafts.map((d, i) => {

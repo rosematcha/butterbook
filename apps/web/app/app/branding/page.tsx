@@ -1,47 +1,12 @@
 'use client';
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
-import { apiGet, apiPatch, ApiError } from '../../../lib/api';
+import { apiPatch, ApiError } from '../../../lib/api';
 import { useSession } from '../../../lib/session';
+import { PALETTES, type Palette } from '../../../lib/palettes';
+import { useBrandingQuery, type BrandingFont, type BrandingRadius } from '../../../lib/branding';
 
-type FontFamily = 'system' | 'serif' | 'sans' | 'mono';
-type ButtonRadius = 'none' | 'small' | 'medium' | 'large' | 'full';
-
-interface Branding {
-  data: {
-    id: string;
-    name: string;
-    publicSlug: string;
-    logoUrl: string | null;
-    theme: {
-      primaryColor?: string;
-      secondaryColor?: string;
-      accentColor?: string;
-      fontFamily?: FontFamily;
-      buttonRadius?: ButtonRadius;
-    };
-  };
-}
-
-interface Palette {
-  id: string;
-  name: string;
-  primary: string;
-  secondary: string;
-  accent: string;
-}
-
-// A handful of curated three-color palettes. Each has a dominant "primary"
-// (usually deep, for text / buttons), a muted "secondary", and a vivid "accent".
-const PALETTES: Palette[] = [
-  { id: 'paper',    name: 'Paper',    primary: '#1a1714', secondary: '#8b8376', accent: '#b0573d' },
-  { id: 'harbor',   name: 'Harbor',   primary: '#1a2430', secondary: '#5b6a7d', accent: '#3d6891' },
-  { id: 'fern',     name: 'Fern',     primary: '#1f2a22', secondary: '#6b7c6f', accent: '#4f8c63' },
-  { id: 'bloom',    name: 'Bloom',    primary: '#2b1a22', secondary: '#8a6a75', accent: '#da4599' },
-  { id: 'marigold', name: 'Marigold', primary: '#2a2117', secondary: '#8a7a5c', accent: '#c89419' },
-  { id: 'amethyst', name: 'Amethyst', primary: '#24202d', secondary: '#7a6d89', accent: '#7b5ea7' },
-  { id: 'ember',    name: 'Ember',    primary: '#23130e', secondary: '#8c5d4b', accent: '#c94a22' },
-  { id: 'graphite', name: 'Graphite', primary: '#141414', secondary: '#6e6e6e', accent: '#2a6fd8' },
-];
+type FontFamily = BrandingFont;
+type ButtonRadius = BrandingRadius;
 
 const RADIUS_PX: Record<ButtonRadius, string> = {
   none: '0',
@@ -112,6 +77,7 @@ function ColorField({
 
 export default function BrandingPage() {
   const { activeOrgId } = useSession();
+  const branding = useBrandingQuery(activeOrgId);
   const [logoUrl, setLogoUrl] = useState('');
   const [primary, setPrimary] = useState('');
   const [secondary, setSecondary] = useState('');
@@ -124,16 +90,15 @@ export default function BrandingPage() {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (!activeOrgId) return;
-    apiGet<Branding>(`/api/v1/orgs/${activeOrgId}/branding`).then((b) => {
-      setLogoUrl(b.data.logoUrl ?? '');
-      setPrimary(b.data.theme.primaryColor ?? '');
-      setSecondary(b.data.theme.secondaryColor ?? '');
-      setAccent(b.data.theme.accentColor ?? '');
-      setFontFamily(b.data.theme.fontFamily ?? 'system');
-      setRadius(b.data.theme.buttonRadius ?? 'medium');
-    }).catch(() => { /* ignore — page still usable */ });
-  }, [activeOrgId]);
+    const b = branding.data;
+    if (!b) return;
+    setLogoUrl(b.data.logoUrl ?? '');
+    setPrimary(b.data.theme.primaryColor ?? '');
+    setSecondary(b.data.theme.secondaryColor ?? '');
+    setAccent(b.data.theme.accentColor ?? '');
+    setFontFamily(b.data.theme.fontFamily ?? 'system');
+    setRadius(b.data.theme.buttonRadius ?? 'medium');
+  }, [branding.data]);
 
   const selectedPalette = useMemo(() => {
     if (!primary || !secondary || !accent) return null;
