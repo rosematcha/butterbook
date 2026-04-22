@@ -29,15 +29,15 @@ const FAQ_ITEMS = [
   },
   {
     q: 'How often does data reset?',
-    a: "Your sandbox is yours for twelve hours of inactivity, then it wipes on its own. You'll come back to a fresh copy seeded with new dates around whatever day you next open it.",
+    a: "Your sandbox holds for twelve hours of inactivity, then wipes itself. Come back later and you'll land in a fresh copy, reseeded with dates around the day you return.",
   },
   {
     q: 'Can I use it on mobile?',
-    a: 'The booking page and kiosk work on any device. The admin interface is designed for desktop but runs fine on a tablet.',
+    a: 'The booking page and kiosk work on any device. The admin interface fits a desktop best, but a tablet handles it.',
   },
   {
     q: 'Is there a time limit while I browse?',
-    a: 'No. Stay as long as you like. The twelve-hour clock only starts ticking when you stop clicking.',
+    a: 'No. Stay as long as you like. The twelve-hour clock starts when you stop clicking.',
   },
   {
     q: 'Is any of this data real?',
@@ -50,7 +50,7 @@ export default function DemoInfoPage() {
     <SubPageShell
       breadcrumb={[{ label: 'Butterbook', href: MARKETING_URL }, { label: 'Try the demo' }]}
       title="Try the demo"
-      subtitle="A live copy of Butterbook running the latest release. Browse every screen, book a visit, try the kiosk. No signup needed."
+      subtitle="A live copy of Butterbook running the latest release. Click around, book a visit, try the kiosk. No signup."
     >
       <div className="grid items-start gap-12 lg:grid-cols-2">
         <LaunchColumn />
@@ -84,13 +84,13 @@ function LaunchColumn() {
       </div>
 
       <div className="mt-4 rounded-lg border border-amber-200/80 bg-amber-50/70 px-3.5 py-3 text-[13px] leading-relaxed text-ink">
-        Each demo runs in its own instance. Still, please don&apos;t enter real visitor data.
+        Each demo runs in its own instance. Please don&apos;t enter real visitor data anyway.
       </div>
 
       <ul className="mt-5 grid list-none gap-2.5 p-0 text-[13.5px]">
         {[
           ['Your sandbox wipes after 12 hours idle', 'No need to tidy up after yourself.'],
-          ['Invitations are disabled', 'No real email leaves this instance.'],
+          ['Invitations don’t send', 'No real email leaves this instance.'],
           ['Every page of the real app', 'Same code as production. No fake buttons.'],
         ].map(([title, body]) => (
           <li key={title} className="grid gap-px border-t border-paper-200 pt-2.5">
