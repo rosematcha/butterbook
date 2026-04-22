@@ -365,23 +365,18 @@ function MkFeatureGrid() {
   return (
     <section className="border-t border-paper-200 bg-paper-100 px-6 py-20 sm:px-12">
       <div className="mx-auto max-w-[1280px]">
-        <div className="mb-12 flex flex-col items-start justify-between gap-12 md:flex-row md:items-baseline">
-          <div>
-            <h2
-              className="font-display max-w-[18ch]"
-              style={{
-                fontSize: 'clamp(32px, 3.6vw, 52px)',
-                letterSpacing: '-0.03em',
-                fontWeight: 380,
-              }}
-            >
-              Bookings, events, <span className="italic text-brand-accent">and everything after.</span>
-            </h2>
-          </div>
-          <p className="max-w-[34ch] text-[15px] text-paper-600">
-            Your register tracks every visit. Your events hold capacity. Your audit log keeps
-            receipts. Your team sees who did what, and why.
-          </p>
+        <div className="mb-12">
+          <h2
+            className="font-display"
+            style={{
+              fontSize: 'clamp(28px, 3.2vw, 46px)',
+              letterSpacing: '-0.03em',
+              fontWeight: 380,
+            }}
+          >
+            Bookings, events,<br className="sm:hidden" /> <span className="italic text-brand-accent">and everything after.</span>
+          </h2>
+
         </div>
         <div
           className="grid overflow-hidden rounded-xl border border-paper-200 md:grid-cols-3"
@@ -596,14 +591,14 @@ function MkPricing() {
     <section className="border-t border-paper-200 bg-paper-100 px-6 py-20 sm:px-12" id="pricing">
       <div className="mx-auto max-w-[1280px]">
         <h2
-          className="font-display max-w-[22ch]"
+          className="font-display"
           style={{
-            fontSize: 'clamp(32px, 3.6vw, 52px)',
+            fontSize: 'clamp(28px, 3.2vw, 46px)',
             letterSpacing: '-0.03em',
             fontWeight: 380,
           }}
         >
-          One flat rate. Built for the <span className="italic">whole organization.</span>
+          One flat rate.<br className="sm:hidden" /> Built for the <span className="italic">whole organization.</span>
         </h2>
         <div className="mt-12 grid gap-5 md:grid-cols-2 lg:grid-cols-4">
           {plans.map((p) => (
