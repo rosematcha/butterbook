@@ -1,7 +1,15 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
+import { IS_DEMO } from '../lib/env';
+import { DemoEnter } from './components/demo-enter';
+import { FAQList } from './components/faq-list';
 
 export default function Home() {
+  // On the demo deployment, / is the login screen — the first thing a visitor
+  // typing demo.butterbook.app sees. The build-time constant means dead-code
+  // elimination prunes the full marketing tree from the demo bundle, and
+  // prunes the demo card from prod.
+  if (IS_DEMO) return <DemoEnter />;
   return (
     <div className="mk">
       <MkNav />
@@ -668,35 +676,35 @@ function MkPricing() {
 
 /* ---------- FAQ ---------- */
 function MkFAQ() {
-  const qs: Array<[string, string]> = [
-    [
-      'Do my visitors need to create accounts?',
-      'Never. Booking and check-in are open. Visitors fill in the fields you\u2019ve chosen and that\u2019s it.',
-    ],
-    [
-      'What if my time slots get too busy?',
-      'Butterbook shows a soft warning when a slot is getting full and suggests quieter times nearby. No one gets locked out.',
-    ],
-    [
-      'Can I call it something other than a "visit"?',
-      'Yes. Each org configures its own language: visits, appointments, sessions, reservations. The UI follows.',
-    ],
-    [
-      'Can I export everything?',
-      'Yes. Clean CSV for your records, and a full JSON export of your org\u2019s data anytime. No support tickets, no waiting.',
-    ],
-    [
-      'Is my data private?',
-      'PII is redactable per field. The audit log is append-only. Your data lives in the region you choose.',
-    ],
-    [
-      'What if I already have a website?',
-      'The booking page lives at your Butterbook subdomain and can be linked or embedded from anywhere. A WordPress plugin is on the roadmap.',
-    ],
-    [
-      'Does Butterbook have any AI features?',
-      'No, by design. Butterbook is a record-keeping and scheduling tool. Nothing in it tries to predict your visitors or optimize your capacity.',
-    ],
+  const qs = [
+    {
+      q: 'Do my visitors need to create accounts?',
+      a: 'Never. Booking and check-in are open. Visitors fill in the fields you\u2019ve chosen and that\u2019s it.',
+    },
+    {
+      q: 'What if my time slots get too busy?',
+      a: 'Butterbook shows a soft warning when a slot is getting full and suggests quieter times nearby. No one gets locked out.',
+    },
+    {
+      q: 'Can I call it something other than a "visit"?',
+      a: 'Yes. Each org configures its own language: visits, appointments, sessions, reservations. The UI follows.',
+    },
+    {
+      q: 'Can I export everything?',
+      a: 'Yes. Clean CSV for your records, and a full JSON export of your org\u2019s data anytime. No support tickets, no waiting.',
+    },
+    {
+      q: 'Is my data private?',
+      a: 'PII is redactable per field. The audit log is append-only. Your data lives in the region you choose.',
+    },
+    {
+      q: 'What if I already have a website?',
+      a: 'The booking page lives at your Butterbook subdomain and can be linked or embedded from anywhere. A WordPress plugin is on the roadmap.',
+    },
+    {
+      q: 'Does Butterbook have any AI features?',
+      a: 'No, by design. Butterbook is a record-keeping and scheduling tool. Nothing in it tries to predict your visitors or optimize your capacity.',
+    },
   ];
   return (
     <section className="mx-auto max-w-[960px] px-6 py-[120px] sm:px-12" id="faq">
@@ -710,17 +718,7 @@ function MkFAQ() {
       >
         What people ask.
       </h2>
-      <div>
-        {qs.map(([q, a]) => (
-          <details key={q} className="group border-t border-paper-200 py-[22px]">
-            <summary className="flex cursor-pointer list-none items-baseline justify-between gap-6 font-display text-xl tracking-tight-er">
-              {q}
-              <span className="text-2xl leading-none text-paper-500 transition-transform group-open:rotate-45">+</span>
-            </summary>
-            <p className="mt-3.5 max-w-[60ch] text-base leading-relaxed text-paper-600">{a}</p>
-          </details>
-        ))}
-      </div>
+      <FAQList items={qs} />
     </section>
   );
 }

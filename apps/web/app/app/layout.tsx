@@ -4,6 +4,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiGet, getToken, setToken } from '../../lib/api';
+import { IS_DEMO, MARKETING_URL } from '../../lib/env';
 import { useSession, type Membership, type User } from '../../lib/session';
 import { useApplyBranding } from '../../lib/branding';
 import { useTerminology } from '../../lib/use-terminology';
@@ -78,7 +79,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     clear();
     qc.clear();
     if (typeof window !== 'undefined') window.localStorage.removeItem('butterbook.qc');
-    router.replace('/login');
+    // In demo builds "sign out" is "exit demo" — land on the landing page
+    // rather than /login, since /login in demo mode would just prompt to
+    // re-enter the sandbox.
+    router.replace(IS_DEMO ? '/' : '/login');
   }
 
   const active = memberships.find((m) => m.orgId === activeOrgId);
@@ -88,6 +92,18 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   // Otherwise we'd briefly flash the empty state while memberships defaults
   // to [] between fetch resolution and setSession firing.
   if (me.isSuccess && user !== null && memberships.length === 0) {
+    // On demo builds, "no memberships" means the sandbox expired (prune cron
+    // deleted the org but the cookie is still around). Bounce to the landing
+    // page so they can start fresh — don't offer "Create an organization,"
+    // which isn't a thing in the demo.
+    if (IS_DEMO) {
+      if (typeof window !== 'undefined') {
+        setToken(null);
+        clear();
+        router.replace('/');
+      }
+      return null;
+    }
     // Let the new-org route (and any other /app/orgs/* bootstrap route) render
     // through; otherwise the "Create one" link would navigate into this same
     // layout and stay stuck on the empty state forever.
@@ -141,7 +157,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
         <div className="mb-4 px-2.5">
           <div className="h-eyebrow">Organization</div>
-          {memberships.length > 0 ? (
+          {IS_DEMO ? (
+            // Demo sessions belong to exactly one ephemeral org; the switcher
+            // would only ever hold one option, so we flatten it to a label.
+            <div className="mt-1.5 truncate rounded-md border border-paper-200 bg-white px-2.5 py-1.5 text-sm">
+              {active?.orgName ?? <SkeletonBlock className="h-3 w-32" />}
+            </div>
+          ) : memberships.length > 0 ? (
             <select
               value={activeOrgId ?? ''}
               onChange={(e) => {
@@ -196,11 +218,15 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </nav>
 
         <div className="mt-6 border-t border-paper-200 pt-4">
-          <div className="px-2.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-paper-400">Signed in</div>
+          <div className="px-2.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-paper-400">
+            {IS_DEMO ? 'Signed in · demo' : 'Signed in'}
+          </div>
           <div className="truncate px-2.5 text-sm">
             {user?.email ?? <SkeletonBlock className="h-3 w-32" />}
           </div>
-          <button onClick={handleLogout} className="btn-ghost mt-2 w-full justify-start px-2.5">Sign out</button>
+          <button onClick={handleLogout} className="btn-ghost mt-2 w-full justify-start px-2.5">
+            {IS_DEMO ? 'Exit demo' : 'Sign out'}
+          </button>
         </div>
       </aside>
 
@@ -209,20 +235,38 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           <div className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.14em] text-paper-600">
             <span className="inline-block h-1.5 w-1.5 rounded-full bg-brand-accent" aria-hidden />
             {active?.orgName ?? (me.isPending ? <SkeletonBlock className="h-3 w-28" /> : 'No org')}
+            {IS_DEMO ? (
+              <span className="ml-1.5 inline-flex items-center rounded-full bg-brand-accent/10 px-2 py-0.5 text-[10px] font-medium normal-case tracking-normal text-brand-accent">
+                sandbox
+              </span>
+            ) : null}
           </div>
-          <button
-            type="button"
-            onClick={() => {
-              // Dispatch a synthetic ⌘K so the palette opens from its own listener.
-              const ev = new KeyboardEvent('keydown', { key: 'k', metaKey: true, ctrlKey: true });
-              window.dispatchEvent(ev);
-            }}
-            className="hidden items-center gap-2 rounded-md border border-paper-200 bg-white px-2.5 py-1 text-xs text-paper-600 transition hover:border-paper-300 hover:text-ink sm:flex"
-            aria-label="Open command palette"
-          >
-            <span>Quick find</span>
-            <span className="kbd">⌘K</span>
-          </button>
+          <div className="flex items-center gap-2.5">
+            {IS_DEMO ? (
+              <a
+                href={`${MARKETING_URL}/register?ref=demo`}
+                className="inline-flex items-center gap-1.5 rounded-md bg-brand-accent px-3 py-1.5 text-xs font-medium text-brand-on-accent shadow-[0_1px_0_rgb(0_0_0/0.08)] transition hover:bg-brand-accent/90"
+              >
+                Sign up for real
+                <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M5 12h14M13 5l7 7-7 7" />
+                </svg>
+              </a>
+            ) : null}
+            <button
+              type="button"
+              onClick={() => {
+                // Dispatch a synthetic ⌘K so the palette opens from its own listener.
+                const ev = new KeyboardEvent('keydown', { key: 'k', metaKey: true, ctrlKey: true });
+                window.dispatchEvent(ev);
+              }}
+              className="hidden items-center gap-2 rounded-md border border-paper-200 bg-white px-2.5 py-1 text-xs text-paper-600 transition hover:border-paper-300 hover:text-ink sm:flex"
+              aria-label="Open command palette"
+            >
+              <span>Quick find</span>
+              <span className="kbd">⌘K</span>
+            </button>
+          </div>
         </header>
         <main className="px-10 py-8">{children}</main>
       </div>

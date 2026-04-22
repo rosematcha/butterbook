@@ -3,6 +3,8 @@ import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { apiGet, apiPost, getToken, setToken, ApiError } from '../../lib/api';
+import { IS_DEMO } from '../../lib/env';
+import { DemoEnter } from '../components/demo-enter';
 
 interface LoginResponse {
   data: {
@@ -84,6 +86,11 @@ export default function LoginPage() {
       </AuthSplit>
     );
   }
+
+  // Demo bundle reuses the same "Step inside" card as the root page so a
+  // visitor hitting /login out of habit sees the same screen instead of the
+  // real sign-in form (which can't succeed against the demo API anyway).
+  if (IS_DEMO) return <DemoEnter />;
 
   return (
     <AuthSplit
