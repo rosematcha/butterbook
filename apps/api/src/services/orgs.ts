@@ -2,6 +2,7 @@ import { DEFAULT_FORM_FIELDS, type FormField } from '@butterbook/shared';
 import { getDb, withGlobalContext, type Tx } from '../db/index.js';
 import { ConflictError } from '../errors/index.js';
 import type { ActorContext } from '@butterbook/shared';
+import { DEFAULT_TEMPLATES } from './notifications/default-templates.js';
 
 export async function createOrgWithOwner(input: {
   name: string;
@@ -85,6 +86,21 @@ export async function createOrgWithOwner(input: {
       ip_address: input.actor.ip,
       user_agent: input.actor.userAgent,
     }).execute();
+
+    // Seed default notification templates. Migration 008 backfills templates
+    // for pre-existing orgs; this keeps new orgs in sync with the same set.
+    await tx
+      .insertInto('notification_templates')
+      .values(
+        DEFAULT_TEMPLATES.map((t) => ({
+          org_id: org.id,
+          template_key: t.templateKey,
+          subject: t.subject,
+          body_html: t.bodyHtml,
+          body_text: t.bodyText,
+        })),
+      )
+      .execute();
 
     return { orgId: org.id, memberId: member.id, locationId: location.id };
   });

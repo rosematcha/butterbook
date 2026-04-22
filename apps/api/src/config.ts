@@ -20,8 +20,20 @@ const ConfigSchema = z.object({
   ),
   LOG_LEVEL: z.enum(['trace', 'debug', 'info', 'warn', 'error', 'fatal']).default('info'),
 
-  FEATURE_EMAIL_NOTIFICATIONS: z.coerce.boolean().default(false),
   FEATURE_PII_AUTO_PURGE: z.coerce.boolean().default(false),
+
+  // Master switch for the notifications subsystem. When false, subscribers
+  // no-op (no outbox rows written) and the worker loops sleep idle. When true
+  // and RESEND_API_KEY is set, the worker sends via Resend; when true and the
+  // key is missing, the noop provider is used (logs the message, returns a
+  // fake id) — useful for staging.
+  NOTIFICATIONS_ENABLED: z.coerce.boolean().default(false),
+  RESEND_API_KEY: z.string().min(10).optional(),
+  EMAIL_FROM_ADDRESS: z.string().email().optional(),
+
+  // Worker loop knobs. Defaults tuned for a single-instance deployment.
+  WORKER_POLL_INTERVAL_MS: z.coerce.number().int().positive().default(1000),
+  WORKER_BATCH_SIZE: z.coerce.number().int().positive().default(25),
 
   // Optional. If set, GET /metrics requires `Authorization: Bearer <METRICS_TOKEN>`.
   // If unset, /metrics is unavailable (returns 404). Do not expose publicly.

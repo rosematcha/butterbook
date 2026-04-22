@@ -81,7 +81,7 @@ export function registerVisitRoutes(app: FastifyInstance): void {
     const body = adminCreateVisitSchema.parse(req.body);
     await req.requirePermission(orgId, 'visits.create');
     const m = await req.loadMembershipFor(orgId);
-    return withOrgContext(orgId, req.actorForOrg(orgId, m), async ({ tx, audit }) => {
+    return withOrgContext(orgId, req.actorForOrg(orgId, m), async ({ tx, audit, emit }) => {
       const result = await createVisitInTx(tx, {
         orgId,
         locationId: body.locationId,
@@ -94,6 +94,20 @@ export function registerVisitRoutes(app: FastifyInstance): void {
       });
       if (result.kind === 'visit') {
         await audit({ action: 'visit.created', targetType: 'visit', targetId: result.visitId!, diff: { after: redactAuditBody(body) } });
+        await emit({
+          eventType: 'visit.created',
+          aggregateType: 'visit',
+          aggregateId: result.visitId!,
+          payload: {
+            version: 1,
+            visitId: result.visitId,
+            locationId: body.locationId,
+            eventId: body.eventId ?? null,
+            scheduledAt: body.scheduledAt,
+            formResponse: body.formResponse,
+            bookingMethod: 'admin',
+          },
+        });
         return { data: { id: result.visitId, kind: 'visit' } };
       }
       await audit({ action: 'waitlist.joined', targetType: 'waitlist_entry', targetId: result.waitlistEntryId!, diff: { after: redactAuditBody(body) } });
@@ -159,12 +173,24 @@ export function registerVisitRoutes(app: FastifyInstance): void {
     const { orgId, visitId } = visitParam.parse(req.params);
     await req.requirePermission(orgId, 'visits.cancel');
     const m = await req.loadMembershipFor(orgId);
-    return withOrgContext(orgId, req.actorForOrg(orgId, m), async ({ tx, audit }) => {
+    return withOrgContext(orgId, req.actorForOrg(orgId, m), async ({ tx, audit, emit }) => {
       const visit = await tx.selectFrom('visits').selectAll().where('id', '=', visitId).where('org_id', '=', orgId).executeTakeFirst();
       if (!visit) throw new NotFoundError();
       if (visit.status === 'cancelled') return { data: { ok: true } };
       await tx.updateTable('visits').set({ status: 'cancelled', cancelled_at: new Date(), cancelled_by: req.userId }).where('id', '=', visitId).execute();
       await audit({ action: 'visit.cancelled', targetType: 'visit', targetId: visitId });
+      await emit({
+        eventType: 'visit.cancelled',
+        aggregateType: 'visit',
+        aggregateId: visitId,
+        payload: {
+          version: 1,
+          visitId,
+          eventId: visit.event_id,
+          scheduledAt: (visit.scheduled_at instanceof Date ? visit.scheduled_at : new Date(visit.scheduled_at as unknown as string)).toISOString(),
+          formResponse: visit.form_response,
+        },
+      });
 
       if (visit.event_id) {
         const event = await tx
@@ -202,6 +228,19 @@ export function registerVisitRoutes(app: FastifyInstance): void {
               .where('id', '=', next.id)
               .execute();
             await audit({ action: 'waitlist.auto_promoted', targetType: 'waitlist_entry', targetId: next.id, diff: { after: { visitId: newVisit.id } } });
+            await emit({
+              eventType: 'waitlist.auto_promoted',
+              aggregateType: 'waitlist_entry',
+              aggregateId: next.id,
+              payload: {
+                version: 1,
+                waitlistEntryId: next.id,
+                visitId: newVisit.id,
+                eventId: event.id,
+                scheduledAt: (event.starts_at instanceof Date ? event.starts_at : new Date(event.starts_at as unknown as string)).toISOString(),
+                formResponse: next.form_response,
+              },
+            });
           }
         }
       }

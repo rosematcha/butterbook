@@ -5,7 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",
+    "dev:worker": "tsx watch src/worker/index.ts",
     "start": "node dist/index.js",
+    "start:worker": "node dist/worker/index.js",
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "lint": "echo 'api: lint placeholder'",
@@ -30,6 +32,7 @@
     "@zxcvbn-ts/language-en": "3.0.2",
     "argon2": "0.41.1",
     "fastify": "5.8.5",
+    "handlebars": "4.7.8",
     "ioredis": "5.4.1",
     "kysely": "0.28.16",
     "node-pg-migrate": "7.9.1",
@@ -37,6 +40,7 @@
     "pg": "8.13.1",
     "pino": "10.3.1",
     "qrcode": "1.5.4",
+    "resend": "4.0.1",
     "safe-regex2": "3.1.0",
     "zod": "3.23.8"
   },

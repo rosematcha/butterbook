@@ -23,6 +23,7 @@ const SETTINGS_NAV: NavItem[] = [
   { href: '/app/members', label: 'Members', prefetch: 'members' },
   { href: '/app/roles', label: 'Roles', prefetch: 'roles' },
   { href: '/app/branding', label: 'Branding', prefetch: 'branding' },
+  { href: '/app/notifications', label: 'Notifications' },
   { href: '/app/audit', label: 'Audit log', prefetch: 'audit' },
 ];
 

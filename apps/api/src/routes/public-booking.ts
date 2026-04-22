@@ -41,7 +41,7 @@ export function registerPublicBookingRoutes(app: FastifyInstance): void {
           ip: req.ip ?? null,
           userAgent: (req.headers['user-agent'] as string | undefined) ?? null,
         };
-        const result = await withOrgContext(org.id, actor, async ({ tx, audit }) => {
+        const result = await withOrgContext(org.id, actor, async ({ tx, audit, emit }) => {
           const r = await createVisitInTx(tx, {
             orgId: org.id,
             locationId: locId,
@@ -58,6 +58,22 @@ export function registerPublicBookingRoutes(app: FastifyInstance): void {
             targetId: r.visitId ?? r.waitlistEntryId ?? '',
             diff: { after: redactAuditBody(body) },
           });
+          if (r.kind === 'visit' && r.visitId) {
+            await emit({
+              eventType: 'visit.self_booked',
+              aggregateType: 'visit',
+              aggregateId: r.visitId,
+              payload: {
+                version: 1,
+                visitId: r.visitId,
+                locationId: locId,
+                eventId: null,
+                scheduledAt: body.scheduledAt,
+                formResponse: body.formResponse,
+                bookingMethod: 'self',
+              },
+            });
+          }
           return r;
         });
         return { status: 201, body: { data: { id: result.visitId, kind: result.kind } } };

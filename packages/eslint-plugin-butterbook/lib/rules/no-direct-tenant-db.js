@@ -32,6 +32,10 @@ const TENANT_TABLES = new Set([
   'invitations',
   'idempotency_keys',
   'audit_log',
+  'event_outbox',
+  'notification_templates',
+  'notifications_outbox',
+  'notification_suppressions',
 ]);
 
 const MUTATING_METHODS = new Set(['selectFrom', 'insertInto', 'updateTable', 'deleteFrom']);
@@ -48,8 +52,17 @@ const ALLOWED_FILES = [
   'src/routes/org-export.ts',
 ];
 
+// Worker code polls the outbox directly; its queries scope themselves via
+// status/locked_by, not via app.current_org_id, and subscribers switch into
+// withOrgContext(row.org_id, ...) before doing tenant writes.
+const ALLOWED_DIRS = [
+  'src/worker/',
+  'src/services/notifications/',
+];
+
 function fileAllowed(filename) {
-  return ALLOWED_FILES.some((p) => filename.endsWith(p));
+  if (ALLOWED_FILES.some((p) => filename.endsWith(p))) return true;
+  return ALLOWED_DIRS.some((d) => filename.includes(d));
 }
 
 module.exports = {

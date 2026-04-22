@@ -22,6 +22,10 @@ export interface DB {
   invitations: InvitationsTable;
   idempotency_keys: IdempotencyKeysTable;
   audit_log: AuditLogTable;
+  event_outbox: EventOutboxTable;
+  notification_templates: NotificationTemplatesTable;
+  notifications_outbox: NotificationsOutboxTable;
+  notification_suppressions: NotificationSuppressionsTable;
 }
 
 export interface OrgsTable {
@@ -246,5 +250,62 @@ export interface AuditLogTable {
   diff: Jsonb | null;
   ip_address: string | null;
   user_agent: string | null;
+  created_at: Generated<Timestamp>;
+}
+
+export interface EventOutboxTable {
+  id: Generated<string>;
+  org_id: string;
+  event_type: string;
+  aggregate_type: string;
+  aggregate_id: string;
+  payload: ColumnType<Jsonb, string, string>;
+  status: Generated<'pending' | 'dispatched' | 'failed' | 'dead'>;
+  attempts: Generated<number>;
+  max_attempts: Generated<number>;
+  last_error: string | null;
+  available_at: Generated<Timestamp>;
+  locked_by: string | null;
+  locked_until: Timestamp | null;
+  created_at: Generated<Timestamp>;
+  dispatched_at: Timestamp | null;
+}
+
+export interface NotificationTemplatesTable {
+  id: Generated<string>;
+  org_id: string;
+  template_key: string;
+  subject: string;
+  body_html: string;
+  body_text: string;
+  updated_at: Generated<Timestamp>;
+}
+
+export interface NotificationsOutboxTable {
+  id: Generated<string>;
+  org_id: string;
+  kind: Generated<'email'>;
+  to_address: string;
+  template_key: string;
+  rendered_subject: string;
+  rendered_html: string;
+  rendered_text: string;
+  payload: ColumnType<Jsonb, string, string>;
+  status: Generated<'pending' | 'sending' | 'sent' | 'failed' | 'suppressed' | 'dead'>;
+  attempts: Generated<number>;
+  max_attempts: Generated<number>;
+  last_error: string | null;
+  scheduled_at: Generated<Timestamp>;
+  sent_at: Timestamp | null;
+  provider_message_id: string | null;
+  locked_by: string | null;
+  locked_until: Timestamp | null;
+  created_at: Generated<Timestamp>;
+}
+
+export interface NotificationSuppressionsTable {
+  org_id: string;
+  address: string;
+  reason: string;
   created_at: Generated<Timestamp>;
 }

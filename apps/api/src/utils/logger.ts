@@ -19,6 +19,8 @@ export function buildLoggerOptions(): LoggerOptions {
         'res.body.token',
         '*.password',
         '*.token',
+        '*.RESEND_API_KEY',
+        '*.resendApiKey',
       ],
       censor: '[REDACTED]',
     },

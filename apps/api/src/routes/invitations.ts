@@ -28,7 +28,7 @@ export function registerInvitationRoutes(app: FastifyInstance): void {
       .where('org_members.deleted_at', 'is', null)
       .executeTakeFirst();
     if (inviteeAlreadyMember) throw new ConflictError('That user already belongs to an organization.');
-    return withOrgContext(orgId, req.actorForOrg(orgId, m), async ({ tx, audit }) => {
+    return withOrgContext(orgId, req.actorForOrg(orgId, m), async ({ tx, audit, emit }) => {
       for (const roleId of body.roleIds) {
         const r = await tx.selectFrom('roles').select(['id']).where('id', '=', roleId).where('org_id', '=', orgId).where('deleted_at', 'is', null).executeTakeFirst();
         if (!r) throw new NotFoundError(`Role not found: ${roleId}`);
@@ -47,13 +47,27 @@ export function registerInvitationRoutes(app: FastifyInstance): void {
         })
         .returning(['id'])
         .executeTakeFirstOrThrow();
+      const acceptUrl = `${getConfig().APP_BASE_URL}/invitations/${token}/accept`;
       await audit({ action: 'invitation.created', targetType: 'invitation', targetId: row.id, diff: { after: { email: body.email } } });
+      await emit({
+        eventType: 'invitation.created',
+        aggregateType: 'invitation',
+        aggregateId: row.id,
+        payload: {
+          version: 1,
+          invitationId: row.id,
+          inviteeEmail: body.email.toLowerCase(),
+          acceptUrl,
+          expiresAt: expiresAt.toISOString(),
+          inviterUserId: req.userId,
+        },
+      });
       return {
         data: {
           id: row.id,
           email: body.email,
           expiresAt: expiresAt.toISOString(),
-          url: `${getConfig().APP_BASE_URL}/invitations/${token}/accept`,
+          url: acceptUrl,
         },
       };
     });

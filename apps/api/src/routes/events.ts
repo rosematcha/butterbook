@@ -141,10 +141,25 @@ export function registerEventRoutes(app: FastifyInstance): void {
       const { orgId, eventId } = eventParam.parse(req.params);
       await req.requirePermission(orgId, 'events.publish');
       const m = await req.loadMembershipFor(orgId);
-      return withOrgContext(orgId, req.actorForOrg(orgId, m), async ({ tx, audit }) => {
-        const res = await tx.updateTable('events').set({ is_published: action === 'publish' }).where('id', '=', eventId).where('org_id', '=', orgId).where('deleted_at', 'is', null).returning(['id']).executeTakeFirst();
+      return withOrgContext(orgId, req.actorForOrg(orgId, m), async ({ tx, audit, emit }) => {
+        const res = await tx.updateTable('events').set({ is_published: action === 'publish' }).where('id', '=', eventId).where('org_id', '=', orgId).where('deleted_at', 'is', null).returning(['id', 'title', 'public_id', 'slug', 'starts_at']).executeTakeFirst();
         if (!res) throw new NotFoundError();
         await audit({ action: `event.${action}ed`, targetType: 'event', targetId: eventId });
+        if (action === 'publish') {
+          await emit({
+            eventType: 'event.published',
+            aggregateType: 'event',
+            aggregateId: eventId,
+            payload: {
+              version: 1,
+              eventId,
+              title: res.title,
+              publicId: res.public_id,
+              slug: res.slug,
+              startsAt: (res.starts_at instanceof Date ? res.starts_at : new Date(res.starts_at as unknown as string)).toISOString(),
+            },
+          });
+        }
         return { data: { ok: true } };
       });
     });

@@ -50,11 +50,21 @@ export async function closeDb(): Promise<void> {
 
 export type Tx = Transaction<DB>;
 
+export interface OutboxEventInput {
+  // Dotted event name matching (or derived from) the audit action —
+  // e.g. 'visit.created', 'waitlist.promoted'. Subscribers key off this.
+  eventType: string;
+  aggregateType: string;
+  aggregateId: string;
+  payload: Record<string, unknown>;
+}
+
 export interface TenantContext {
   tx: Tx;
   orgId: string;
   actor: ActorContext;
   audit: (entry: AuditEntryInput) => Promise<void>;
+  emit: (input: OutboxEventInput) => Promise<void>;
 }
 
 // Single entry point for tenant-scoped mutations / queries.
@@ -74,6 +84,7 @@ export async function withOrgContext<T>(
         orgId,
         actor,
         audit: (entry) => writeAudit(tx, orgId, actor, entry),
+        emit: (input) => writeOutboxEvent(tx, orgId, input),
       };
       return fn(ctx);
     });
@@ -119,6 +130,27 @@ export async function writeAudit(
       diff: entry.diff ?? null,
       ip_address: actor.ip,
       user_agent: actor.userAgent,
+    })
+    .execute();
+}
+
+// Companion to writeAudit — inserts one row into event_outbox inside the same
+// tx. The worker (apps/api/src/worker) polls `status='pending'` rows, routes
+// to subscribers, and updates status. If the surrounding mutation rolls back,
+// the outbox row vanishes with it (transactional outbox pattern).
+export async function writeOutboxEvent(
+  tx: Tx,
+  orgId: string,
+  input: OutboxEventInput,
+): Promise<void> {
+  await tx
+    .insertInto('event_outbox')
+    .values({
+      org_id: orgId,
+      event_type: input.eventType,
+      aggregate_type: input.aggregateType,
+      aggregate_id: input.aggregateId,
+      payload: JSON.stringify(input.payload),
     })
     .execute();
 }

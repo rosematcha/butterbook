@@ -125,6 +125,12 @@ const ROUTES: RouteCase[] = [
   // --- audit ---
   { name: 'GET audit', method: 'GET', url: (c) => `/api/v1/orgs/${c.orgId}/audit` },
 
+  // --- notifications ---
+  { name: 'GET notifications/templates', method: 'GET', url: (c) => `/api/v1/orgs/${c.orgId}/notifications/templates` },
+  { name: 'GET notifications/templates/:key', method: 'GET', url: (c) => `/api/v1/orgs/${c.orgId}/notifications/templates/visit.confirmation`, notFoundUrl: (c) => `/api/v1/orgs/${c.orgId}/notifications/templates/does.not.exist` },
+  { name: 'GET notifications/outbox', method: 'GET', url: (c) => `/api/v1/orgs/${c.orgId}/notifications/outbox` },
+  { name: 'POST notifications test-send', method: 'POST', url: (c) => `/api/v1/orgs/${c.orgId}/notifications/templates/visit.confirmation/test-send`, body: () => ({ toAddress: 'test@example.com' }), invalidBody: () => ({ toAddress: 'not-an-email' }), notFoundUrl: (c) => `/api/v1/orgs/${c.orgId}/notifications/templates/does.not.exist/test-send` },
+
   // --- reports ---
   { name: 'GET reports/visits', method: 'GET', url: (c) => `/api/v1/orgs/${c.orgId}/reports/visits` },
   { name: 'GET reports/headcount', method: 'GET', url: (c) => `/api/v1/orgs/${c.orgId}/reports/headcount` },

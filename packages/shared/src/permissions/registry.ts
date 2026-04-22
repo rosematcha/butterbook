@@ -22,6 +22,8 @@ export const PERMISSIONS = [
   'reports.view',
   'reports.export',
 
+  'notifications.manage',
+
   'kiosk.access',
 ] as const;
 

@@ -27,6 +27,7 @@ import { registerEventRoutes } from './routes/events.js';
 import { registerPublicEventRoutes } from './routes/public-events.js';
 import { registerWaitlistRoutes } from './routes/waitlist.js';
 import { registerAuditRoutes } from './routes/audit.js';
+import { registerNotificationRoutes } from './routes/notifications.js';
 import { registerReportRoutes } from './routes/reports.js';
 import { registerOrgExportRoutes } from './routes/org-export.js';
 import { registerDemoRoutes } from './routes/demo.js';
@@ -126,6 +127,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   registerPublicEventRoutes(app);
   registerWaitlistRoutes(app);
   registerAuditRoutes(app);
+  registerNotificationRoutes(app);
   registerReportRoutes(app);
   registerOrgExportRoutes(app);
   registerDemoRoutes(app);

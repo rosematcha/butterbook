@@ -27,7 +27,7 @@ export function registerWaitlistRoutes(app: FastifyInstance): void {
     const { orgId, eventId, entryId } = entryParams.parse(req.params);
     await req.requirePermission(orgId, 'events.manage_waitlist');
     const m = await req.loadMembershipFor(orgId);
-    return withOrgContext(orgId, req.actorForOrg(orgId, m), async ({ tx, audit }) => {
+    return withOrgContext(orgId, req.actorForOrg(orgId, m), async ({ tx, audit, emit }) => {
       const entry = await tx.selectFrom('waitlist_entries').selectAll().where('id', '=', entryId).where('event_id', '=', eventId).where('org_id', '=', orgId).executeTakeFirst();
       if (!entry) throw new NotFoundError();
       if (entry.status !== 'waiting') throw new ConflictError('Waitlist entry not in waiting state.');
@@ -48,6 +48,19 @@ export function registerWaitlistRoutes(app: FastifyInstance): void {
         .executeTakeFirstOrThrow();
       await tx.updateTable('waitlist_entries').set({ status: 'promoted', promoted_at: new Date(), promoted_by: req.userId, promoted_visit_id: visit.id }).where('id', '=', entryId).execute();
       await audit({ action: 'waitlist.promoted', targetType: 'waitlist_entry', targetId: entryId, diff: { after: { visitId: visit.id } } });
+      await emit({
+        eventType: 'waitlist.promoted',
+        aggregateType: 'waitlist_entry',
+        aggregateId: entryId,
+        payload: {
+          version: 1,
+          waitlistEntryId: entryId,
+          visitId: visit.id,
+          eventId,
+          scheduledAt: (ev.starts_at instanceof Date ? ev.starts_at : new Date(ev.starts_at as unknown as string)).toISOString(),
+          formResponse: entry.form_response,
+        },
+      });
       return { data: { visitId: visit.id } };
     });
   });

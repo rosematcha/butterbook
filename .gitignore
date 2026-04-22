@@ -12,3 +12,4 @@ CLAUDE.md
 *.tsbuildinfo
 .claude/
 docs/design-system.html
+SCOPE.md

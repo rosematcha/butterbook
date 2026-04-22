@@ -14,6 +14,10 @@ export async function truncateAll(): Promise<void> {
   // TRUNCATE is not covered by that trigger, so use it to reset between tests.
   await sql`TRUNCATE TABLE audit_log`.execute(db);
   await db.deleteFrom('idempotency_keys').execute();
+  await db.deleteFrom('notifications_outbox').execute();
+  await db.deleteFrom('notification_suppressions').execute();
+  await db.deleteFrom('notification_templates').execute();
+  await db.deleteFrom('event_outbox').execute();
   await db.deleteFrom('waitlist_entries').execute();
   await db.deleteFrom('visits').execute();
   await db.deleteFrom('events').execute();
