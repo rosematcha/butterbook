@@ -13,7 +13,7 @@
 
 import type { FastifyInstance } from 'fastify';
 import crypto from 'node:crypto';
-import { getPool } from '../db/index.js';
+import { getDb, getPool } from '../db/index.js';
 import { getConfig } from '../config.js';
 
 const BUCKETS = [0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10];
@@ -132,6 +132,20 @@ export function registerMetricsRoutes(app: FastifyInstance): void {
     const total = (pool as unknown as { totalCount?: number }).totalCount ?? 0;
     const idle = (pool as unknown as { idleCount?: number }).idleCount ?? 0;
     lines.push(`db_pool_connections_active ${Math.max(0, total - idle)}`);
+
+    // Demo-instance gauge. On prod this is always 0 and costs a single
+    // indexed count against the partial idx_orgs_demo_updated_at. A flat line
+    // at zero on a prod deployment is the expected shape; a sudden nonzero
+    // reading there is a real-enough alert to wire up.
+    const demoRow = await getDb()
+      .selectFrom('orgs')
+      .select((eb) => eb.fn.countAll<number>().as('c'))
+      .where('is_demo', '=', true)
+      .where('deleted_at', 'is', null)
+      .executeTakeFirst();
+    lines.push('# HELP demo_orgs_active Live demo orgs (is_demo=true, not soft-deleted).');
+    lines.push('# TYPE demo_orgs_active gauge');
+    lines.push(`demo_orgs_active ${Number(demoRow?.c ?? 0)}`);
 
     return reply.type('text/plain; version=0.0.4; charset=utf-8').send(lines.join('\n') + '\n');
   });

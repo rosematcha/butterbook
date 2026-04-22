@@ -42,6 +42,7 @@ export interface OrgsTable {
   logo_url: string | null;
   theme: Generated<Jsonb>;
   form_fields: Generated<Jsonb>;
+  is_demo: Generated<boolean>;
   created_at: Generated<Timestamp>;
   updated_at: Generated<Timestamp>;
   deleted_at: Timestamp | null;

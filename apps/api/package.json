@@ -15,7 +15,8 @@
     "migrate:up": "pnpm migrate up",
     "migrate:down": "pnpm migrate down",
     "bootstrap": "tsx src/scripts/bootstrap.ts",
-    "cleanup:idempotency": "tsx src/scripts/cleanup-idempotency.ts"
+    "cleanup:idempotency": "tsx src/scripts/cleanup-idempotency.ts",
+    "prune:demo": "tsx src/scripts/prune-demo-orgs.ts"
   },
   "dependencies": {
     "@butterbook/shared": "workspace:*",

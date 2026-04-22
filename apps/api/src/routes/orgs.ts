@@ -113,6 +113,7 @@ export function registerOrgRoutes(app: FastifyInstance): void {
   app.delete('/api/v1/orgs/:orgId', async (req) => {
     const { orgId } = orgIdParam.parse(req.params);
     await req.requireSuperadmin(orgId);
+    await req.requireNotDemo(orgId);
     const m = await req.loadMembershipFor(orgId);
     return withOrgContext(orgId, req.actorForOrg(orgId, m), async ({ tx, audit }) => {
       await tx.updateTable('orgs').set({ deleted_at: new Date() }).where('id', '=', orgId).execute();
