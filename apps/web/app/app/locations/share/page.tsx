@@ -37,12 +37,20 @@ function CopyButton({ value, disabled }: { value: string; disabled?: boolean }) 
           // noop
         }
       }}
-      className="btn shrink-0"
+      className="btn shrink-0 min-w-[5.5rem]"
+      aria-live="polite"
     >
-      {copied ? 'Copied' : 'Copy'}
+      {copied ? 'Copied ✓' : 'Copy'}
     </button>
   );
 }
+
+const CHANNELS: { id: Tab; num: string; label: string; blurb: string; disabled?: boolean }[] = [
+  { id: 'link', num: '01', label: 'Direct link', blurb: 'A plain URL. Email, text, print — anywhere a link can go.' },
+  { id: 'qr', num: '02', label: 'QR code', blurb: 'Printable signage for gallery walls, tabletops, and lobby cards.' },
+  { id: 'iframe', num: '03', label: 'Embed', blurb: 'Drop the form into any page of your website via iframe.' },
+  { id: 'wordpress', num: '04', label: 'WordPress', blurb: 'One-click plugin. Currently in preparation.', disabled: true },
+];
 
 function ShareInner() {
   const search = useSearchParams();
@@ -167,125 +175,312 @@ function ShareInner() {
   }
 
   if (!id) return <p className="text-sm text-red-600">Missing location id.</p>;
-  if (!slug) return <p className="text-sm text-slate-500">Loading…</p>;
+  if (!slug) return <p className="text-sm text-paper-500">Loading…</p>;
+
+  const active = CHANNELS.find((c) => c.id === tab) ?? CHANNELS[0];
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-2 border-b border-slate-200">
-        {(['link', 'qr', 'iframe', 'wordpress'] as Tab[]).map((t) => {
-          const disabled = t === 'wordpress';
-          const active = tab === t;
-          return (
-            <button
-              key={t}
-              type="button"
-              disabled={disabled}
-              onClick={() => !disabled && setTab(t)}
-              className={
-                'px-3 py-2 text-sm capitalize ' +
-                (active
-                  ? 'border-b-2 border-slate-900 font-medium text-slate-900'
-                  : disabled
-                    ? 'cursor-not-allowed text-slate-400'
-                    : 'text-slate-600 hover:text-slate-900')
-              }
-            >
-              {t === 'wordpress' ? (
-                <span className="inline-flex items-center gap-2">
-                  WordPress
-                  <span className="rounded bg-slate-200 px-1.5 py-0.5 text-[10px] font-semibold text-slate-600">Soon</span>
-                </span>
-              ) : t === 'qr' ? (
-                'QR Code'
-              ) : (
-                t
-              )}
-            </button>
-          );
-        })}
-      </div>
+    <div className="space-y-8">
+      {/* Masthead */}
+      <header className="flex flex-col gap-2 border-b border-paper-200 pb-6">
+        <span className="eyebrow">Plate — Distribution</span>
+        <h1 className="h-display">Share your intake form</h1>
+        <p className="max-w-2xl text-sm text-paper-600">
+          Four channels for reaching your visitors. Choose the one that fits the space — a link in an email,
+          a QR on a gallery wall, an embed on your site, or a plugin for WordPress.
+        </p>
+      </header>
 
-      {tab === 'link' ? (
-        <section className="card space-y-3">
-          <h2 className="text-base font-semibold">Public intake link</h2>
-          <p className="text-sm text-slate-600">
-            Share this URL. Anyone who opens it will see your intake form.
-          </p>
-          <div className="flex gap-2">
-            <input readOnly value={intakeUrl} className="input flex-1" onFocus={(e) => e.currentTarget.select()} />
-            <CopyButton value={intakeUrl} />
+      <div className="grid gap-8 lg:grid-cols-[260px_1fr]">
+        {/* Channel index — museum catalogue style */}
+        <nav aria-label="Distribution channels" className="lg:border-r lg:border-paper-200 lg:pr-6">
+          <span className="eyebrow mb-3 block">Channels</span>
+          <ol className="space-y-1">
+            {CHANNELS.map((c) => {
+              const isActive = c.id === tab;
+              return (
+                <li key={c.id}>
+                  <button
+                    type="button"
+                    disabled={c.disabled}
+                    onClick={() => !c.disabled && setTab(c.id)}
+                    className={[
+                      'group relative block w-full rounded-md px-3 py-2.5 text-left transition',
+                      isActive
+                        ? 'bg-brand-accent/8 ring-1 ring-brand-accent/30'
+                        : c.disabled
+                          ? 'cursor-not-allowed opacity-50'
+                          : 'hover:bg-paper-100',
+                    ].join(' ')}
+                    style={isActive ? { backgroundColor: 'rgb(176 87 61 / 0.07)' } : undefined}
+                  >
+                    <span className="flex items-baseline gap-3">
+                      <span
+                        className={[
+                          'font-mono text-[11px] tabular-nums tracking-wider',
+                          isActive ? 'text-brand-accent' : 'text-paper-500',
+                        ].join(' ')}
+                      >
+                        {c.num}
+                      </span>
+                      <span className="flex-1">
+                        <span
+                          className={[
+                            'font-display text-[17px] leading-tight',
+                            isActive ? 'text-ink' : 'text-paper-800 group-hover:text-ink',
+                          ].join(' ')}
+                        >
+                          {c.label}
+                        </span>
+                        {c.disabled ? (
+                          <span className="badge ml-2 text-[9px]">Soon</span>
+                        ) : null}
+                        <span className="mt-0.5 block text-[12px] leading-snug text-paper-500">
+                          {c.blurb}
+                        </span>
+                      </span>
+                    </span>
+                    {isActive ? (
+                      <span
+                        aria-hidden
+                        className="absolute inset-y-2 left-0 w-[2px] rounded-r bg-brand-accent"
+                      />
+                    ) : null}
+                  </button>
+                </li>
+              );
+            })}
+          </ol>
+
+          <div className="mt-6 hidden rounded-md border border-dashed border-paper-300 bg-paper-50 px-3 py-3 text-[11px] leading-relaxed text-paper-600 lg:block">
+            <span className="eyebrow mb-1 block text-paper-500">Tip</span>
+            Print the QR at 512 px or larger for reliable scanning from two meters.
           </div>
-          {IS_DEMO ? (
-            <p className="text-xs text-amber-700">Demo instance — this link redirects to the marketing site instead of a real form.</p>
-          ) : null}
-        </section>
-      ) : null}
+        </nav>
 
-      {tab === 'qr' ? (
-        <section className="card space-y-4">
-          <h2 className="text-base font-semibold">QR code</h2>
-          <div className="flex flex-col gap-6 sm:flex-row">
-            <div className="flex flex-col items-center gap-2">
-              {pngBlobUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={pngBlobUrl} alt="Intake QR" className="h-64 w-64" />
-              ) : (
-                <div className="flex h-64 w-64 items-center justify-center text-sm text-slate-500">Loading…</div>
-              )}
-              <p className="max-w-[16rem] break-all text-center text-xs text-slate-500">{intakeUrl}</p>
+        {/* Active channel content */}
+        <div className="min-w-0">
+          <div className="mb-4 flex items-baseline justify-between gap-4 border-b border-paper-200 pb-3">
+            <div className="flex items-baseline gap-3">
+              <span className="font-mono text-xs tabular-nums text-brand-accent">{active.num}</span>
+              <h2 className="font-display text-2xl leading-tight text-ink">{active.label}</h2>
             </div>
-            <div className="flex-1 space-y-3 text-sm">
-              <label className="block">
-                <span className="text-xs font-medium text-slate-600">Size</span>
-                <select className="input mt-1" value={size} onChange={(e) => setSize(Number(e.target.value) as 256 | 512 | 1024)}>
-                  <option value={256}>256 px</option>
-                  <option value={512}>512 px</option>
-                  <option value={1024}>1024 px</option>
-                </select>
-              </label>
-              <label className="block">
-                <span className="text-xs font-medium text-slate-600">Foreground</span>
-                <input type="color" className="mt-1 h-9 w-full rounded border border-slate-300" value={fg} onChange={(e) => setFg(e.target.value)} />
-              </label>
-              <label className="block">
-                <span className="text-xs font-medium text-slate-600">Background</span>
-                <input type="color" className="mt-1 h-9 w-full rounded border border-slate-300" value={bg} onChange={(e) => setBg(e.target.value)} />
-              </label>
-              <div className="grid grid-cols-2 gap-2 pt-2">
-                <button type="button" className="btn" disabled={IS_DEMO} onClick={() => downloadQr('png')}>PNG</button>
-                <button type="button" className="btn" disabled={IS_DEMO} onClick={() => downloadQr('svg')}>SVG</button>
-                <button type="button" className="btn" disabled={IS_DEMO || !pngBlobUrl} onClick={downloadJpg}>JPG</button>
-                <button type="button" className="btn" disabled={IS_DEMO || !pngBlobUrl} onClick={printPdf}>PDF (Print)</button>
+            {IS_DEMO ? <span className="badge">Demo mode</span> : null}
+          </div>
+
+          {tab === 'link' ? (
+            <section className="panel space-y-5 p-6">
+              <p className="text-sm leading-relaxed text-paper-700">
+                Share this URL. Anyone who opens it will see your intake form.
+              </p>
+              <div>
+                <label className="eyebrow mb-2 block">Public intake URL</label>
+                <div className="flex gap-2">
+                  <input
+                    readOnly
+                    value={intakeUrl}
+                    className="input flex-1 font-mono text-[13px]"
+                    onFocus={(e) => e.currentTarget.select()}
+                  />
+                  <CopyButton value={intakeUrl} />
+                </div>
               </div>
               {IS_DEMO ? (
-                <p className="text-xs text-amber-700">Downloads disabled in demo — QR encodes the marketing site.</p>
+                <p className="rounded-md border border-amber-200/70 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                  Demo instance — this link redirects to the marketing site instead of a real form.
+                </p>
               ) : null}
-            </div>
-          </div>
-          <button type="button" onClick={rotate} className="btn-danger">Rotate token (invalidates existing QR)</button>
-        </section>
-      ) : null}
-
-      {tab === 'iframe' ? (
-        <section className="card space-y-3">
-          <h2 className="text-base font-semibold">Embed on your website</h2>
-          <p className="text-sm text-slate-600">Paste this snippet into any HTML page. The iframe auto-resizes to fit the form.</p>
-          <div className="flex gap-2">
-            <textarea readOnly value={iframeSnippet} rows={3} className="input flex-1 font-mono text-xs" onFocus={(e) => e.currentTarget.select()} />
-            <CopyButton value={iframeSnippet} />
-          </div>
-          {IS_DEMO ? (
-            <p className="text-xs text-amber-700">Demo instance — embedded frame redirects to the marketing site.</p>
+            </section>
           ) : null}
-        </section>
-      ) : null}
 
-      {tab === 'wordpress' ? (
-        <section className="card space-y-2 opacity-60">
-          <h2 className="text-base font-semibold">WordPress plugin</h2>
-          <p className="text-sm text-slate-600">Coming soon — a one-click plugin for embedding your intake form on any WordPress site.</p>
-        </section>
-      ) : null}
+          {tab === 'qr' ? (
+            <section className="space-y-5">
+              <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_280px]">
+                {/* QR mat/frame — museum label */}
+                <div className="panel p-6">
+                  <div className="flex flex-col items-center">
+                    <div
+                      className="relative rounded-sm bg-white p-6 shadow-[0_1px_0_rgb(0_0_0/0.04),0_12px_32px_-16px_rgb(61_56_50/0.35)] ring-1 ring-paper-200"
+                      style={{ backgroundColor: bg }}
+                    >
+                      {pngBlobUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={pngBlobUrl} alt="Intake QR" className="h-56 w-56" />
+                      ) : (
+                        <div className="flex h-56 w-56 items-center justify-center text-sm text-paper-500">
+                          Rendering…
+                        </div>
+                      )}
+                    </div>
+                    <div className="mt-5 w-full max-w-[20rem] border-t border-paper-200 pt-3 text-center">
+                      <span className="eyebrow block">Encodes</span>
+                      <p className="mt-1 break-all font-mono text-[11px] leading-relaxed text-paper-600">
+                        {intakeUrl}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Controls */}
+                <div className="panel space-y-4 p-5 text-sm">
+                  <div>
+                    <span className="eyebrow mb-2 block">Specifications</span>
+                    <label className="mt-2 block">
+                      <span className="mb-1 block text-[11px] font-medium uppercase tracking-wider text-paper-600">
+                        Size
+                      </span>
+                      <select
+                        className="input"
+                        value={size}
+                        onChange={(e) => setSize(Number(e.target.value) as 256 | 512 | 1024)}
+                      >
+                        <option value={256}>256 px — small</option>
+                        <option value={512}>512 px — standard</option>
+                        <option value={1024}>1024 px — poster</option>
+                      </select>
+                    </label>
+                    <div className="mt-3 grid grid-cols-2 gap-3">
+                      <label className="block">
+                        <span className="mb-1 block text-[11px] font-medium uppercase tracking-wider text-paper-600">
+                          Ink
+                        </span>
+                        <div className="flex items-center gap-2 rounded-md border border-paper-300 bg-white p-1.5">
+                          <input
+                            type="color"
+                            className="h-7 w-10 cursor-pointer rounded border-0 bg-transparent p-0"
+                            value={fg}
+                            onChange={(e) => setFg(e.target.value)}
+                          />
+                          <span className="font-mono text-[11px] uppercase text-paper-600">{fg}</span>
+                        </div>
+                      </label>
+                      <label className="block">
+                        <span className="mb-1 block text-[11px] font-medium uppercase tracking-wider text-paper-600">
+                          Paper
+                        </span>
+                        <div className="flex items-center gap-2 rounded-md border border-paper-300 bg-white p-1.5">
+                          <input
+                            type="color"
+                            className="h-7 w-10 cursor-pointer rounded border-0 bg-transparent p-0"
+                            value={bg}
+                            onChange={(e) => setBg(e.target.value)}
+                          />
+                          <span className="font-mono text-[11px] uppercase text-paper-600">{bg}</span>
+                        </div>
+                      </label>
+                    </div>
+                  </div>
+
+                  <div className="border-t border-paper-200 pt-4">
+                    <span className="eyebrow mb-2 block">Export</span>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        className="btn-secondary"
+                        disabled={IS_DEMO}
+                        onClick={() => downloadQr('png')}
+                      >
+                        PNG
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-secondary"
+                        disabled={IS_DEMO}
+                        onClick={() => downloadQr('svg')}
+                      >
+                        SVG
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-secondary"
+                        disabled={IS_DEMO || !pngBlobUrl}
+                        onClick={downloadJpg}
+                      >
+                        JPG
+                      </button>
+                      <button
+                        type="button"
+                        className="btn"
+                        disabled={IS_DEMO || !pngBlobUrl}
+                        onClick={printPdf}
+                      >
+                        Print
+                      </button>
+                    </div>
+                  </div>
+
+                  {IS_DEMO ? (
+                    <p className="rounded-md border border-amber-200/70 bg-amber-50 px-3 py-2 text-[11px] text-amber-800">
+                      Downloads disabled in demo — QR encodes the marketing site.
+                    </p>
+                  ) : null}
+                </div>
+              </div>
+
+              <div className="panel flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0">
+                  <span className="eyebrow block">Security</span>
+                  <p className="mt-1 text-sm text-paper-700">
+                    Rotate the QR token if signage has been lost, stolen, or you want to force a refresh.
+                    Any printed QR currently in the wild will stop working.
+                  </p>
+                </div>
+                <button type="button" onClick={rotate} className="btn-danger shrink-0">
+                  Rotate token
+                </button>
+              </div>
+            </section>
+          ) : null}
+
+          {tab === 'iframe' ? (
+            <section className="panel space-y-5 p-6">
+              <p className="text-sm leading-relaxed text-paper-700">
+                Paste this snippet into any HTML page. The iframe renders the intake form inline on your
+                site — visitors never leave.
+              </p>
+              <div>
+                <label className="eyebrow mb-2 block">HTML snippet</label>
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <textarea
+                    readOnly
+                    value={iframeSnippet}
+                    rows={3}
+                    className="input flex-1 font-mono text-[12px] leading-relaxed"
+                    onFocus={(e) => e.currentTarget.select()}
+                  />
+                  <CopyButton value={iframeSnippet} />
+                </div>
+              </div>
+              {IS_DEMO ? (
+                <p className="rounded-md border border-amber-200/70 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                  Demo instance — embedded frame redirects to the marketing site.
+                </p>
+              ) : null}
+            </section>
+          ) : null}
+
+          {tab === 'wordpress' ? (
+            <section className="panel relative overflow-hidden p-8">
+              <div
+                aria-hidden
+                className="absolute inset-0 opacity-[0.04]"
+                style={{
+                  backgroundImage:
+                    'repeating-linear-gradient(45deg, #3d3832 0, #3d3832 1px, transparent 1px, transparent 12px)',
+                }}
+              />
+              <div className="relative flex flex-col items-start gap-3">
+                <span className="badge">In preparation</span>
+                <h3 className="h-display text-2xl">A one-click WordPress plugin</h3>
+                <p className="max-w-xl text-sm leading-relaxed text-paper-700">
+                  Install, enter your org slug, and drop an intake shortcode onto any post or page. We&apos;re
+                  polishing the submission now — if you&apos;d like early access, let us know.
+                </p>
+              </div>
+            </section>
+          ) : null}
+        </div>
+      </div>
     </div>
   );
 }
