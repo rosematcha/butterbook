@@ -35,6 +35,67 @@ import type { Tx } from '../db/index.js';
 // path is identical to production.
 export const DEMO_PASSWORD = 'password';
 
+// Org timezone. The Whitman is hardcoded to NY — if we ever let the seed
+// take other fictional museums, lift this to a parameter on seedDemoOrg.
+const ORG_TZ = 'America/New_York';
+
+// Returns how many hours the target tz is BEHIND UTC for the given moment.
+// EDT is 4, EST is 5. Using Intl avoids hand-rolling a DST table and stays
+// correct if we ever switch the demo org to a different zone.
+function tzOffsetHours(d: Date, tz: string): number {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: tz,
+    year: 'numeric', month: 'numeric', day: 'numeric',
+    hour: 'numeric', minute: 'numeric', hour12: false,
+  }).formatToParts(d);
+  const num = (t: string) => Number(parts.find((p) => p.type === t)!.value);
+  const hour = num('hour') === 24 ? 0 : num('hour');
+  const asUtc = Date.UTC(num('year'), num('month') - 1, num('day'), hour, num('minute'));
+  return Math.round((d.getTime() - asUtc) / (60 * 60 * 1000));
+}
+
+// Returns the YYYY-MM-DD calendar date in the target tz. Use this instead of
+// toISOString().slice(0,10), which returns the UTC date and skews by a day
+// near midnight boundaries.
+function tzDate(d: Date, tz: string): { year: number; month: number; day: number } {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: tz,
+    year: 'numeric', month: '2-digit', day: '2-digit',
+  }).formatToParts(d);
+  const num = (t: string) => Number(parts.find((p) => p.type === t)!.value);
+  return { year: num('year'), month: num('month'), day: num('day') };
+}
+
+// Builds a UTC Date whose rendering in `tz` is "YYYY-MM-DD at HH:MM" where
+// YYYY-MM-DD is the org-local date of `base` plus `dayOffset` days, and
+// HH:MM is the desired org-local time. All demo visit/event times run
+// through this helper so server-TZ drift can't surface as "open at 5 AM".
+function atOrgLocal(base: Date, dayOffset: number, hour: number, minute = 0): Date {
+  const today = tzDate(base, ORG_TZ);
+  // Construct midnight on the target calendar day (any UTC instant on that
+  // day will do — we only use it to probe the tz offset).
+  const probe = new Date(Date.UTC(today.year, today.month - 1, today.day + dayOffset, 12, 0));
+  const offset = tzOffsetHours(probe, ORG_TZ);
+  return new Date(
+    Date.UTC(
+      probe.getUTCFullYear(),
+      probe.getUTCMonth(),
+      probe.getUTCDate(),
+      hour + offset,
+      minute,
+      0,
+    ),
+  );
+}
+
+// Same as atOrgLocal but returns a YYYY-MM-DD string for columns that want
+// a DATE instead of a TIMESTAMPTZ (location_hour_overrides, closed_days).
+function orgDateString(base: Date, dayOffset: number): string {
+  const today = tzDate(base, ORG_TZ);
+  const d = new Date(Date.UTC(today.year, today.month - 1, today.day + dayOffset));
+  return d.toISOString().slice(0, 10);
+}
+
 // Fake-staff emails are deterministic so the same 5 "employees" are reused
 // across all demo orgs. This keeps the users table from ballooning: the prune
 // script only deletes the ephemeral admin, not these shared fixtures.
@@ -205,13 +266,9 @@ async function seedHours(tx: Tx, locationId: string): Promise<void> {
 
 async function seedOverridesAndClosed(tx: Tx, locationId: string, now: Date): Promise<void> {
   // Two overrides and one closed day, placed relative to now so they're always
-  // within the next ~6 weeks. Dates skip weekends so hours editor UI shows
-  // them sitting alongside normal-open days.
-  const plus = (days: number): string => {
-    const d = new Date(now);
-    d.setDate(d.getDate() + days);
-    return d.toISOString().slice(0, 10);
-  };
+  // within the next ~6 weeks. Dates are computed in the org timezone so
+  // midnight UTC boundaries don't nudge them off by a day.
+  const plus = (days: number): string => orgDateString(now, days);
   await tx
     .insertInto('location_hour_overrides')
     .values([
@@ -307,12 +364,10 @@ async function seedEvents(
   createdBy: string,
   now: Date,
 ): Promise<SeededEventIds> {
-  const plusDays = (days: number, hour = 10, minute = 0): Date => {
-    const d = new Date(now);
-    d.setDate(d.getDate() + days);
-    d.setHours(hour, minute, 0, 0);
-    return d;
-  };
+  // atOrgLocal anchors the start time in NY local so events like the
+  // 6pm Spring Opening don't drift to 2pm on a UTC server.
+  const plusDays = (days: number, hour = 10, minute = 0): Date =>
+    atOrgLocal(now, days, hour, minute);
   const specs: Array<{
     key: keyof SeededEventIds;
     title: string;
@@ -404,11 +459,9 @@ async function seedVisits(
     for (let i = 0; i < count; i++) {
       const name = VISITOR_NAMES[seq % VISITOR_NAMES.length]!;
       const partySize = 1 + ((seq * 7) % 5);
-      const hour = 10 + ((seq * 3) % 7);
+      const hour = 10 + ((seq * 3) % 7); // 10am–4pm, keeps visits inside the 10–5 open window
       const minute = (seq % 4) * 15;
-      const when = new Date(now);
-      when.setDate(when.getDate() + dayOffset);
-      when.setHours(hour, minute, 0, 0);
+      const when = atOrgLocal(now, dayOffset, hour, minute);
 
       // 6% cancelled, 3% no_show, otherwise confirmed. Past no_show only so the
       // timeline stays coherent.
@@ -447,9 +500,7 @@ async function seedVisits(
   // the capacity bar doesn't read like a stadium show.
   for (let i = 0; i < 9; i++) {
     const name = VISITOR_NAMES[(seq + i) % VISITOR_NAMES.length]!;
-    const when = new Date(now);
-    when.setDate(when.getDate() + 9);
-    when.setHours(18, (i % 4) * 10, 0, 0);
+    const when = atOrgLocal(now, 9, 18, (i % 4) * 10);
     rows.push({
       org_id: orgId,
       location_id: locationId,
