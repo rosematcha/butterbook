@@ -18,6 +18,16 @@ export function registerInvitationRoutes(app: FastifyInstance): void {
     await req.requirePermission(orgId, 'admin.manage_users');
     await req.requireNotDemo(orgId);
     const m = await req.loadMembershipFor(orgId);
+    // One-org-per-user: reject up-front if the invitee email already maps to a
+    // user with an active membership anywhere.
+    const inviteeAlreadyMember = await getDb()
+      .selectFrom('users')
+      .innerJoin('org_members', 'org_members.user_id', 'users.id')
+      .select('users.id')
+      .where('users.email', '=', body.email.toLowerCase())
+      .where('org_members.deleted_at', 'is', null)
+      .executeTakeFirst();
+    if (inviteeAlreadyMember) throw new ConflictError('That user already belongs to an organization.');
     return withOrgContext(orgId, req.actorForOrg(orgId, m), async ({ tx, audit }) => {
       for (const roleId of body.roleIds) {
         const r = await tx.selectFrom('roles').select(['id']).where('id', '=', roleId).where('org_id', '=', orgId).where('deleted_at', 'is', null).executeTakeFirst();
@@ -122,20 +132,16 @@ export function registerInvitationRoutes(app: FastifyInstance): void {
         userAgent: (req.headers['user-agent'] as string | undefined) ?? null,
       },
       async ({ tx, audit }) => {
-        const existingMembership = await tx
+        // One-org-per-user: refuse if the accepting user already has any
+        // membership (active or soft-deleted — we don't reactivate).
+        const anyExisting = await tx
           .selectFrom('org_members')
           .select('id')
           .where('user_id', '=', userId!)
-          .where('org_id', '=', invite.org_id)
           .executeTakeFirst();
-        let memberId: string;
-        if (existingMembership) {
-          memberId = existingMembership.id;
-          await tx.updateTable('org_members').set({ deleted_at: null }).where('id', '=', memberId).execute();
-        } else {
-          const row = await tx.insertInto('org_members').values({ org_id: invite.org_id, user_id: userId! }).returning(['id']).executeTakeFirstOrThrow();
-          memberId = row.id;
-        }
+        if (anyExisting) throw new ConflictError('User already belongs to an organization.');
+        const row = await tx.insertInto('org_members').values({ org_id: invite.org_id, user_id: userId! }).returning(['id']).executeTakeFirstOrThrow();
+        const memberId = row.id;
         for (const roleId of invite.role_ids) {
           await tx.insertInto('member_roles').values({ org_member_id: memberId, role_id: roleId }).onConflict((oc) => oc.doNothing()).execute();
         }

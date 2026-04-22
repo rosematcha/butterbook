@@ -96,7 +96,7 @@ export function registerAuthRoutes(app: FastifyInstance): void {
   app.get('/api/v1/auth/me', async (req) => {
     req.requireAuth();
     const db = getDb();
-    const memberships = await db
+    const membership = await db
       .selectFrom('org_members')
       .innerJoin('orgs', 'orgs.id', 'org_members.org_id')
       .select([
@@ -109,8 +109,8 @@ export function registerAuthRoutes(app: FastifyInstance): void {
       .where('org_members.user_id', '=', req.userId!)
       .where('org_members.deleted_at', 'is', null)
       .where('orgs.deleted_at', 'is', null)
-      .execute();
-    return { data: { user: req.authUser, memberships } };
+      .executeTakeFirst();
+    return { data: { user: req.authUser, membership: membership ?? null } };
   });
 
   app.post('/api/v1/auth/totp/enable', async (req) => {

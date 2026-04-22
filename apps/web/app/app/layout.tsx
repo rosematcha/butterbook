@@ -30,7 +30,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const qc = useQueryClient();
-  const { user, memberships, activeOrgId, setSession, setActiveOrgId, clear } = useSession();
+  const { user, membership, activeOrgId, setSession, clear } = useSession();
   const term = useTerminology();
 
   const mainNav: NavItem[] = [
@@ -48,7 +48,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   const me = useQuery({
     queryKey: ['me'],
-    queryFn: () => apiGet<{ data: { user: User; memberships: Membership[] } }>('/api/v1/auth/me'),
+    queryFn: () => apiGet<{ data: { user: User; membership: Membership | null } }>('/api/v1/auth/me'),
     enabled: typeof window !== 'undefined' && !!getToken(),
     retry: false,
   });
@@ -58,7 +58,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       router.replace('/login');
       return;
     }
-    if (me.data) setSession(me.data.data.user, me.data.data.memberships);
+    if (me.data) setSession(me.data.data.user, me.data.data.membership);
     if (me.isError) {
       setToken(null);
       clear();
@@ -85,14 +85,14 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     router.replace(IS_DEMO ? '/' : '/login');
   }
 
-  const active = memberships.find((m) => m.orgId === activeOrgId);
+  const active = membership;
 
   // Only show the "set up your organization" empty state once /me has
-  // resolved AND the session effect has synced memberships into Zustand.
-  // Otherwise we'd briefly flash the empty state while memberships defaults
-  // to [] between fetch resolution and setSession firing.
-  if (me.isSuccess && user !== null && memberships.length === 0) {
-    // On demo builds, "no memberships" means the sandbox expired (prune cron
+  // resolved AND the session effect has synced membership into Zustand.
+  // Otherwise we'd briefly flash the empty state while membership defaults
+  // to null between fetch resolution and setSession firing.
+  if (me.isSuccess && user !== null && membership === null) {
+    // On demo builds, "no membership" means the sandbox expired (prune cron
     // deleted the org but the cookie is still around). Bounce to the landing
     // page so they can start fresh — don't offer "Create an organization,"
     // which isn't a thing in the demo.
@@ -157,40 +157,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
         <div className="mb-4 px-2.5">
           <div className="h-eyebrow">Organization</div>
-          {IS_DEMO ? (
-            // Demo sessions belong to exactly one ephemeral org; the switcher
-            // would only ever hold one option, so we flatten it to a label.
-            <div className="mt-1.5 truncate rounded-md border border-paper-200 bg-white px-2.5 py-1.5 text-sm">
-              {active?.orgName ?? <SkeletonBlock className="h-3 w-32" />}
-            </div>
-          ) : memberships.length > 0 ? (
-            <select
-              value={activeOrgId ?? ''}
-              onChange={(e) => {
-                const next = e.target.value || null;
-                const prev = activeOrgId;
-                // Drop cached queries scoped to the previous org so the new org's
-                // tables show a skeleton instead of briefly flashing the wrong
-                // org's rows under the new org's header.
-                if (prev && prev !== next) {
-                  qc.removeQueries({
-                    predicate: (q) => q.queryKey.some((p) => p === prev),
-                  });
-                }
-                setActiveOrgId(next);
-              }}
-              className="input mt-1.5"
-            >
-              {memberships.map((m) => (
-                <option key={m.orgId} value={m.orgId}>
-                  {m.orgName}
-                  {m.isSuperadmin ? ' ★' : ''}
-                </option>
-              ))}
-            </select>
-          ) : (
-            <div className="mt-1.5"><SkeletonBlock className="h-9 w-full" /></div>
-          )}
+          <div className="mt-1.5 truncate rounded-md border border-paper-200 bg-white px-2.5 py-1.5 text-sm">
+            {active?.orgName ?? <SkeletonBlock className="h-3 w-32" />}
+            {active?.isSuperadmin ? <span className="ml-1 text-paper-400">★</span> : null}
+          </div>
         </div>
 
         <nav className="flex flex-1 flex-col gap-0.5">

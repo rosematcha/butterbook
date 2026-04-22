@@ -78,6 +78,17 @@ async function main(): Promise<void> {
   let userId: string;
   const existingUser = await db.selectFrom('users').select('id').where('email', '=', args.email).executeTakeFirst();
   if (existingUser) {
+    const existingMembership = await db
+      .selectFrom('org_members')
+      .select('id')
+      .where('user_id', '=', existingUser.id)
+      .where('deleted_at', 'is', null)
+      .executeTakeFirst();
+    if (existingMembership) {
+      // eslint-disable-next-line no-console
+      console.error(`User ${args.email} already belongs to an organization.`);
+      process.exit(1);
+    }
     userId = existingUser.id;
   } else {
     const hash = await hashPassword(password);

@@ -89,6 +89,24 @@ describe('POST /api/v1/orgs — wizard-expanded create', () => {
     expect(res.statusCode).toBe(401);
   });
 
+  it('rejects creating a second org for the same user with 409', async () => {
+    const { userId } = await createTestOrg('mono@example.com');
+    void userId;
+    const token = await loginToken(app, 'mono@example.com');
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/v1/orgs',
+      headers: { authorization: `Bearer ${token}` },
+      payload: {
+        name: 'Second Org',
+        address: '2 Second St',
+        zip: '10002',
+        timezone: 'America/New_York',
+      },
+    });
+    expect(res.statusCode).toBe(409);
+  });
+
   it('rejects unknown terminology with 422', async () => {
     await createUser('bad@example.com');
     const token = await loginToken(app, 'bad@example.com');

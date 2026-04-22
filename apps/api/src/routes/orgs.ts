@@ -40,6 +40,14 @@ export function registerOrgRoutes(app: FastifyInstance): void {
   app.post('/api/v1/orgs', async (req) => {
     req.requireAuth();
     const body = createOrgSchema.parse(req.body);
+    // One-org-per-user: reject if the caller already belongs to an org.
+    const existingMembership = await getDb()
+      .selectFrom('org_members')
+      .select('id')
+      .where('user_id', '=', req.userId!)
+      .where('deleted_at', 'is', null)
+      .executeTakeFirst();
+    if (existingMembership) throw new ConflictError('User already belongs to an organization.');
     const publicSlug = body.publicSlug ?? (await generateSlug(body.name));
     slugSchema.parse(publicSlug);
     const { orgId } = await createOrgWithOwner({

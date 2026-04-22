@@ -37,7 +37,10 @@ describe('auth', () => {
       headers: { authorization: `Bearer ${token}` },
     });
     expect(me.statusCode).toBe(200);
-    expect(JSON.parse(me.body).data.user.email).toBe('a@example.com');
+    const meBody = JSON.parse(me.body) as { data: { user: { email: string }; membership: unknown } };
+    expect(meBody.data.user.email).toBe('a@example.com');
+    // A freshly-registered user has no org yet — membership is null, not an array.
+    expect(meBody.data.membership).toBeNull();
   });
 
   it('rejects short passwords as 422', async () => {

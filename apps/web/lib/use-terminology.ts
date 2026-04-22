@@ -6,8 +6,7 @@ import { useSession } from './session';
 // returns the copy bundle. Falls back to 'visit' when no membership is loaded
 // yet so SSR/hydration renders don't flash a different label.
 export function useTerminology(): TerminologyCopy {
-  const { activeOrgId, memberships } = useSession();
-  const active = memberships.find((m) => m.orgId === activeOrgId);
-  const t: Terminology = active?.terminology ?? 'visit';
+  const { membership } = useSession();
+  const t: Terminology = membership?.terminology ?? 'visit';
   return terminologyCopy(t);
 }

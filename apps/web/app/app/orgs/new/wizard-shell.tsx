@@ -1,6 +1,5 @@
 'use client';
-import { useReducer, useState } from 'react';
-import Link from 'next/link';
+import { useEffect, useReducer, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
 import { MINIMAL_NAME_FIELD } from '@butterbook/shared';
@@ -65,7 +64,11 @@ const STEPS: StepDef[] = [
 export function WizardShell() {
   const router = useRouter();
   const qc = useQueryClient();
-  const { setActiveOrgId, memberships } = useSession();
+  const { membership } = useSession();
+  // Gate: a user with one org can't create another. Bounce them to /app.
+  useEffect(() => {
+    if (membership) router.replace('/app');
+  }, [membership, router]);
   const [state, patch] = useReducer(reducer, undefined, initialState);
   const [i, setI] = useState(0);
   const [submitting, setSubmitting] = useState(false);
@@ -146,7 +149,9 @@ export function WizardShell() {
         }
       }
 
-      setActiveOrgId(orgId);
+      // The /me query will pick up the new membership on invalidation; the
+      // session store derives activeOrgId from it.
+      void orgId;
       await qc.invalidateQueries({ queryKey: ['me'] });
       router.push('/app');
     } catch (err) {
@@ -170,9 +175,6 @@ export function WizardShell() {
           </div>
           <h1 className="h-display mt-1">Set up your organization</h1>
         </div>
-        {memberships.length > 0 ? (
-          <Link href="/app" className="btn-ghost">Cancel</Link>
-        ) : null}
       </div>
 
       <div

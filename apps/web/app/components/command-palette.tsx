@@ -1,7 +1,7 @@
 'use client';
 /**
- * ⌘K / Ctrl+K command palette. Fuzzy-searches over navigation destinations,
- * actions (sign out, switch org), and per-org memberships.
+ * ⌘K / Ctrl+K command palette. Fuzzy-searches over navigation destinations
+ * and actions (sign out).
  *
  * Global shortcut: ⌘K on mac, Ctrl+K elsewhere. Esc closes.
  */
@@ -37,7 +37,7 @@ function matches(q: string, text: string): boolean {
 
 export function CommandPalette() {
   const router = useRouter();
-  const { memberships, activeOrgId, setActiveOrgId, clear } = useSession();
+  const { clear } = useSession();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [cursor, setCursor] = useState(0);
@@ -102,20 +102,6 @@ export function CommandPalette() {
       onSelect: () => router.push(n.href),
     }));
 
-    // Org switcher entries (only appear when there's more than one).
-    if (memberships.length > 1) {
-      for (const m of memberships) {
-        if (m.orgId === activeOrgId) continue;
-        list.push({
-          id: `org:${m.orgId}`,
-          group: 'Switch organization',
-          label: m.orgName,
-          hint: m.isSuperadmin ? 'superadmin' : undefined,
-          onSelect: () => setActiveOrgId(m.orgId),
-        } as Command);
-      }
-    }
-
     list.push({
       id: 'action:new-visitor',
       group: 'Actions',
@@ -146,7 +132,7 @@ export function CommandPalette() {
     });
     return list;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [memberships, activeOrgId, router]);
+  }, [router]);
 
   const filtered = useMemo(() => {
     return commands.filter((c) => matches(query, `${c.label} ${c.group} ${c.keywords ?? ''}`));
