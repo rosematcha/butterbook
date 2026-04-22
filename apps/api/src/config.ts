@@ -32,6 +32,17 @@ const ConfigSchema = z.object({
   // instances. If unset, the default in-memory store is used — fine for a
   // single-instance deployment, unsafe for multi-instance.
   REDIS_URL: z.string().url().optional(),
+
+  // Demo deployment flags.
+  // DEMO_MODE=true turns on: the /demo/session provisioning route, the
+  // X-Robots-Tag: noindex response header, and the requireNotDemo() guard on
+  // destructive actions. On prod API instances it must stay false.
+  DEMO_MODE: z.coerce.boolean().default(false),
+  // Hard cap on concurrent demo orgs. New provision requests above this are
+  // rejected with 429. Tune from the `demo_orgs_active` metric.
+  DEMO_MAX_ORGS: z.coerce.number().int().positive().default(512),
+  // Hours of inactivity before the prune cron hard-deletes a demo org.
+  DEMO_SESSION_TTL_HOURS: z.coerce.number().int().positive().default(12),
 });
 
 export type AppConfig = z.infer<typeof ConfigSchema>;

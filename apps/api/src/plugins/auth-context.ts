@@ -20,6 +20,10 @@ declare module 'fastify' {
     requireAuth(): void;
     requirePermission(orgId: string, perm: Permission): Promise<void>;
     requireSuperadmin(orgId: string): Promise<void>;
+    // Refuses requests targeting a demo org. Wired onto mutations we don't
+    // want exposed in the demo sandbox (invitation create, org delete, …).
+    // Harmless in production: non-demo orgs always pass through.
+    requireNotDemo(orgId: string): Promise<void>;
     actor(): ActorContext;
     actorForOrg(orgId: string, m: { isSuperadmin: boolean; permissions: Set<Permission> }): ActorContext;
   }
@@ -83,6 +87,23 @@ export function registerAuthContext(app: FastifyInstance): void {
       const m = await req.loadMembershipFor(orgId);
       if (!m.isSuperadmin) {
         throw new PermissionError('Superadmin required.');
+      }
+    };
+
+    const demoCache = new Map<string, boolean>();
+    req.requireNotDemo = async (orgId: string) => {
+      let isDemo = demoCache.get(orgId);
+      if (isDemo === undefined) {
+        const row = await getDb()
+          .selectFrom('orgs')
+          .select('is_demo')
+          .where('id', '=', orgId)
+          .executeTakeFirst();
+        isDemo = row?.is_demo ?? false;
+        demoCache.set(orgId, isDemo);
+      }
+      if (isDemo) {
+        throw new PermissionError('This action is disabled in the demo.');
       }
     };
 

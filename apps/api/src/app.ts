@@ -28,6 +28,7 @@ import { registerWaitlistRoutes } from './routes/waitlist.js';
 import { registerAuditRoutes } from './routes/audit.js';
 import { registerReportRoutes } from './routes/reports.js';
 import { registerOrgExportRoutes } from './routes/org-export.js';
+import { registerDemoRoutes } from './routes/demo.js';
 import { registerMetricsRoutes } from './plugins/metrics.js';
 
 export async function buildApp(): Promise<FastifyInstance> {
@@ -125,6 +126,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   registerAuditRoutes(app);
   registerReportRoutes(app);
   registerOrgExportRoutes(app);
+  registerDemoRoutes(app);
   registerMetricsRoutes(app);
 
   return app;

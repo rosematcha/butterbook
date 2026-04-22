@@ -16,6 +16,7 @@ export function registerInvitationRoutes(app: FastifyInstance): void {
     const { orgId } = orgParam.parse(req.params);
     const body = createInvitationSchema.parse(req.body);
     await req.requirePermission(orgId, 'admin.manage_users');
+    await req.requireNotDemo(orgId);
     const m = await req.loadMembershipFor(orgId);
     return withOrgContext(orgId, req.actorForOrg(orgId, m), async ({ tx, audit }) => {
       for (const roleId of body.roleIds) {
