@@ -22,6 +22,7 @@ import { registerAvailabilityRoutes } from './routes/availability.js';
 import { registerVisitRoutes } from './routes/visits.js';
 import { registerPublicBookingRoutes } from './routes/public-booking.js';
 import { registerKioskRoutes } from './routes/kiosk.js';
+import { registerIntakeRoutes } from './routes/intake.js';
 import { registerEventRoutes } from './routes/events.js';
 import { registerPublicEventRoutes } from './routes/public-events.js';
 import { registerWaitlistRoutes } from './routes/waitlist.js';
@@ -120,6 +121,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   registerVisitRoutes(app);
   registerPublicBookingRoutes(app);
   registerKioskRoutes(app);
+  registerIntakeRoutes(app);
   registerEventRoutes(app);
   registerPublicEventRoutes(app);
   registerWaitlistRoutes(app);

@@ -44,6 +44,7 @@ const ALLOWED_FILES = [
   'src/middleware/idempotency.ts',
   'src/routes/invitations.ts',
   'src/routes/kiosk.ts',
+  'src/routes/intake.ts',
   'src/routes/org-export.ts',
 ];
 

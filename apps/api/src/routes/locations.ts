@@ -123,15 +123,37 @@ export function registerLocationRoutes(app: FastifyInstance): void {
 
   app.get('/api/v1/orgs/:orgId/locations/:locId/qr', async (req, reply) => {
     const { orgId, locId } = locParam.parse(req.params);
+    const q = z
+      .object({
+        format: z.enum(['png', 'svg']).default('png'),
+        size: z.coerce.number().int().refine((n) => [256, 512, 1024].includes(n), 'size must be 256, 512, or 1024').default(512),
+        fg: z.string().regex(/^#[0-9a-fA-F]{6}$/).default('#000000'),
+        bg: z.string().regex(/^#[0-9a-fA-F]{6}$/).default('#ffffff'),
+      })
+      .parse(req.query);
     req.requireAuth();
     await req.loadMembershipFor(orgId);
-    const result = await withOrgRead(orgId, async (tx) => {
-      const loc = await tx.selectFrom('locations').select(['qr_token']).where('id', '=', locId).where('org_id', '=', orgId).where('deleted_at', 'is', null).executeTakeFirst();
+    const resolved = await withOrgRead(orgId, async (tx) => {
+      const loc = await tx
+        .selectFrom('locations')
+        .innerJoin('orgs', 'orgs.id', 'locations.org_id')
+        .select(['orgs.public_slug as slug', 'orgs.is_demo as isDemo'])
+        .where('locations.id', '=', locId)
+        .where('locations.org_id', '=', orgId)
+        .where('locations.deleted_at', 'is', null)
+        .executeTakeFirst();
       if (!loc) throw new NotFoundError();
-      return loc.qr_token;
+      return loc;
     });
-    const url = `${getConfig().APP_BASE_URL}/kiosk?token=${result}&kiosk=true`;
-    const png = await QRCode.toBuffer(url, { type: 'png', margin: 1, width: 512 });
+    const url = resolved.isDemo
+      ? 'https://butterbook.app'
+      : `${getConfig().APP_BASE_URL}/intake/${resolved.slug}`;
+    const color = { dark: q.fg, light: q.bg };
+    if (q.format === 'svg') {
+      const svg = await QRCode.toString(url, { type: 'svg', margin: 1, color, width: q.size });
+      return reply.type('image/svg+xml').send(svg);
+    }
+    const png = await QRCode.toBuffer(url, { type: 'png', margin: 1, width: q.size, color });
     return reply.type('image/png').send(png);
   });
 
