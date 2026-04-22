@@ -1,6 +1,6 @@
 'use client';
 import { Suspense } from 'react';
-import { IntakeInner } from '../intake/page';
+import { IntakeInner } from '../intake/IntakeInner';
 
 export default function EmbedPage() {
   return (
