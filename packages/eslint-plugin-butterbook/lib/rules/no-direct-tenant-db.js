@@ -51,6 +51,10 @@ const ALLOWED_FILES = [
   'src/routes/kiosk.ts',
   'src/routes/intake.ts',
   'src/routes/org-export.ts',
+  // Manage routes resolve a signed manage_token → visit row directly
+  // (same bootstrap pattern as kiosk's qr_token lookup); downstream work
+  // switches into withOrgContext / withOrgRead.
+  'src/routes/manage.ts',
 ];
 
 // Worker code polls the outbox directly; its queries scope themselves via

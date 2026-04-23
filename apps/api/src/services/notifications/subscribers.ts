@@ -2,6 +2,7 @@ import { getConfig } from '../../config.js';
 import { withOrgContext, type Tx } from '../../db/index.js';
 import { logger } from '../../utils/logger.js';
 import type { ActorContext } from '@butterbook/shared';
+import { defaultManageExpiry, makeManageToken } from '../../utils/manage-token.js';
 import { renderTemplate } from './render.js';
 
 // System actor used for subscriber work. Subscribers run inside withOrgContext
@@ -94,11 +95,24 @@ async function enqueueRendered(
   }
 
   const org = await tx.selectFrom('orgs').select(['name', 'timezone']).where('id', '=', orgId).executeTakeFirst();
+  // Build the manage URL if the payload references a visit. For reschedule/
+  // cancellation templates the URL is meaningless, but Handlebars strict mode
+  // requires the variable to be defined — empty string still resolves
+  // `{{#if manageUrl}}` to false.
+  let manageUrl = '';
+  const visitId = typeof payload.visitId === 'string' ? payload.visitId : null;
+  const scheduledAt = typeof payload.scheduledAt === 'string' ? payload.scheduledAt : null;
+  if (visitId && scheduledAt) {
+    const token = makeManageToken(visitId, defaultManageExpiry(scheduledAt));
+    manageUrl = `${getConfig().APP_BASE_URL}/manage/${token}`;
+  }
+
   const vars: Record<string, unknown> = {
     ...payload,
     orgName: org?.name ?? '',
     orgTimezone: org?.timezone ?? 'UTC',
     visitorName: extractVisitorName(payload),
+    manageUrl,
     scheduledAtLocal:
       typeof payload.scheduledAt === 'string'
         ? new Intl.DateTimeFormat('en-US', {
@@ -156,6 +170,7 @@ export const SUBSCRIBERS: Record<string, SubscriberFn> = {
   'visit.created': (ctx) => runSubscriber(ctx, 'visit.confirmation'),
   'visit.self_booked': (ctx) => runSubscriber(ctx, 'visit.confirmation'),
   'visit.cancelled': (ctx) => runSubscriber(ctx, 'visit.cancelled'),
+  'visit.rescheduled': (ctx) => runSubscriber(ctx, 'visit.rescheduled'),
   'waitlist.promoted': (ctx) => runSubscriber(ctx, 'waitlist.promoted'),
   'waitlist.auto_promoted': (ctx) => runSubscriber(ctx, 'waitlist.promoted'),
   'event.published': (ctx) => runSubscriber(ctx, 'event.published'),

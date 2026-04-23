@@ -12,6 +12,7 @@ import {
 import { getDb, withOrgContext, withOrgRead, type Tx } from '../db/index.js';
 import { NotFoundError, ValidationError } from '../errors/index.js';
 import { createVisitInTx } from '../services/booking.js';
+import { cancelVisitInTx } from '../services/visits.js';
 import { redactAuditBody } from '../utils/audit.js';
 
 const orgParam = z.object({ orgId: z.string().uuid() });
@@ -173,77 +174,11 @@ export function registerVisitRoutes(app: FastifyInstance): void {
     const { orgId, visitId } = visitParam.parse(req.params);
     await req.requirePermission(orgId, 'visits.cancel');
     const m = await req.loadMembershipFor(orgId);
-    return withOrgContext(orgId, req.actorForOrg(orgId, m), async ({ tx, audit, emit }) => {
+    const actor = req.actorForOrg(orgId, m);
+    return withOrgContext(orgId, actor, async ({ tx, audit, emit }) => {
       const visit = await tx.selectFrom('visits').selectAll().where('id', '=', visitId).where('org_id', '=', orgId).executeTakeFirst();
       if (!visit) throw new NotFoundError();
-      if (visit.status === 'cancelled') return { data: { ok: true } };
-      await tx.updateTable('visits').set({ status: 'cancelled', cancelled_at: new Date(), cancelled_by: req.userId }).where('id', '=', visitId).execute();
-      await audit({ action: 'visit.cancelled', targetType: 'visit', targetId: visitId });
-      await emit({
-        eventType: 'visit.cancelled',
-        aggregateType: 'visit',
-        aggregateId: visitId,
-        payload: {
-          version: 1,
-          visitId,
-          eventId: visit.event_id,
-          scheduledAt: (visit.scheduled_at instanceof Date ? visit.scheduled_at : new Date(visit.scheduled_at as unknown as string)).toISOString(),
-          formResponse: visit.form_response,
-        },
-      });
-
-      if (visit.event_id) {
-        const event = await tx
-          .selectFrom('events')
-          .select(['id', 'waitlist_auto_promote', 'starts_at', 'location_id'])
-          .where('id', '=', visit.event_id)
-          .where('deleted_at', 'is', null)
-          .executeTakeFirst();
-        if (event?.waitlist_auto_promote) {
-          const next = await tx
-            .selectFrom('waitlist_entries')
-            .selectAll()
-            .where('event_id', '=', event.id)
-            .where('status', '=', 'waiting')
-            .orderBy('sort_order', 'asc')
-            .limit(1)
-            .executeTakeFirst();
-          if (next) {
-            const newVisit = await tx
-              .insertInto('visits')
-              .values({
-                org_id: orgId,
-                location_id: event.location_id,
-                event_id: event.id,
-                booked_by: null,
-                booking_method: 'self',
-                scheduled_at: event.starts_at,
-                form_response: next.form_response,
-              })
-              .returning(['id'])
-              .executeTakeFirstOrThrow();
-            await tx
-              .updateTable('waitlist_entries')
-              .set({ status: 'promoted', promoted_at: new Date(), promoted_by: req.userId, promoted_visit_id: newVisit.id })
-              .where('id', '=', next.id)
-              .execute();
-            await audit({ action: 'waitlist.auto_promoted', targetType: 'waitlist_entry', targetId: next.id, diff: { after: { visitId: newVisit.id } } });
-            await emit({
-              eventType: 'waitlist.auto_promoted',
-              aggregateType: 'waitlist_entry',
-              aggregateId: next.id,
-              payload: {
-                version: 1,
-                waitlistEntryId: next.id,
-                visitId: newVisit.id,
-                eventId: event.id,
-                scheduledAt: (event.starts_at instanceof Date ? event.starts_at : new Date(event.starts_at as unknown as string)).toISOString(),
-                formResponse: next.form_response,
-              },
-            });
-          }
-        }
-      }
+      await cancelVisitInTx(tx, visit, audit, emit, { actor, reason: 'admin' });
       return { data: { ok: true } };
     });
   });

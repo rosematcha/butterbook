@@ -12,9 +12,9 @@ export const DEFAULT_TEMPLATES: DefaultTemplate[] = [
     templateKey: 'visit.confirmation',
     subject: 'Your visit is confirmed',
     bodyHtml:
-      '<p>Hi {{visitorName}},</p><p>Your visit is confirmed for {{scheduledAtLocal}}.</p><p>We look forward to seeing you at {{orgName}}.</p>',
+      '<p>Hi {{visitorName}},</p><p>Your visit is confirmed for {{scheduledAtLocal}}.</p>{{#if manageUrl}}<p>Need to cancel or make changes? <a href="{{manageUrl}}">Manage your booking</a>.</p>{{/if}}<p>We look forward to seeing you at {{orgName}}.</p>',
     bodyText:
-      'Hi {{visitorName}},\n\nYour visit is confirmed for {{scheduledAtLocal}}.\n\nWe look forward to seeing you at {{orgName}}.',
+      'Hi {{visitorName}},\n\nYour visit is confirmed for {{scheduledAtLocal}}.\n\n{{#if manageUrl}}Need to cancel or make changes? {{manageUrl}}\n\n{{/if}}We look forward to seeing you at {{orgName}}.',
   },
   {
     templateKey: 'visit.cancelled',
@@ -28,9 +28,17 @@ export const DEFAULT_TEMPLATES: DefaultTemplate[] = [
     templateKey: 'waitlist.promoted',
     subject: "You're off the waitlist",
     bodyHtml:
-      '<p>Hi {{visitorName}},</p><p>A spot opened up for {{eventName}} on {{scheduledAtLocal}}. You\u2019re confirmed.</p><p>See you at {{orgName}}.</p>',
+      '<p>Hi {{visitorName}},</p><p>A spot opened up for {{eventName}} on {{scheduledAtLocal}}. You\u2019re confirmed.</p>{{#if manageUrl}}<p>Need to cancel? <a href="{{manageUrl}}">Manage your booking</a>.</p>{{/if}}<p>See you at {{orgName}}.</p>',
     bodyText:
-      'Hi {{visitorName}},\n\nA spot opened up for {{eventName}} on {{scheduledAtLocal}}. You\u2019re confirmed.\n\nSee you at {{orgName}}.',
+      'Hi {{visitorName}},\n\nA spot opened up for {{eventName}} on {{scheduledAtLocal}}. You\u2019re confirmed.\n\n{{#if manageUrl}}Need to cancel? {{manageUrl}}\n\n{{/if}}See you at {{orgName}}.',
+  },
+  {
+    templateKey: 'visit.rescheduled',
+    subject: 'Your visit has been rescheduled',
+    bodyHtml:
+      '<p>Hi {{visitorName}},</p><p>Your visit has been rescheduled to {{scheduledAtLocal}}.</p>{{#if manageUrl}}<p>Need to make another change? <a href="{{manageUrl}}">Manage your booking</a>.</p>{{/if}}<p>See you at {{orgName}}.</p>',
+    bodyText:
+      'Hi {{visitorName}},\n\nYour visit has been rescheduled to {{scheduledAtLocal}}.\n\n{{#if manageUrl}}Need to make another change? {{manageUrl}}\n\n{{/if}}See you at {{orgName}}.',
   },
   {
     templateKey: 'event.published',

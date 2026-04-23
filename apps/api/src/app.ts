@@ -31,6 +31,8 @@ import { registerNotificationRoutes } from './routes/notifications.js';
 import { registerReportRoutes } from './routes/reports.js';
 import { registerOrgExportRoutes } from './routes/org-export.js';
 import { registerDemoRoutes } from './routes/demo.js';
+import { registerManageRoutes } from './routes/manage.js';
+import { registerBookingPolicyRoutes } from './routes/booking-policies.js';
 import { registerMetricsRoutes } from './plugins/metrics.js';
 
 export async function buildApp(): Promise<FastifyInstance> {
@@ -42,6 +44,8 @@ export async function buildApp(): Promise<FastifyInstance> {
     logger: buildLoggerOptions(),
     genReqId: () => crypto.randomUUID(),
     trustProxy: true,
+    // Manage tokens are ~115 chars (uuid + ts + hmac-hex); default is 100.
+    routerOptions: { maxParamLength: 256 },
   });
 
   await app.register(fastifyCors, {
@@ -131,6 +135,8 @@ export async function buildApp(): Promise<FastifyInstance> {
   registerReportRoutes(app);
   registerOrgExportRoutes(app);
   registerDemoRoutes(app);
+  registerManageRoutes(app);
+  registerBookingPolicyRoutes(app);
   registerMetricsRoutes(app);
 
   return app;

@@ -31,6 +31,7 @@ export async function truncateAll(): Promise<void> {
   await db.deleteFrom('location_hour_overrides').execute();
   await db.deleteFrom('location_hours').execute();
   await db.deleteFrom('locations').execute();
+  await db.deleteFrom('org_booking_policies').execute();
   await db.deleteFrom('orgs').execute();
   await db.deleteFrom('users').execute();
 }
