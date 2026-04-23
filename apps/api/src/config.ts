@@ -11,6 +11,9 @@ const ConfigSchema = z.object({
     .refine((s) => Buffer.from(s, 'base64').length === 32, 'Must decode to exactly 32 bytes'),
   SESSION_SECRET: z.string().min(32),
   KIOSK_NONCE_SECRET: z.string().min(32),
+  // Signs visitor manage-link tokens embedded in confirmation/waitlist-promo
+  // emails. Rotating this invalidates every outstanding manage link.
+  MANAGE_TOKEN_SECRET: z.string().min(32),
   APP_BASE_URL: z.string().url(),
   CORS_ALLOWED_ORIGINS: z.string().transform((s) =>
     s

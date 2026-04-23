@@ -102,6 +102,12 @@ export async function createOrgWithOwner(input: {
       )
       .execute();
 
+    // Seed default booking policy (self-cancel on, self-reschedule off, 2h cutoffs).
+    await tx
+      .insertInto('org_booking_policies')
+      .values({ org_id: org.id })
+      .execute();
+
     return { orgId: org.id, memberId: member.id, locationId: location.id };
   });
 }

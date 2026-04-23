@@ -18,6 +18,9 @@ if (!process.env.SESSION_SECRET) {
 if (!process.env.KIOSK_NONCE_SECRET) {
   process.env.KIOSK_NONCE_SECRET = 'test_kiosk_secret_must_be_at_least_32_chars';
 }
+if (!process.env.MANAGE_TOKEN_SECRET) {
+  process.env.MANAGE_TOKEN_SECRET = 'test_manage_token_secret_must_be_at_least_32_chars';
+}
 if (!process.env.APP_BASE_URL) process.env.APP_BASE_URL = 'http://localhost:3000';
 if (!process.env.CORS_ALLOWED_ORIGINS) process.env.CORS_ALLOWED_ORIGINS = 'http://localhost:3000';
 process.env.NODE_ENV = 'test';

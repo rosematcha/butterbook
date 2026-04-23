@@ -26,6 +26,17 @@ export interface DB {
   notification_templates: NotificationTemplatesTable;
   notifications_outbox: NotificationsOutboxTable;
   notification_suppressions: NotificationSuppressionsTable;
+  org_booking_policies: OrgBookingPoliciesTable;
+}
+
+export interface OrgBookingPoliciesTable {
+  org_id: string;
+  cancel_cutoff_hours: Generated<number>;
+  reschedule_cutoff_hours: Generated<number>;
+  self_cancel_enabled: Generated<boolean>;
+  self_reschedule_enabled: Generated<boolean>;
+  refund_policy_text: string | null;
+  updated_at: Generated<Timestamp>;
 }
 
 export interface OrgsTable {
