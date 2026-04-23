@@ -1,0 +1,40 @@
+# Version control + editor state
+.git
+.gitignore
+.vscode
+.idea
+
+# Dependencies — reinstalled in the build stage
+**/node_modules
+.pnpm-store
+
+# Build outputs — regenerated in the build stage
+**/dist
+**/.next
+**/.turbo
+**/out
+**/coverage
+
+# Tests & fixtures — not in the runtime image
+**/*.test.ts
+**/*.spec.ts
+**/tests
+**/__tests__
+**/__mocks__
+
+# Env files — injected by Coolify at runtime
+.env
+.env.*
+!.env.example
+
+# Docs and meta
+*.md
+docs
+renovate.json
+
+# Web app — the API image doesn't need it
+apps/web
+
+# OS / misc
+.DS_Store
+*.log
