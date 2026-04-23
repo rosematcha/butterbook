@@ -81,6 +81,23 @@ describe('reports', () => {
     expect(lines.length).toBe(3); // header + 2 rows
   });
 
+  it('visits report paginates row-level results', async () => {
+    const { orgId, locationId } = await createTestOrg('visits-report@example.com');
+    const token = await loginToken(app, 'visits-report@example.com');
+    await seedVisits(orgId, locationId, token);
+    const res = await app.inject({
+      method: 'GET',
+      url: `/api/v1/orgs/${orgId}/reports/visits?page=1&limit=1`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body) as { data: Array<{ id: string }>; meta: { total: number; pages: number; limit: number } };
+    expect(body.data).toHaveLength(1);
+    expect(body.meta.total).toBe(2);
+    expect(body.meta.pages).toBe(2);
+    expect(body.meta.limit).toBe(1);
+  });
+
   it('reports require reports.view (403 for non-superadmin without role)', async () => {
     const { orgId, locationId } = await createTestOrg('perm@example.com');
     const ownerToken = await loginToken(app, 'perm@example.com');

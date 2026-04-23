@@ -1,16 +1,43 @@
 import { API_BASE_URL } from './env';
 
 const TOKEN_KEY = 'butterbook.token';
+const LEGACY_STORAGE = 'localStorage';
+const PRIMARY_STORAGE = 'sessionStorage';
+
+function storage(name: typeof PRIMARY_STORAGE | typeof LEGACY_STORAGE): Storage | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    return window[name];
+  } catch {
+    return null;
+  }
+}
 
 export function getToken(): string | null {
-  if (typeof window === 'undefined') return null;
-  return window.localStorage.getItem(TOKEN_KEY);
+  const primary = storage(PRIMARY_STORAGE);
+  const current = primary?.getItem(TOKEN_KEY) ?? null;
+  if (current) return current;
+
+  // One-time migration for users who were already signed in before the token
+  // stopped living in persistent localStorage.
+  const legacy = storage(LEGACY_STORAGE)?.getItem(TOKEN_KEY) ?? null;
+  if (legacy && primary) {
+    primary.setItem(TOKEN_KEY, legacy);
+    storage(LEGACY_STORAGE)?.removeItem(TOKEN_KEY);
+    return legacy;
+  }
+  return legacy;
 }
 
 export function setToken(token: string | null): void {
-  if (typeof window === 'undefined') return;
-  if (token === null) window.localStorage.removeItem(TOKEN_KEY);
-  else window.localStorage.setItem(TOKEN_KEY, token);
+  const primary = storage(PRIMARY_STORAGE);
+  if (token === null) {
+    primary?.removeItem(TOKEN_KEY);
+    storage(LEGACY_STORAGE)?.removeItem(TOKEN_KEY);
+    return;
+  }
+  primary?.setItem(TOKEN_KEY, token);
+  storage(LEGACY_STORAGE)?.removeItem(TOKEN_KEY);
 }
 
 export interface ApiProblem {

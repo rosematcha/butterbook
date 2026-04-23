@@ -1,14 +1,16 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
-import { isoDateTimeSchema, uuidSchema } from '@butterbook/shared';
+import { isoDateTimeSchema, paginationSchema, uuidSchema } from '@butterbook/shared';
 import { withOrgRead } from '../db/index.js';
 import {
   reportBookingSources,
   reportEvents,
   reportHeadcount,
   reportIntake,
-  reportVisits,
+  reportVisitsChunk,
+  reportVisitsPage,
   toCsv,
+  toCsvRow,
   type HeadcountBucket,
   type ReportFilters,
 } from '../services/reports.js';
@@ -26,6 +28,7 @@ const visitsFilters = baseFilters.extend({
   method: z.enum(['self', 'admin', 'kiosk']).optional(),
   type: z.enum(['general', 'event']).optional(),
 });
+const pagedVisitsFilters = visitsFilters.merge(paginationSchema);
 
 const headcountFilters = baseFilters.extend({
   group_by: z.enum(['day', 'week', 'month']).default('day'),
@@ -48,28 +51,74 @@ function filtersFromQuery(f: z.infer<typeof visitsFilters>): ReportFilters {
   };
 }
 
+const VISITS_EXPORT_PAGE_SIZE = 500;
+
 export function registerReportRoutes(app: FastifyInstance): void {
   // ---- visits ----
   app.get('/api/v1/orgs/:orgId/reports/visits', async (req) => {
     const { orgId } = orgParam.parse(req.params);
-    const f = visitsFilters.parse(req.query);
+    const f = pagedVisitsFilters.parse(req.query);
     await req.requirePermission(orgId, 'reports.view');
     return withOrgRead(orgId, async (tx) => {
-      const rows = await reportVisits(tx, orgId, filtersFromQuery(f));
-      return { data: rows };
+      const result = await reportVisitsPage(tx, orgId, filtersFromQuery(f), { page: f.page, limit: f.limit });
+      return {
+        data: result.rows,
+        meta: {
+          page: f.page,
+          limit: f.limit,
+          total: result.total,
+          pages: Math.ceil(result.total / f.limit),
+        },
+      };
     });
   });
   app.get('/api/v1/orgs/:orgId/reports/visits/export', { config: { rateLimit: { max: 10, timeWindow: '1 hour' } } }, async (req, reply) => {
     const { orgId } = orgParam.parse(req.params);
     const f = visitsFilters.parse(req.query);
     await req.requirePermission(orgId, 'reports.export');
-    const rows = await withOrgRead(orgId, (tx) => reportVisits(tx, orgId, filtersFromQuery(f)));
-    return sendCsv(
-      reply,
-      'visits',
-      ['id', 'scheduled_at', 'status', 'booking_method', 'location_id', 'event_id', 'party_size', 'pii_redacted'],
-      rows.map((r) => [r.id, r.scheduled_at.toISOString(), r.status, r.booking_method, r.location_id, r.event_id, r.party_size, String(r.pii_redacted)]),
-    );
+    const headers = ['id', 'scheduled_at', 'status', 'booking_method', 'location_id', 'event_id', 'party_size', 'pii_redacted'];
+    reply
+      .type('text/csv; charset=utf-8')
+      .header('Content-Disposition', 'attachment; filename="visits.csv"');
+    reply.hijack();
+    const raw = reply.raw;
+
+    try {
+      raw.statusCode = 200;
+      raw.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      raw.setHeader('Content-Disposition', 'attachment; filename="visits.csv"');
+      raw.write(toCsvRow(headers));
+
+      await withOrgRead(orgId, async (tx) => {
+        for (let page = 1; ; page += 1) {
+          const rows = await reportVisitsChunk(tx, orgId, filtersFromQuery(f), {
+            page,
+            limit: VISITS_EXPORT_PAGE_SIZE,
+          });
+          if (rows.length === 0) break;
+          for (const row of rows) {
+            raw.write(
+              `\n${toCsvRow([
+                row.id,
+                row.scheduled_at.toISOString(),
+                row.status,
+                row.booking_method,
+                row.location_id,
+                row.event_id,
+                row.party_size,
+                String(row.pii_redacted),
+              ])}`,
+            );
+          }
+          if (rows.length < VISITS_EXPORT_PAGE_SIZE) break;
+        }
+      });
+
+      raw.end();
+    } catch (err) {
+      req.log.error({ err }, 'reports.visits_export_failed');
+      raw.destroy(err as Error);
+    }
   });
 
   // ---- headcount ----

@@ -80,7 +80,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     setToken(null);
     clear();
     qc.clear();
-    if (typeof window !== 'undefined') window.localStorage.removeItem('butterbook.qc');
     // In demo builds "sign out" is "exit demo" — land on the landing page
     // rather than /login, since /login in demo mode would just prompt to
     // re-enter the sandbox.

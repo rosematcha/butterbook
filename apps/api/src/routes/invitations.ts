@@ -112,7 +112,22 @@ export function registerInvitationRoutes(app: FastifyInstance): void {
     if (expAt.getTime() <= Date.now()) throw new ConflictError('Invitation expired.');
 
     let userId = req.userId;
-    if (!userId) {
+    if (userId) {
+      // Bind the invite to the authenticated account as well, not just the
+      // registration payload path below. Otherwise any logged-in account with
+      // no org could consume someone else's invitation link.
+      if (!req.authUser || req.authUser.email.toLowerCase() !== invite.email.toLowerCase()) {
+        throw new ConflictError('Invitation email does not match the signed-in account.');
+      }
+      // Cross-tenant invariant: an invite can only be accepted by an account
+      // with no membership anywhere, not just in the invite's org.
+      const anyExisting = await db
+        .selectFrom('org_members')
+        .select('id')
+        .where('user_id', '=', userId)
+        .executeTakeFirst();
+      if (anyExisting) throw new ConflictError('User already belongs to an organization.');
+    } else {
       const body = z
         .object({ email: z.string().email(), password: passwordSchema, displayName: z.string().min(1).max(200).optional() })
         .strict()
@@ -134,36 +149,37 @@ export function registerInvitationRoutes(app: FastifyInstance): void {
 
     // Membership + role assignment under the invitation's org. Use withOrgContext
     // so RLS enforces isolation; the "actor" is the accepting user.
-    const result = await withOrgContext(
-      invite.org_id,
-      {
-        userId,
-        orgId: invite.org_id,
-        isSuperadmin: false,
-        permissions: new Set(),
-        actorType: 'user',
-        ip: req.ip ?? null,
-        userAgent: (req.headers['user-agent'] as string | undefined) ?? null,
-      },
-      async ({ tx, audit }) => {
-        // One-org-per-user: refuse if the accepting user already has any
-        // membership (active or soft-deleted — we don't reactivate).
-        const anyExisting = await tx
-          .selectFrom('org_members')
-          .select('id')
-          .where('user_id', '=', userId!)
-          .executeTakeFirst();
-        if (anyExisting) throw new ConflictError('User already belongs to an organization.');
-        const row = await tx.insertInto('org_members').values({ org_id: invite.org_id, user_id: userId! }).returning(['id']).executeTakeFirstOrThrow();
-        const memberId = row.id;
-        for (const roleId of invite.role_ids) {
-          await tx.insertInto('member_roles').values({ org_member_id: memberId, role_id: roleId }).onConflict((oc) => oc.doNothing()).execute();
-        }
-        await tx.updateTable('invitations').set({ accepted_at: new Date(), accepted_by: userId! }).where('id', '=', invite.id).execute();
-        await audit({ action: 'invitation.accepted', targetType: 'invitation', targetId: invite.id });
-        return { memberId };
-      },
-    );
+    let result: { memberId: string };
+    try {
+      result = await withOrgContext(
+        invite.org_id,
+        {
+          userId,
+          orgId: invite.org_id,
+          isSuperadmin: false,
+          permissions: new Set(),
+          actorType: 'user',
+          ip: req.ip ?? null,
+          userAgent: (req.headers['user-agent'] as string | undefined) ?? null,
+        },
+        async ({ tx, audit }) => {
+          const row = await tx.insertInto('org_members').values({ org_id: invite.org_id, user_id: userId! }).returning(['id']).executeTakeFirstOrThrow();
+          const memberId = row.id;
+          for (const roleId of invite.role_ids) {
+            await tx.insertInto('member_roles').values({ org_member_id: memberId, role_id: roleId }).onConflict((oc) => oc.doNothing()).execute();
+          }
+          await tx.updateTable('invitations').set({ accepted_at: new Date(), accepted_by: userId! }).where('id', '=', invite.id).execute();
+          await audit({ action: 'invitation.accepted', targetType: 'invitation', targetId: invite.id });
+          return { memberId };
+        },
+      );
+    } catch (err) {
+      const dbErr = err as { code?: string; constraint?: string };
+      if (dbErr.code === '23505' && dbErr.constraint === 'org_members_user_id_unique') {
+        throw new ConflictError('User already belongs to an organization.');
+      }
+      throw err;
+    }
 
     return { data: { ok: true, orgId: invite.org_id, memberId: result.memberId } };
   });

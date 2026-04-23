@@ -10,6 +10,11 @@ export interface ReportFilters {
   type?: 'general' | 'event';
 }
 
+export interface ReportPage {
+  page: number;
+  limit: number;
+}
+
 // ---- visits (row-level, filter-driven) ----
 
 export interface VisitRow {
@@ -23,7 +28,12 @@ export interface VisitRow {
   pii_redacted: boolean;
 }
 
-export async function reportVisits(tx: Tx, orgId: string, f: ReportFilters): Promise<VisitRow[]> {
+export async function reportVisitsPage(
+  tx: Tx,
+  orgId: string,
+  f: ReportFilters,
+  page: ReportPage,
+): Promise<{ rows: VisitRow[]; total: number }> {
   let q = tx
     .selectFrom('visits')
     .select([
@@ -44,7 +54,73 @@ export async function reportVisits(tx: Tx, orgId: string, f: ReportFilters): Pro
   if (f.method) q = q.where('booking_method', '=', f.method);
   if (f.type === 'general') q = q.where('event_id', 'is', null);
   if (f.type === 'event') q = q.where('event_id', 'is not', null);
-  const rows = await q.orderBy('scheduled_at', 'desc').execute();
+  let totalQ = tx
+    .selectFrom('visits')
+    .select((eb) => eb.fn.countAll<number>().as('c'))
+    .where('org_id', '=', orgId);
+  if (f.from) totalQ = totalQ.where('scheduled_at', '>=', f.from);
+  if (f.to) totalQ = totalQ.where('scheduled_at', '<=', f.to);
+  if (f.locationId) totalQ = totalQ.where('location_id', '=', f.locationId);
+  if (f.eventId) totalQ = totalQ.where('event_id', '=', f.eventId);
+  if (f.method) totalQ = totalQ.where('booking_method', '=', f.method);
+  if (f.type === 'general') totalQ = totalQ.where('event_id', 'is', null);
+  if (f.type === 'event') totalQ = totalQ.where('event_id', 'is not', null);
+
+  const [rows, totalRow] = await Promise.all([
+    q
+      .orderBy('scheduled_at', 'desc')
+      .limit(page.limit)
+      .offset((page.page - 1) * page.limit)
+      .execute(),
+    totalQ.executeTakeFirst(),
+  ]);
+  return {
+    rows: rows.map((r) => ({
+      id: r.id,
+      scheduled_at: r.scheduled_at instanceof Date ? r.scheduled_at : new Date(r.scheduled_at as unknown as string),
+      status: r.status,
+      booking_method: r.booking_method,
+      location_id: r.location_id,
+      event_id: r.event_id,
+      party_size: r.party_size,
+      pii_redacted: r.pii_redacted,
+    })),
+    total: Number(totalRow?.c ?? 0),
+  };
+}
+
+export async function reportVisitsChunk(
+  tx: Tx,
+  orgId: string,
+  f: ReportFilters,
+  page: ReportPage,
+): Promise<VisitRow[]> {
+  let q = tx
+    .selectFrom('visits')
+    .select([
+      'id',
+      'scheduled_at',
+      'status',
+      'booking_method',
+      'location_id',
+      'event_id',
+      'pii_redacted',
+      sql<number | null>`(form_response->>'party_size')::int`.as('party_size'),
+    ])
+    .where('org_id', '=', orgId);
+  if (f.from) q = q.where('scheduled_at', '>=', f.from);
+  if (f.to) q = q.where('scheduled_at', '<=', f.to);
+  if (f.locationId) q = q.where('location_id', '=', f.locationId);
+  if (f.eventId) q = q.where('event_id', '=', f.eventId);
+  if (f.method) q = q.where('booking_method', '=', f.method);
+  if (f.type === 'general') q = q.where('event_id', 'is', null);
+  if (f.type === 'event') q = q.where('event_id', 'is not', null);
+
+  const rows = await q
+    .orderBy('scheduled_at', 'desc')
+    .limit(page.limit)
+    .offset((page.page - 1) * page.limit)
+    .execute();
   return rows.map((r) => ({
     id: r.id,
     scheduled_at: r.scheduled_at instanceof Date ? r.scheduled_at : new Date(r.scheduled_at as unknown as string),
@@ -207,6 +283,10 @@ export async function reportIntake(
 // ---- CSV encoding ----
 
 export function toCsv(headers: string[], rows: Array<Array<string | number | null>>): string {
+  return [toCsvRow(headers), ...rows.map(toCsvRow)].join('\n');
+}
+
+export function toCsvRow(values: Array<string | number | null>): string {
   const esc = (v: string | number | null): string => {
     if (v === null || v === undefined) return '';
     let s = String(v);
@@ -218,7 +298,5 @@ export function toCsv(headers: string[], rows: Array<Array<string | number | nul
     if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
     return s;
   };
-  const lines = [headers.map(esc).join(',')];
-  for (const r of rows) lines.push(r.map(esc).join(','));
-  return lines.join('\n');
+  return values.map(esc).join(',');
 }

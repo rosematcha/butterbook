@@ -4,8 +4,10 @@ import { hashProvidedToken, randomTokenBase64Url } from '../utils/ids.js';
 
 const SESSION_TTL_DAYS = 30;
 const REFRESH_AFTER_DAYS = 7;
+const TOUCH_AFTER_MINUTES = 5;
 
 const dayMs = 24 * 60 * 60 * 1000;
+const touchMs = TOUCH_AFTER_MINUTES * 60 * 1000;
 
 export async function createSession(params: {
   userId: string;
@@ -61,7 +63,12 @@ export async function resolveSession(bearer: string): Promise<ResolvedSession | 
     return { sessionId: row.id, userId: row.user_id, expiresAt: newExp };
   }
 
-  await db.updateTable('sessions').set({ last_used_at: now }).where('id', '=', row.id).execute();
+  // Avoid turning every authenticated read into a write. We only "touch"
+  // active sessions when they have been idle for a short interval, while still
+  // extending expiry on the longer REFRESH_AFTER_DAYS threshold above.
+  if (ageSinceUsedMs > touchMs) {
+    await db.updateTable('sessions').set({ last_used_at: now }).where('id', '=', row.id).execute();
+  }
   return { sessionId: row.id, userId: row.user_id, expiresAt: exp };
 }
 
