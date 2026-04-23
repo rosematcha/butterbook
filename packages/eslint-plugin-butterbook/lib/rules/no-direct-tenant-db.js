@@ -26,6 +26,7 @@ const TENANT_TABLES = new Set([
   'roles',
   'role_permissions',
   'member_roles',
+  'event_series',
   'events',
   'visits',
   'waitlist_entries',

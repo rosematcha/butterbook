@@ -12,6 +12,17 @@ import { Timestamp } from '../../components/timestamp';
 import { EmptyState } from '../../components/empty-state';
 import { SkeletonRows } from '../../components/skeleton-rows';
 
+interface EventSeriesMeta {
+  id: string;
+  title: string;
+  slugBase: string | null;
+  frequency: 'weekly';
+  weekday: number;
+  untilDate: string | null;
+  occurrenceCount: number | null;
+  occurrenceNumber: number | null;
+}
+
 interface EventRow {
   id: string;
   title: string;
@@ -22,8 +33,21 @@ interface EventRow {
   slug: string | null;
   publicId: string;
   locationId: string;
+  waitlistEnabled: boolean;
+  series: EventSeriesMeta | null;
 }
-interface Location { id: string; name: string; }
+
+interface Location {
+  id: string;
+  name: string;
+}
+
+type ComposerState =
+  | { kind: 'create' }
+  | { kind: 'duplicate'; source: EventRow };
+
+type DraftMode = 'one-off' | 'recurring';
+type RecurrenceEndMode = 'until_date' | 'after_occurrences';
 
 export default function EventsPage() {
   return (
@@ -41,12 +65,11 @@ function EventsPageInner() {
   const router = useRouter();
   const pathname = usePathname();
   const params = useSearchParams();
-  const [showCreate, setShowCreate] = useState(false);
+  const [composer, setComposer] = useState<ComposerState | null>(null);
 
-  // Honor `?new=1` from the command palette's "Create event".
   useEffect(() => {
     if (params.get('new') === '1') {
-      setShowCreate(true);
+      setComposer({ kind: 'create' });
       const sp = new URLSearchParams(params.toString());
       sp.delete('new');
       const qs = sp.toString();
@@ -69,8 +92,8 @@ function EventsPageInner() {
   });
 
   const publish = useMutation({
-    mutationFn: (v: { id: string; next: boolean }) =>
-      apiPost(`/api/v1/orgs/${activeOrgId}/events/${v.id}/${v.next ? 'publish' : 'unpublish'}`),
+    mutationFn: (value: { id: string; next: boolean }) =>
+      apiPost(`/api/v1/orgs/${activeOrgId}/events/${value.id}/${value.next ? 'publish' : 'unpublish'}`),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['events', activeOrgId] }),
   });
 
@@ -80,10 +103,10 @@ function EventsPageInner() {
       qc.invalidateQueries({ queryKey: ['events', activeOrgId] });
       toast.push({ kind: 'success', message: 'Event deleted' });
     },
-    onError: (e) =>
+    onError: (error) =>
       toast.push({
         kind: 'error',
-        message: e instanceof ApiError ? e.problem.detail ?? e.problem.title : 'Delete failed',
+        message: error instanceof ApiError ? error.problem.detail ?? error.problem.title : 'Delete failed',
       }),
   });
 
@@ -103,21 +126,26 @@ function EventsPageInner() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3">
         <div>
           <div className="h-eyebrow">Programs</div>
           <h1 className="h-display mt-1">Events</h1>
         </div>
-        <button className="btn" onClick={() => setShowCreate((v) => !v)}>{showCreate ? 'Cancel' : 'New event'}</button>
+        <button className="btn" onClick={() => setComposer((current) => (current?.kind === 'create' ? null : { kind: 'create' }))}>
+          {composer ? 'Close composer' : 'New event'}
+        </button>
       </div>
 
-      {showCreate ? (
-        <CreateEventForm
+      {composer ? (
+        <EventComposer
+          key={composer.kind === 'duplicate' ? `duplicate-${composer.source.id}` : 'create'}
           locations={locations.data?.data ?? []}
-          onCreated={() => {
-            setShowCreate(false);
+          sourceEvent={composer.kind === 'duplicate' ? composer.source : null}
+          onCancel={() => setComposer(null)}
+          onCreated={(message) => {
+            setComposer(null);
             qc.invalidateQueries({ queryKey: ['events', activeOrgId] });
-            toast.push({ kind: 'success', message: 'Event created' });
+            toast.push({ kind: 'success', message });
           }}
         />
       ) : null}
@@ -125,8 +153,8 @@ function EventsPageInner() {
       {events.isSuccess && rows.length === 0 ? (
         <EmptyState
           title="No events yet."
-          description="Create one to publish a public booking page and start taking registrations."
-          action={<button className="btn" onClick={() => setShowCreate(true)}>+ New event</button>}
+          description="Create a one-off program or a weekly series to start taking registrations."
+          action={<button className="btn" onClick={() => setComposer({ kind: 'create' })}>+ New event</button>}
         />
       ) : (
         <div className="panel overflow-hidden">
@@ -141,42 +169,61 @@ function EventsPageInner() {
               </tr>
             </thead>
             <tbody>
-              {events.isPending ? <SkeletonRows cols={5} rows={4} /> : rows.map((e) => {
-                const publicUrl = `${origin}/events/${e.slug ?? e.publicId}`;
-                return (
-                  <tr key={e.id} className="border-t border-paper-100">
-                    <td className="px-4 py-3">
-                      <div className="font-medium text-ink">{e.title}</div>
-                      <div className="mt-0.5 flex items-center gap-2 text-xs text-paper-500">
-                        <span className="truncate">/{e.slug ?? e.publicId}</span>
-                        {e.isPublished ? <CopyButton value={publicUrl} label="Copy link" /> : null}
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 tabular-nums text-paper-700">
-                      <Timestamp value={e.startsAt} absolute />
-                    </td>
-                    <td className="px-4 py-3 tabular-nums">{e.capacity ?? '—'}</td>
-                    <td className="px-4 py-3">
-                      {e.isPublished ? <span className="badge-accent">Live</span> : <span className="badge">Draft</span>}
-                    </td>
-                    <td className="space-x-2 px-4 py-3 text-right">
-                      <button
-                        onClick={() => publish.mutate({ id: e.id, next: !e.isPublished })}
-                        className="btn-ghost text-xs"
-                      >
-                        {e.isPublished ? 'Unpublish' : 'Publish'}
-                      </button>
-                      <Link href={`/app/events/waitlist?id=${e.id}`} className="btn-ghost text-xs">Waitlist</Link>
-                      <button
-                        onClick={() => onDelete(e.id, e.title)}
-                        className="btn-ghost text-xs text-red-700 hover:bg-red-50"
-                      >
-                        Delete
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
+              {events.isPending ? (
+                <SkeletonRows cols={5} rows={4} />
+              ) : (
+                rows.map((event) => {
+                  const publicUrl = `${origin}/events/${event.slug ?? event.publicId}`;
+                  return (
+                    <tr key={event.id} className="border-t border-paper-100 align-top">
+                      <td className="px-4 py-3">
+                        <div className="font-medium text-ink">{event.title}</div>
+                        <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-paper-500">
+                          {event.series ? <span className="badge-accent">Series</span> : null}
+                          {event.series?.occurrenceNumber ? (
+                            <span className="badge">
+                              Occurrence {event.series.occurrenceNumber}
+                              {event.series.occurrenceCount ? ` of ${event.series.occurrenceCount}` : ''}
+                            </span>
+                          ) : null}
+                          {event.series ? <span>{weekdayLabel(event.series.weekday)} weekly</span> : null}
+                        </div>
+                        <div className="mt-1 flex items-center gap-2 text-xs text-paper-500">
+                          <span className="truncate">/{event.slug ?? event.publicId}</span>
+                          {event.isPublished ? <CopyButton value={publicUrl} label="Copy link" /> : null}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 tabular-nums text-paper-700">
+                        <Timestamp value={event.startsAt} absolute />
+                      </td>
+                      <td className="px-4 py-3 tabular-nums">{event.capacity ?? '—'}</td>
+                      <td className="px-4 py-3">
+                        {event.isPublished ? <span className="badge-accent">Live</span> : <span className="badge">Draft</span>}
+                      </td>
+                      <td className="space-x-2 px-4 py-3 text-right">
+                        <button
+                          onClick={() => publish.mutate({ id: event.id, next: !event.isPublished })}
+                          className="btn-ghost text-xs"
+                        >
+                          {event.isPublished ? 'Unpublish' : 'Publish'}
+                        </button>
+                        <button onClick={() => setComposer({ kind: 'duplicate', source: event })} className="btn-ghost text-xs">
+                          Duplicate
+                        </button>
+                        <Link href={`/app/events/waitlist?id=${event.id}`} className="btn-ghost text-xs">
+                          Waitlist
+                        </Link>
+                        <button
+                          onClick={() => onDelete(event.id, event.title)}
+                          className="btn-ghost text-xs text-red-700 hover:bg-red-50"
+                        >
+                          Delete
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
             </tbody>
           </table>
         </div>
@@ -185,39 +232,139 @@ function EventsPageInner() {
   );
 }
 
-function CreateEventForm({ locations, onCreated }: { locations: Location[]; onCreated: () => void }) {
+function EventComposer({
+  locations,
+  sourceEvent,
+  onCancel,
+  onCreated,
+}: {
+  locations: Location[];
+  sourceEvent: EventRow | null;
+  onCancel: () => void;
+  onCreated: (message: string) => void;
+}) {
   const { activeOrgId } = useSession();
-  const [title, setTitle] = useState('');
-  const [locationId, setLocationId] = useState(locations[0]?.id ?? '');
-  const [startsAt, setStartsAt] = useState('');
-  const [endsAt, setEndsAt] = useState('');
-  const [capacity, setCapacity] = useState('');
+  const isDuplicate = sourceEvent != null;
+  const [mode, setMode] = useState<DraftMode>('one-off');
+  const [title, setTitle] = useState(sourceEvent?.title ?? '');
+  const [locationId, setLocationId] = useState(sourceEvent?.locationId ?? locations[0]?.id ?? '');
+  const [startsAt, setStartsAt] = useState(sourceEvent ? shiftLocalInputDays(toLocalInput(sourceEvent.startsAt), 7) : '');
+  const [endsAt, setEndsAt] = useState(sourceEvent ? shiftLocalInputDays(toLocalInput(sourceEvent.endsAt), 7) : '');
+  const [capacity, setCapacity] = useState(sourceEvent?.capacity != null ? String(sourceEvent.capacity) : '');
   const [slug, setSlug] = useState('');
-  const [waitlistEnabled, setWaitlistEnabled] = useState(false);
+  const [waitlistEnabled, setWaitlistEnabled] = useState(sourceEvent?.waitlistEnabled ?? false);
+  const [weekday, setWeekday] = useState(weekdayFromInput(sourceEvent ? shiftLocalInputDays(toLocalInput(sourceEvent.startsAt), 7) : '') ?? 1);
+  const [endMode, setEndMode] = useState<RecurrenceEndMode>('until_date');
+  const [untilDate, setUntilDate] = useState(sourceEvent ? shiftLocalInputDays(toLocalInput(sourceEvent.startsAt), 35).slice(0, 10) : '');
+  const [occurrenceCount, setOccurrenceCount] = useState('8');
+  const [submitting, setSubmitting] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!locationId && locations[0]?.id) setLocationId(locations[0].id);
+  }, [locationId, locations]);
+
+  useEffect(() => {
+    const nextWeekday = weekdayFromInput(startsAt);
+    if (nextWeekday != null) setWeekday(nextWeekday);
+  }, [startsAt]);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
+    if (!activeOrgId) return;
     setErr(null);
+    setSubmitting(true);
     try {
-      const body: Record<string, unknown> = {
+      const baseBody: Record<string, unknown> = {
         locationId,
         title,
         startsAt: new Date(startsAt).toISOString(),
         endsAt: new Date(endsAt).toISOString(),
         waitlistEnabled,
       };
-      if (capacity) body.capacity = Number(capacity);
-      if (slug) body.slug = slug;
+      baseBody.capacity = capacity.trim() === '' ? null : Number(capacity);
+
+      if (isDuplicate) {
+        baseBody.slug = slug.trim() === '' ? null : slug.trim();
+        await apiPost(`/api/v1/orgs/${activeOrgId}/events/${sourceEvent.id}/duplicate`, baseBody);
+        onCreated('Event duplicated');
+        return;
+      }
+
+      if (mode === 'recurring') {
+        const recurrenceEnds =
+          endMode === 'until_date'
+            ? { mode: 'until_date', untilDate }
+            : { mode: 'after_occurrences', occurrenceCount: Number(occurrenceCount) };
+        const body = {
+          ...baseBody,
+          slugBase: slug.trim() === '' ? null : slug.trim(),
+          recurrence: {
+            frequency: 'weekly' as const,
+            weekday,
+            ends: recurrenceEnds,
+          },
+        };
+        const res = await apiPost<{ data: { occurrenceCount: number } }>(`/api/v1/orgs/${activeOrgId}/events/series`, body);
+        onCreated(`Created ${res.data.occurrenceCount} recurring events`);
+        return;
+      }
+
+      const body = {
+        ...baseBody,
+        ...(slug.trim() ? { slug: slug.trim() } : {}),
+      };
       await apiPost(`/api/v1/orgs/${activeOrgId}/events`, body);
-      onCreated();
-    } catch (e2) {
-      setErr(e2 instanceof ApiError ? e2.problem.detail ?? e2.problem.title : 'Create failed');
+      onCreated('Event created');
+    } catch (error) {
+      setErr(error instanceof ApiError ? error.problem.detail ?? error.problem.title : 'Save failed');
+    } finally {
+      setSubmitting(false);
     }
   }
 
+  const heading = isDuplicate ? `Duplicate "${sourceEvent.title}"` : 'Create event';
+
   return (
-    <form onSubmit={onSubmit} className="panel space-y-3 p-5">
+    <form onSubmit={onSubmit} className="panel space-y-5 p-5">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <div className="h-eyebrow">{isDuplicate ? 'Duplicate' : 'Composer'}</div>
+          <h2 className="h-display mt-1 text-2xl">{heading}</h2>
+          <p className="mt-2 max-w-2xl text-sm text-paper-600">
+            {isDuplicate
+              ? 'This keeps hidden settings like description, form fields, and waitlist auto-promote from the source event, while letting you adjust the visible basics here.'
+              : 'Choose a one-off program or generate a weekly series. Recurring occurrences are created as normal draft events so publishing, waitlist, and registration still happen per occurrence.'}
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          {!isDuplicate ? (
+            <div className="rounded-md border border-paper-200 bg-paper-50 p-1">
+              <button
+                type="button"
+                className={mode === 'one-off' ? 'btn' : 'btn-ghost'}
+                onClick={() => setMode('one-off')}
+              >
+                One-off
+              </button>
+              <button
+                type="button"
+                className={mode === 'recurring' ? 'btn' : 'btn-ghost'}
+                onClick={() => setMode('recurring')}
+              >
+                Recurring
+              </button>
+            </div>
+          ) : null}
+          <button type="button" className="btn-secondary" onClick={onCancel}>
+            Cancel
+          </button>
+          <button className="btn" disabled={submitting}>
+            {submitting ? 'Saving…' : isDuplicate ? 'Create duplicate' : mode === 'recurring' ? 'Create series' : 'Create event'}
+          </button>
+        </div>
+      </div>
+
       <div className="grid gap-3 md:grid-cols-2">
         <label className="block">
           <span className="text-sm font-medium">Title</span>
@@ -226,32 +373,164 @@ function CreateEventForm({ locations, onCreated }: { locations: Location[]; onCr
         <label className="block">
           <span className="text-sm font-medium">Location</span>
           <select className="input mt-1" value={locationId} onChange={(e) => setLocationId(e.target.value)} required>
-            {locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
+            {locations.map((location) => (
+              <option key={location.id} value={location.id}>
+                {location.name}
+              </option>
+            ))}
           </select>
         </label>
         <label className="block">
           <span className="text-sm font-medium">Starts at</span>
-          <input className="input mt-1" type="datetime-local" required value={startsAt} onChange={(e) => setStartsAt(e.target.value)} />
+          <input
+            className="input mt-1"
+            type="datetime-local"
+            required
+            value={startsAt}
+            onChange={(e) => setStartsAt(e.target.value)}
+          />
         </label>
         <label className="block">
           <span className="text-sm font-medium">Ends at</span>
-          <input className="input mt-1" type="datetime-local" required value={endsAt} onChange={(e) => setEndsAt(e.target.value)} />
+          <input
+            className="input mt-1"
+            type="datetime-local"
+            required
+            value={endsAt}
+            onChange={(e) => setEndsAt(e.target.value)}
+          />
         </label>
         <label className="block">
           <span className="text-sm font-medium">Capacity</span>
-          <input className="input mt-1" type="number" min={1} value={capacity} onChange={(e) => setCapacity(e.target.value)} />
+          <input
+            className="input mt-1"
+            type="number"
+            min={1}
+            value={capacity}
+            onChange={(e) => setCapacity(e.target.value)}
+            placeholder="Unlimited"
+          />
         </label>
         <label className="block">
-          <span className="text-sm font-medium">Slug (optional)</span>
-          <input className="input mt-1" value={slug} onChange={(e) => setSlug(e.target.value)} placeholder="morning-tour" />
+          <span className="text-sm font-medium">{mode === 'recurring' ? 'Slug base (optional)' : 'Slug (optional)'}</span>
+          <input
+            className="input mt-1"
+            value={slug}
+            onChange={(e) => setSlug(e.target.value)}
+            placeholder={mode === 'recurring' ? 'morning-tour' : 'morning-tour'}
+          />
+          {mode === 'recurring' ? (
+            <span className="mt-1 block text-xs text-paper-500">Occurrences become `slug-base-YYYYMMDD`.</span>
+          ) : null}
         </label>
       </div>
-      <label className="flex items-center gap-2 text-sm">
+
+      <label className="flex items-center gap-2 text-sm text-paper-700">
         <input type="checkbox" checked={waitlistEnabled} onChange={(e) => setWaitlistEnabled(e.target.checked)} />
         Enable waitlist when full
       </label>
+
+      {!isDuplicate && mode === 'recurring' ? (
+        <div className="rounded-lg border border-paper-200 bg-paper-50 p-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="badge-accent">Weekly</span>
+            <span className="text-sm text-paper-600">Each occurrence is created as its own draft event row.</span>
+          </div>
+          <div className="mt-4 grid gap-3 md:grid-cols-3">
+            <label className="block">
+              <span className="text-sm font-medium">Weekday</span>
+              <select
+                className="input mt-1"
+                value={weekday}
+                onChange={(e) => {
+                  const nextWeekday = Number(e.target.value);
+                  setWeekday(nextWeekday);
+                  setStartsAt(moveLocalInputToWeekday(startsAt, nextWeekday));
+                  setEndsAt(moveLocalInputToWeekday(endsAt, nextWeekday));
+                }}
+              >
+                {WEEKDAYS.map((label, index) => (
+                  <option key={label} value={index}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="block">
+              <span className="text-sm font-medium">Ends</span>
+              <select className="input mt-1" value={endMode} onChange={(e) => setEndMode(e.target.value as RecurrenceEndMode)}>
+                <option value="until_date">On a date</option>
+                <option value="after_occurrences">After N occurrences</option>
+              </select>
+            </label>
+            {endMode === 'until_date' ? (
+              <label className="block">
+                <span className="text-sm font-medium">Until date</span>
+                <input className="input mt-1" type="date" required value={untilDate} onChange={(e) => setUntilDate(e.target.value)} />
+              </label>
+            ) : (
+              <label className="block">
+                <span className="text-sm font-medium">Occurrences</span>
+                <input
+                  className="input mt-1"
+                  type="number"
+                  min={1}
+                  max={366}
+                  required
+                  value={occurrenceCount}
+                  onChange={(e) => setOccurrenceCount(e.target.value)}
+                />
+              </label>
+            )}
+          </div>
+        </div>
+      ) : null}
+
       {err ? <p className="text-sm text-red-600">{err}</p> : null}
-      <button className="btn">Create event</button>
     </form>
   );
+}
+
+const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'] as const;
+
+function weekdayLabel(index: number): string {
+  return WEEKDAYS[index] ?? 'Weekly';
+}
+
+function weekdayFromInput(value: string): number | null {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.getDay();
+}
+
+function toLocalInput(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return '';
+  return formatLocalInput(date);
+}
+
+function shiftLocalInputDays(value: string, days: number): string {
+  if (!value) return value;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  date.setDate(date.getDate() + days);
+  return formatLocalInput(date);
+}
+
+function moveLocalInputToWeekday(value: string, weekday: number): string {
+  if (!value) return value;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  date.setDate(date.getDate() + (weekday - date.getDay()));
+  return formatLocalInput(date);
+}
+
+function formatLocalInput(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
 }

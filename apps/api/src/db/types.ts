@@ -16,6 +16,7 @@ export interface DB {
   roles: RolesTable;
   role_permissions: RolePermissionsTable;
   member_roles: MemberRolesTable;
+  event_series: EventSeriesTable;
   events: EventsTable;
   visits: VisitsTable;
   waitlist_entries: WaitlistEntriesTable;
@@ -43,6 +44,22 @@ export interface OrgBookingPageTable {
   booking_window_days: Generated<number>;
   max_party_size: number | null;
   intake_schedules: Generated<boolean>;
+  updated_at: Generated<Timestamp>;
+}
+
+export interface EventSeriesTable {
+  id: Generated<string>;
+  org_id: string;
+  created_by: string;
+  title: string;
+  slug_base: string | null;
+  frequency: 'weekly';
+  weekday: number;
+  first_starts_at: Timestamp;
+  duration_minutes: number;
+  until_date: ColumnType<string | Date | null, string | null, string | null>;
+  occurrence_count: number | null;
+  created_at: Generated<Timestamp>;
   updated_at: Generated<Timestamp>;
 }
 
@@ -192,6 +209,8 @@ export interface EventsTable {
   org_id: string;
   location_id: string;
   created_by: string;
+  series_id: string | null;
+  series_ordinal: number | null;
   title: string;
   description: string | null;
   slug: string | null;

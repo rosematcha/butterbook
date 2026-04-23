@@ -121,7 +121,47 @@ const ROUTES: RouteCase[] = [
 
   // --- events ---
   { name: 'GET events', method: 'GET', url: (c) => `/api/v1/orgs/${c.orgId}/events` },
+  {
+    name: 'POST event series (events.create)',
+    method: 'POST',
+    url: (c) => `/api/v1/orgs/${c.orgId}/events/series`,
+    body: (c) => ({
+      locationId: c.locationId,
+      title: 'Weekly tour',
+      startsAt: '2026-03-01T15:00:00Z',
+      endsAt: '2026-03-01T16:00:00Z',
+      recurrence: {
+        frequency: 'weekly',
+        weekday: 0,
+        ends: { mode: 'after_occurrences', occurrenceCount: 3 },
+      },
+    }),
+    invalidBody: () => ({
+      title: 'Broken series',
+      startsAt: '2026-03-01T15:00:00Z',
+      endsAt: '2026-03-01T14:00:00Z',
+      recurrence: {
+        frequency: 'weekly',
+        weekday: 0,
+        ends: { mode: 'after_occurrences', occurrenceCount: 0 },
+      },
+    }),
+  },
   { name: 'GET single event', method: 'GET', url: (c) => `/api/v1/orgs/${c.orgId}/events/${c.eventId}`, notFoundUrl: (c) => `/api/v1/orgs/${c.orgId}/events/00000000-0000-0000-0000-000000000000` },
+  {
+    name: 'POST duplicate event (events.create)',
+    method: 'POST',
+    url: (c) => `/api/v1/orgs/${c.orgId}/events/${c.eventId}/duplicate`,
+    body: () => ({
+      startsAt: '2026-05-08T14:00:00Z',
+      endsAt: '2026-05-08T15:00:00Z',
+      slug: 'morning-tour-copy',
+    }),
+    invalidBody: () => ({
+      startsAt: '2026-05-08T14:00:00Z',
+    }),
+    notFoundUrl: (c) => `/api/v1/orgs/${c.orgId}/events/00000000-0000-0000-0000-000000000000/duplicate`,
+  },
 
   // --- waitlist ---
   { name: 'GET waitlist', method: 'GET', url: (c) => `/api/v1/orgs/${c.orgId}/events/${c.eventId}/waitlist` },

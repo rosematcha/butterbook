@@ -8,7 +8,8 @@ const orgParam = z.object({ orgId: z.string().uuid() });
 
 // Tables dumped in the export. Order chosen so a consumer can reconstruct
 // referential integrity (orgs → locations → hours/overrides/closed_days →
-// members/roles/permissions → events → visits/waitlist → invitations → audit_log).
+// members/roles/permissions → event_series → events → visits/waitlist →
+// invitations → audit_log).
 const EXPORT_SECTIONS = [
   'locations',
   'location_hours',
@@ -18,6 +19,7 @@ const EXPORT_SECTIONS = [
   'roles',
   'role_permissions',
   'member_roles',
+  'event_series',
   'events',
   'visits',
   'waitlist_entries',
@@ -119,6 +121,8 @@ async function pageSection(tx: Tx, section: ExportSection, offset: number, limit
       return tx.selectFrom('role_permissions').selectAll().limit(limit).offset(offset).execute() as unknown as Array<Record<string, unknown>>;
     case 'member_roles':
       return tx.selectFrom('member_roles').selectAll().limit(limit).offset(offset).execute() as unknown as Array<Record<string, unknown>>;
+    case 'event_series':
+      return tx.selectFrom('event_series').selectAll().limit(limit).offset(offset).execute() as unknown as Array<Record<string, unknown>>;
     case 'events':
       return tx.selectFrom('events').selectAll().limit(limit).offset(offset).execute() as unknown as Array<Record<string, unknown>>;
     case 'visits':
