@@ -213,8 +213,7 @@ export default function FormFieldsPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={() => setLibraryOpen(true)} className="btn-secondary">Browse library</button>
-          <button onClick={addField} className="btn-secondary">+ Add field</button>
+          <button onClick={() => setLibraryOpen(true)} className="btn-secondary">+ Add field</button>
           <button onClick={() => save.mutate()} disabled={save.isPending} className="btn">
             {save.isPending ? 'Saving…' : 'Save changes'}
           </button>
@@ -502,7 +501,7 @@ export default function FormFieldsPage() {
           })}
           {drafts.length === 0 ? (
             <div className="rounded-md border border-dashed border-paper-300 p-8 text-center text-paper-500">
-              No fields yet. <button onClick={addField} className="text-ink underline underline-offset-2">Add the first one</button>.
+              No fields yet. <button onClick={() => setLibraryOpen(true)} className="text-ink underline underline-offset-2">Add the first one</button>.
             </div>
           ) : null}
         </div>
@@ -515,6 +514,7 @@ export default function FormFieldsPage() {
         open={libraryOpen}
         onClose={() => setLibraryOpen(false)}
         onAdd={addFromLibrary}
+        onAddCustom={() => { setLibraryOpen(false); addField(); }}
         addedIds={addedFromLibrary}
       />
     </div>

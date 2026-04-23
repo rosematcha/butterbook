@@ -48,11 +48,13 @@ export function LibraryModal({
   open,
   onClose,
   onAdd,
+  onAddCustom,
   addedIds,
 }: {
   open: boolean;
   onClose: () => void;
   onAdd: (entry: FieldLibraryEntry) => void;
+  onAddCustom?: () => void;
   addedIds: Set<string>;
 }) {
   const [query, setQuery] = useState('');
@@ -100,11 +102,19 @@ export function LibraryModal({
           <span className="mr-auto self-center text-xs text-paper-500">
             {visible.length} suggestion{visible.length === 1 ? '' : 's'}
           </span>
+          {onAddCustom ? (
+            <button onClick={onAddCustom} className="btn-secondary">
+              Or, add your own
+            </button>
+          ) : null}
           <button onClick={onClose} className="btn">Done</button>
         </>
       }
     >
       <div className="mb-4 space-y-3">
+        <p className="text-xs text-paper-500">
+          Presets are just a starting point — after adding, edit the label, type, options, or anything else however you like.
+        </p>
         <input
           autoFocus
           className="input"

@@ -46,20 +46,16 @@ export function StepForm({ state, patch }: StepProps) {
     patch({ formFields: copy.map((f, i) => ({ ...f, displayOrder: i })) });
   }
 
-  function addField(type: FieldType) {
-    const labelBase = type === 'email' ? 'Email' : type === 'phone' ? 'Phone' : 'New question';
-    const key = uniqueFieldKey(toFieldKey(labelBase), formFields);
+  function addBlankField() {
+    const key = uniqueFieldKey(toFieldKey('New question'), formFields);
     const next: FormField = {
       fieldKey: key,
-      label: labelBase,
-      fieldType: type,
+      label: 'New question',
+      fieldType: 'text',
       required: false,
       isSystem: false,
       isPrimaryLabel: false,
       displayOrder: formFields.length,
-      ...(type === 'select' || type === 'radio' || type === 'multiselect'
-        ? { options: ['Option 1', 'Option 2'] }
-        : {}),
     };
     patch({ formFields: [...formFields, next] });
   }
@@ -104,21 +100,19 @@ export function StepForm({ state, patch }: StepProps) {
         ))}
       </ul>
 
-      <div className="grid gap-2 sm:grid-cols-[1fr_1fr]">
-        <button
-          type="button"
-          onClick={() => setLibraryOpen(true)}
-          className="btn-ghost border border-dashed border-paper-300 w-full justify-center"
-        >
-          Browse library
-        </button>
-        <AddFieldMenu onAdd={addField} />
-      </div>
+      <button
+        type="button"
+        onClick={() => setLibraryOpen(true)}
+        className="btn-ghost border border-dashed border-paper-300 w-full justify-center"
+      >
+        + Add a field
+      </button>
 
       <LibraryModal
         open={libraryOpen}
         onClose={() => setLibraryOpen(false)}
         onAdd={addFromLibrary}
+        onAddCustom={() => { setLibraryOpen(false); addBlankField(); }}
         addedIds={addedIds}
       />
     </div>
@@ -238,37 +232,3 @@ function FieldRow({
   );
 }
 
-function AddFieldMenu({ onAdd }: { onAdd: (t: FieldType) => void }) {
-  const [open, setOpen] = useState(false);
-  return (
-    <div className="relative">
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        className="btn-ghost border border-dashed border-paper-300 w-full justify-center"
-      >
-        + Add a field
-      </button>
-      {open ? (
-        <div
-          className="absolute left-0 right-0 z-10 mt-1 grid max-h-64 grid-cols-2 gap-1 overflow-auto rounded-md border border-paper-200 bg-white p-1 shadow-lg"
-          onMouseLeave={() => setOpen(false)}
-        >
-          {FIELD_TYPES.map((t) => (
-            <button
-              key={t.value}
-              type="button"
-              onClick={() => {
-                onAdd(t.value);
-                setOpen(false);
-              }}
-              className="rounded px-2 py-1.5 text-left text-sm hover:bg-paper-50"
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
-      ) : null}
-    </div>
-  );
-}
