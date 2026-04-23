@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { FastifyInstance } from 'fastify';
-import { makeApp, truncateAll } from '../helpers/factories.js';
+import { createTestOrg, makeApp, truncateAll } from '../helpers/factories.js';
 
 describe('auth', () => {
   let app: FastifyInstance;
@@ -29,7 +29,15 @@ describe('auth', () => {
       payload: { email: 'a@example.com', password: 'longenoughpass1234' },
     });
     expect(login.statusCode).toBe(200);
-    const token = (JSON.parse(login.body) as { data: { token: string } }).data.token;
+    const loginBody = JSON.parse(login.body) as {
+      data: { token: string; membership: unknown };
+    };
+    const token = loginBody.data.token;
+    // Login carries membership so the web client can seed its React Query
+    // cache and skip the /auth/me round-trip on /app. Freshly registered
+    // user has no org yet, so it's null here.
+    expect(loginBody.data).toHaveProperty('membership');
+    expect(loginBody.data.membership).toBeNull();
 
     const me = await app.inject({
       method: 'GET',
@@ -41,6 +49,25 @@ describe('auth', () => {
     expect(meBody.data.user.email).toBe('a@example.com');
     // A freshly-registered user has no org yet — membership is null, not an array.
     expect(meBody.data.membership).toBeNull();
+  });
+
+  it('login response includes membership for users who belong to an org', async () => {
+    // Used by the web client to seed React Query so /app doesn't re-fetch /me.
+    const { orgId } = await createTestOrg('owner@example.com');
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/v1/auth/login',
+      payload: { email: 'owner@example.com', password: 'longenoughpass1234' },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body) as {
+      data: {
+        membership: { orgId: string; orgName: string; isSuperadmin: boolean } | null;
+      };
+    };
+    expect(body.data.membership).not.toBeNull();
+    expect(body.data.membership!.orgId).toBe(orgId);
+    expect(body.data.membership!.isSuperadmin).toBe(true);
   });
 
   it('rejects short passwords as 422', async () => {

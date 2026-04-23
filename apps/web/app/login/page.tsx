@@ -2,8 +2,10 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { apiGet, apiPost, getToken, setToken, ApiError } from '../../lib/api';
+import { useQueryClient } from '@tanstack/react-query';
+import { apiPost, getToken, setToken, ApiError } from '../../lib/api';
 import { IS_DEMO } from '../../lib/env';
+import type { Membership, User } from '../../lib/session';
 import { DemoEnter } from '../components/demo-enter';
 
 interface LoginResponse {
@@ -11,6 +13,7 @@ interface LoginResponse {
     token: string;
     user: { id: string; email: string; totpEnabled: boolean };
     expiresAt: string;
+    membership: Membership | null;
   };
 }
 
@@ -18,38 +21,28 @@ const LAST_EMAIL_KEY = 'butterbook.lastEmail';
 
 export default function LoginPage() {
   const router = useRouter();
+  const qc = useQueryClient();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [totp, setTotp] = useState('');
   const [needsTotp, setNeedsTotp] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
-  // Block the form until we know whether an existing token is still valid;
-  // otherwise the form flashes for users who are already signed in.
-  const [checkingSession, setCheckingSession] = useState(true);
+  // Block paint until useEffect confirms there's no token to redirect on.
+  // Initialized to true for both SSR and hydration (no mismatch); the effect
+  // flips it false for signed-out users. We no longer probe /auth/me here —
+  // the app layout validates the token and bounces back on 401.
+  const [redirecting, setRedirecting] = useState(true);
 
   useEffect(() => {
     const remembered = window.localStorage.getItem(LAST_EMAIL_KEY);
     if (remembered) setEmail(remembered);
 
-    const token = getToken();
-    if (!token) {
-      setCheckingSession(false);
+    if (getToken()) {
+      router.replace('/app');
       return;
     }
-    let cancelled = false;
-    apiGet('/api/v1/auth/me')
-      .then(() => {
-        if (!cancelled) router.replace('/app');
-      })
-      .catch(() => {
-        if (cancelled) return;
-        setToken(null);
-        setCheckingSession(false);
-      });
-    return () => {
-      cancelled = true;
-    };
+    setRedirecting(false);
   }, [router]);
 
   async function onSubmit(e: FormEvent) {
@@ -62,6 +55,14 @@ export default function LoginPage() {
       const res = await apiPost<LoginResponse>('/api/v1/auth/login', body);
       setToken(res.data.token);
       window.localStorage.setItem(LAST_EMAIL_KEY, email);
+      // Seed the ['me'] query so AppLayout doesn't re-fetch /auth/me on mount —
+      // the login response already carries user + membership.
+      const user: User = {
+        id: res.data.user.id,
+        email: res.data.user.email,
+        totpEnabled: res.data.user.totpEnabled,
+      };
+      qc.setQueryData(['me'], { data: { user, membership: res.data.membership } });
       router.push('/app');
     } catch (err) {
       if (err instanceof ApiError) {
@@ -79,12 +80,11 @@ export default function LoginPage() {
     }
   }
 
-  if (checkingSession) {
-    return (
-      <AuthSplit title={<>Sign in.</>} sub="Pick up where you left off.">
-        <p className="mt-8 text-sm text-paper-500">Checking your session…</p>
-      </AuthSplit>
-    );
+  if (redirecting) {
+    // We already have a token — AppLayout will validate it and bounce us back
+    // here if it's stale. No splash copy: the redirect is nearly instant, and
+    // the "Checking your session…" line used to block paint for ~1s needlessly.
+    return <AuthSplit title={<>Sign in.</>} sub="Pick up where you left off." />;
   }
 
   // Demo bundle reuses the same "Step inside" card as the root page so a
@@ -193,7 +193,7 @@ function AuthSplit({
 }: {
   title: ReactNode;
   sub: string;
-  children: ReactNode;
+  children?: ReactNode;
   eyebrow?: string;
 }) {
   return (

@@ -23,6 +23,34 @@ import {
   ValidationError,
 } from '../errors/index.js';
 
+// Shared between /auth/login and /auth/me so the login response can prime the
+// web client's React Query cache for the subsequent /me fetch the app layout
+// would otherwise do — saves a full round-trip on fresh sign-in.
+async function fetchMembershipForUser(userId: string): Promise<{
+  orgId: string;
+  orgName: string;
+  publicSlug: string;
+  isSuperadmin: boolean;
+  terminology: 'appointment' | 'visit';
+} | null> {
+  const db = getDb();
+  const row = await db
+    .selectFrom('org_members')
+    .innerJoin('orgs', 'orgs.id', 'org_members.org_id')
+    .select([
+      'org_members.org_id as orgId',
+      'org_members.is_superadmin as isSuperadmin',
+      'orgs.name as orgName',
+      'orgs.public_slug as publicSlug',
+      'orgs.terminology as terminology',
+    ])
+    .where('org_members.user_id', '=', userId)
+    .where('org_members.deleted_at', 'is', null)
+    .where('orgs.deleted_at', 'is', null)
+    .executeTakeFirst();
+  return row ?? null;
+}
+
 export function registerAuthRoutes(app: FastifyInstance): void {
   app.post('/api/v1/auth/register', { config: { rateLimit: { max: 3, timeWindow: '1 minute' } } }, async (req) => {
     const body = registerSchema.parse(req.body);
@@ -67,16 +95,22 @@ export function registerAuthRoutes(app: FastifyInstance): void {
       const fresh = await hashPassword(body.password);
       await db.updateTable('users').set({ password_hash: fresh }).where('id', '=', user.id).execute();
     }
-    const { token, expiresAt } = await createSession({
-      userId: user.id,
-      ip: req.ip ?? null,
-      userAgent: (req.headers['user-agent'] as string | undefined) ?? null,
-    });
+    const [{ token, expiresAt }, membership] = await Promise.all([
+      createSession({
+        userId: user.id,
+        ip: req.ip ?? null,
+        userAgent: (req.headers['user-agent'] as string | undefined) ?? null,
+      }),
+      fetchMembershipForUser(user.id),
+    ]);
     return {
       data: {
         token,
         expiresAt: expiresAt.toISOString(),
         user: { id: user.id, email: user.email, displayName: user.display_name, totpEnabled: user.totp_enabled },
+        // Lets the web client seed its React Query cache for /auth/me, which
+        // the /app layout would otherwise re-fetch immediately after redirect.
+        membership,
       },
     };
   });
@@ -95,22 +129,8 @@ export function registerAuthRoutes(app: FastifyInstance): void {
 
   app.get('/api/v1/auth/me', async (req) => {
     req.requireAuth();
-    const db = getDb();
-    const membership = await db
-      .selectFrom('org_members')
-      .innerJoin('orgs', 'orgs.id', 'org_members.org_id')
-      .select([
-        'org_members.org_id as orgId',
-        'org_members.is_superadmin as isSuperadmin',
-        'orgs.name as orgName',
-        'orgs.public_slug as publicSlug',
-        'orgs.terminology as terminology',
-      ])
-      .where('org_members.user_id', '=', req.userId!)
-      .where('org_members.deleted_at', 'is', null)
-      .where('orgs.deleted_at', 'is', null)
-      .executeTakeFirst();
-    return { data: { user: req.authUser, membership: membership ?? null } };
+    const membership = await fetchMembershipForUser(req.userId!);
+    return { data: { user: req.authUser, membership } };
   });
 
   app.post('/api/v1/auth/totp/enable', async (req) => {
