@@ -9,6 +9,11 @@
 FROM node:22-bookworm-slim AS build
 WORKDIR /repo
 
+# Coolify injects NODE_ENV=production as a build ARG, which would make
+# `pnpm install` skip devDeps (turbo, tsc, etc.) and break the build. Force
+# development in the build stage; the runtime stage resets to production.
+ENV NODE_ENV=development
+
 # pnpm via corepack, pinned to the root packageManager field.
 RUN corepack enable && corepack prepare pnpm@9.12.3 --activate
 
