@@ -27,6 +27,23 @@ export interface DB {
   notifications_outbox: NotificationsOutboxTable;
   notification_suppressions: NotificationSuppressionsTable;
   org_booking_policies: OrgBookingPoliciesTable;
+  org_booking_page: OrgBookingPageTable;
+}
+
+export interface OrgBookingPageTable {
+  org_id: string;
+  hero_title: string | null;
+  hero_subtitle: string | null;
+  hero_image_url: string | null;
+  intro_markdown: string | null;
+  confirmation_markdown: string | null;
+  confirmation_redirect_url: string | null;
+  show_policy_on_page: Generated<boolean>;
+  lead_time_min_hours: Generated<number>;
+  booking_window_days: Generated<number>;
+  max_party_size: number | null;
+  intake_schedules: Generated<boolean>;
+  updated_at: Generated<Timestamp>;
 }
 
 export interface OrgBookingPoliciesTable {

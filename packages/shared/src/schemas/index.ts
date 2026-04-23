@@ -9,3 +9,4 @@ export * from './event.js';
 export * from './visit.js';
 export * from './role.js';
 export * from './notifications.js';
+export * from './booking-page.js';

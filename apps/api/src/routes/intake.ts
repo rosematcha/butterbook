@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import crypto from 'node:crypto';
 import { kioskCheckinSchema, slugSchema, type Permission } from '@butterbook/shared';
-import { getDb, withOrgContext } from '../db/index.js';
+import { getDb, withOrgContext, withOrgRead } from '../db/index.js';
 import { AuthenticationError, NotFoundError, PermissionError } from '../errors/index.js';
 import { createVisitInTx } from '../services/booking.js';
 import { handleIdempotent } from '../middleware/idempotency.js';
@@ -69,7 +69,7 @@ export function registerIntakeRoutes(app: FastifyInstance): void {
       if (!resolved) throw new NotFoundError();
       if (resolved.isDemo) throw new PermissionError('Intake disabled for demo organizations.');
 
-      const [org, loc] = await Promise.all([
+      const [org, loc, intakeSchedules] = await Promise.all([
         getDb()
           .selectFrom('orgs')
           .select(['name as orgName', 'theme', 'kiosk_reset_seconds as resetSeconds'])
@@ -80,6 +80,14 @@ export function registerIntakeRoutes(app: FastifyInstance): void {
           .select(['name as locationName'])
           .where('id', '=', resolved.locationId)
           .executeTakeFirst(),
+        withOrgRead(resolved.orgId, async (tx) => {
+          const row = await tx
+            .selectFrom('org_booking_page')
+            .select(['intake_schedules'])
+            .where('org_id', '=', resolved.orgId)
+            .executeTakeFirst();
+          return row?.intake_schedules ?? false;
+        }),
       ]);
       if (!org || !loc) throw new NotFoundError();
 
@@ -92,6 +100,7 @@ export function registerIntakeRoutes(app: FastifyInstance): void {
           locationName: loc.locationName,
           theme: org.theme,
           resetSeconds: org.resetSeconds,
+          intakeSchedules,
           nonce,
         },
       };

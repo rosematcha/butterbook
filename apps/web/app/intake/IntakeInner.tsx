@@ -9,6 +9,7 @@ interface IntakeConfig {
   orgName: string;
   locationName: string;
   resetSeconds: number;
+  intakeSchedules?: boolean;
   nonce: string;
 }
 
@@ -45,6 +46,8 @@ export function IntakeInner({ embed = false }: InnerProps) {
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // null = chooser screen (before user picks walk-in vs scheduled)
+  const [mode, setMode] = useState<'walkin' | null>(null);
 
   useEffect(() => {
     if (IS_DEMO) window.location.replace(MARKETING_URL);
@@ -142,6 +145,30 @@ export function IntakeInner({ embed = false }: InnerProps) {
     return <main className={containerClass + ' text-center text-lg text-slate-500'}>Loading…</main>;
   }
 
+  // When the org has opted into the scheduling path, show a chooser first.
+  const showChooser = (config.intakeSchedules ?? false) && mode === null && !submitted;
+  if (showChooser) {
+    const bookHref = `/book?org=${encodeURIComponent(slug)}&loc=${config.locationId}${embed ? '&embed=1' : ''}`;
+    return (
+      <main className={containerClass}>
+        <div className="text-sm text-slate-500">{config.orgName}</div>
+        <h1 className="mt-1 text-2xl font-semibold tracking-tight sm:text-3xl">Welcome</h1>
+        <p className="mt-1 text-slate-600">{config.locationName}</p>
+        <div className="mt-8 grid gap-4 sm:grid-cols-2">
+          <button type="button" className="btn py-6 text-lg" onClick={() => setMode('walkin')}>
+            Walk in now
+          </button>
+          <a className="btn-secondary py-6 text-center text-lg" href={bookHref}>
+            Schedule a visit
+          </a>
+        </div>
+        <p className="mt-6 text-xs text-slate-500">
+          Walk in now to check in for today. Schedule a visit to pick a future date and time.
+        </p>
+      </main>
+    );
+  }
+
   if (submitted) {
     return (
       <main className={embed ? 'p-6 text-center' : 'flex min-h-screen flex-col items-center justify-center bg-emerald-50 p-8 text-center'}>
@@ -151,6 +178,7 @@ export function IntakeInner({ embed = false }: InnerProps) {
           onClick={() => {
             setSubmitted(false);
             setValues({});
+            if (config.intakeSchedules) setMode(null);
           }}
           className="btn mt-6"
         >

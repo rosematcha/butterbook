@@ -37,6 +37,7 @@ const TENANT_TABLES = new Set([
   'notifications_outbox',
   'notification_suppressions',
   'org_booking_policies',
+  'org_booking_page',
 ]);
 
 const MUTATING_METHODS = new Set(['selectFrom', 'insertInto', 'updateTable', 'deleteFrom']);
