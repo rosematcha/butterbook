@@ -37,7 +37,7 @@ RUN pnpm turbo run build --filter=api
 # pnpm deploy produces a self-contained directory with only prod deps and
 # resolved workspace packages. No devDeps (vitest, tsx, eslint), no turbo
 # cache, no source TS files outside what we explicitly copy.
-RUN pnpm deploy --filter=api --prod --legacy /out
+RUN pnpm deploy --filter=api --prod /out
 
 # SQL migrations live under src/ and aren't emitted by tsc — copy them so
 # `pnpm migrate up` works in prod.
