@@ -69,6 +69,8 @@ const ROUTES: RouteCase[] = [
   { name: 'PATCH org (admin.manage_org)', method: 'PATCH', url: (c) => `/api/v1/orgs/${c.orgId}`, body: () => ({ name: 'New', terminology: 'appointment', timeModel: 'start_end', country: 'US', city: 'Brooklyn', state: 'NY' }), invalidBody: () => ({ terminology: 'bogus' }) },
   { name: 'GET org branding', method: 'GET', url: (c) => `/api/v1/orgs/${c.orgId}/branding`, skip403: true },
   { name: 'PATCH org branding (admin.manage_org)', method: 'PATCH', url: (c) => `/api/v1/orgs/${c.orgId}/branding`, body: () => ({ theme: { primaryColor: '#112233' } }) },
+  { name: 'GET booking-policies (admin.manage_org)', method: 'GET', url: (c) => `/api/v1/orgs/${c.orgId}/booking-policies` },
+  { name: 'PATCH booking-policies (admin.manage_org)', method: 'PATCH', url: (c) => `/api/v1/orgs/${c.orgId}/booking-policies`, body: () => ({ selfCancelEnabled: true }), invalidBody: () => ({ cancelCutoffHours: -1 }) },
   { name: 'GET org form (admin.manage_forms)', method: 'GET', url: (c) => `/api/v1/orgs/${c.orgId}/form` },
   { name: 'PUT org form (admin.manage_forms)', method: 'PUT', url: (c) => `/api/v1/orgs/${c.orgId}/form`, body: () => ({
       fields: [
