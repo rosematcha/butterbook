@@ -1,7 +1,9 @@
 'use client';
 import { useState } from 'react';
-import type { FieldType, FormField } from '@butterbook/shared';
+import type { FieldLibraryEntry, FieldType, FormField } from '@butterbook/shared';
 import type { StepProps } from '../types';
+import { toFieldKey, uniqueFieldKey } from '../../../../../lib/unique-field-key';
+import { LibraryModal } from '../../../../components/field-library-modal';
 
 const FIELD_TYPES: Array<{ value: FieldType; label: string }> = [
   { value: 'text', label: 'Short text' },
@@ -18,25 +20,10 @@ const FIELD_TYPES: Array<{ value: FieldType; label: string }> = [
   { value: 'checkbox', label: 'Checkbox' },
 ];
 
-// Snake-case, starts with a letter. Match the server rule in form.ts.
-function toKey(label: string): string {
-  return label
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '_')
-    .replace(/^_+|_+$/g, '')
-    .replace(/^[^a-z]/, 'f_$&')
-    .slice(0, 64);
-}
-
-function uniqueKey(base: string, existing: FormField[]): string {
-  if (!existing.find((f) => f.fieldKey === base)) return base;
-  let i = 2;
-  while (existing.find((f) => f.fieldKey === `${base}_${i}`)) i++;
-  return `${base}_${i}`;
-}
-
 export function StepForm({ state, patch }: StepProps) {
   const { formFields } = state;
+  const [libraryOpen, setLibraryOpen] = useState(false);
+  const [addedIds, setAddedIds] = useState<Set<string>>(new Set());
 
   function updateField(idx: number, next: Partial<FormField>) {
     const copy = formFields.slice();
@@ -61,8 +48,7 @@ export function StepForm({ state, patch }: StepProps) {
 
   function addField(type: FieldType) {
     const labelBase = type === 'email' ? 'Email' : type === 'phone' ? 'Phone' : 'New question';
-    const keyBase = toKey(labelBase) || 'field';
-    const key = uniqueKey(keyBase, formFields);
+    const key = uniqueFieldKey(toFieldKey(labelBase), formFields);
     const next: FormField = {
       fieldKey: key,
       label: labelBase,
@@ -76,6 +62,21 @@ export function StepForm({ state, patch }: StepProps) {
         : {}),
     };
     patch({ formFields: [...formFields, next] });
+  }
+
+  function addFromLibrary(entry: FieldLibraryEntry) {
+    const key = uniqueFieldKey(entry.field.fieldKey, formFields);
+    const alreadyHasPrimary = formFields.some((f) => f.isPrimaryLabel);
+    const next: FormField = {
+      ...entry.field,
+      fieldKey: key,
+      required: entry.field.required ?? false,
+      isSystem: entry.field.isSystem ?? false,
+      isPrimaryLabel: entry.field.isPrimaryLabel && !alreadyHasPrimary ? true : false,
+      displayOrder: formFields.length,
+    };
+    patch({ formFields: [...formFields, next] });
+    setAddedIds((s) => new Set(s).add(entry.id));
   }
 
   return (
@@ -103,7 +104,23 @@ export function StepForm({ state, patch }: StepProps) {
         ))}
       </ul>
 
-      <AddFieldMenu onAdd={addField} />
+      <div className="grid gap-2 sm:grid-cols-[1fr_1fr]">
+        <button
+          type="button"
+          onClick={() => setLibraryOpen(true)}
+          className="btn-ghost border border-dashed border-paper-300 w-full justify-center"
+        >
+          Browse library
+        </button>
+        <AddFieldMenu onAdd={addField} />
+      </div>
+
+      <LibraryModal
+        open={libraryOpen}
+        onClose={() => setLibraryOpen(false)}
+        onAdd={addFromLibrary}
+        addedIds={addedIds}
+      />
     </div>
   );
 }

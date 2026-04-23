@@ -1,10 +1,12 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { FormField, FieldType } from '@butterbook/shared';
+import type { FormField, FieldType, FieldLibraryEntry } from '@butterbook/shared';
 import { apiGet, apiPut, ApiError } from '../../../lib/api';
 import { useSession } from '../../../lib/session';
 import { SkeletonBlock } from '../../components/skeleton-rows';
+import { uniqueFieldKey } from '../../../lib/unique-field-key';
+import { LibraryModal } from '../../components/field-library-modal';
 
 type Draft = FormField & { _id: string };
 
@@ -54,9 +56,23 @@ export default function FormFieldsPage() {
   const [advanced, setAdvanced] = useState<Set<string>>(new Set());
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [libraryOpen, setLibraryOpen] = useState(false);
+  // Map draft _id → library entry id, so removing a draft clears its "Added" badge.
+  const [draftToPreset, setDraftToPreset] = useState<Record<string, string>>({});
+  const addedFromLibrary = useMemo(() => {
+    const s = new Set<string>();
+    for (const d of drafts) {
+      const pid = draftToPreset[d._id];
+      if (pid) s.add(pid);
+    }
+    return s;
+  }, [drafts, draftToPreset]);
 
   useEffect(() => {
-    if (q.data) setDrafts(q.data.data.fields.map(fromField));
+    if (q.data) {
+      setDrafts(q.data.data.fields.map(fromField));
+      setDraftToPreset({});
+    }
   }, [q.data]);
 
   const save = useMutation({
@@ -133,6 +149,26 @@ export default function FormFieldsPage() {
   const remove = (id: string) => {
     setDrafts((p) => p.filter((d) => d._id !== id));
     setExpanded((s) => { const n = new Set(s); n.delete(id); return n; });
+    setDraftToPreset((m) => { if (!(id in m)) return m; const n = { ...m }; delete n[id]; return n; });
+  };
+
+  const addFromLibrary = (entry: FieldLibraryEntry) => {
+    const id = mkId();
+    setDrafts((prev) => {
+      const key = uniqueFieldKey(entry.field.fieldKey, prev);
+      const alreadyHasPrimary = prev.some((d) => d.isPrimaryLabel);
+      const draft: Draft = {
+        ...entry.field,
+        fieldKey: key,
+        required: entry.field.required ?? false,
+        isSystem: entry.field.isSystem ?? false,
+        isPrimaryLabel: entry.field.isPrimaryLabel && !alreadyHasPrimary ? true : false,
+        displayOrder: prev.length,
+        _id: id,
+      };
+      return [...prev, draft];
+    });
+    setDraftToPreset((m) => ({ ...m, [id]: entry.id }));
   };
 
   const move = (id: string, dir: -1 | 1) => {
@@ -177,6 +213,7 @@ export default function FormFieldsPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <button onClick={() => setLibraryOpen(true)} className="btn-secondary">Browse library</button>
           <button onClick={addField} className="btn-secondary">+ Add field</button>
           <button onClick={() => save.mutate()} disabled={save.isPending} className="btn">
             {save.isPending ? 'Saving…' : 'Save changes'}
@@ -473,6 +510,13 @@ export default function FormFieldsPage() {
 
       {msg ? <p className="mt-4 text-sm text-accent-700">{msg}</p> : null}
       {err ? <p className="mt-4 text-sm text-red-700">{err}</p> : null}
+
+      <LibraryModal
+        open={libraryOpen}
+        onClose={() => setLibraryOpen(false)}
+        onAdd={addFromLibrary}
+        addedIds={addedFromLibrary}
+      />
     </div>
   );
 }

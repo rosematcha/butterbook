@@ -1,6 +1,7 @@
 export * from './primitives.js';
 export * from './theme.js';
 export * from './form.js';
+export * from './form-library.js';
 export * from './auth.js';
 export * from './org.js';
 export * from './location.js';
