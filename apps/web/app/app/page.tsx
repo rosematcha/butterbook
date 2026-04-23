@@ -145,6 +145,32 @@ function TodayPageInner() {
     },
   });
 
+  // Drag-to-reschedule: optimistically patches scheduledAt in the list cache
+  // so the card stays where the user dropped it, then invalidates on settle.
+  const reschedule = useMutation({
+    mutationFn: (v: { id: string; scheduledAt: string }) =>
+      apiPatch(`/api/v1/orgs/${activeOrgId}/visits/${v.id}`, { scheduledAt: v.scheduledAt }),
+    onMutate: async (v) => {
+      const key = ['visits', activeOrgId, dateKey];
+      await qc.cancelQueries({ queryKey: key });
+      const snapshot = qc.getQueryData<{ data: TimelineVisit[] }>(key);
+      if (snapshot) {
+        qc.setQueryData<{ data: TimelineVisit[] }>(key, {
+          ...snapshot,
+          data: snapshot.data.map((x) => (x.id === v.id ? { ...x, scheduledAt: v.scheduledAt } : x)),
+        });
+      }
+      return { snapshot, key };
+    },
+    onError: (e, _v, ctx) => {
+      if (ctx?.snapshot) qc.setQueryData(ctx.key, ctx.snapshot);
+      toast.push({ kind: 'error', message: e instanceof Error ? e.message : 'Reschedule failed' });
+    },
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: ['visits', activeOrgId] });
+    },
+  });
+
   const cancel = useMutation({
     mutationFn: (id: string) => apiPost(`/api/v1/orgs/${activeOrgId}/visits/${id}/cancel`, {}),
     onSuccess: (_res, id) => {
@@ -324,6 +350,7 @@ function TodayPageInner() {
           onReconfirm={(id) => reconfirm.mutate(id)}
           onEdit={(v) => setEditing(v)}
           onTagsChange={(id, tags) => tagsMut.mutate({ id, tags })}
+          onReschedule={(id, scheduledAt) => reschedule.mutate({ id, scheduledAt })}
           zoom={zoom}
         />
       )}

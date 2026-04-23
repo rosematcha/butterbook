@@ -38,8 +38,17 @@ export interface TimelineVisit {
   tags?: string[];
 }
 
-const BASE_HOUR_HEIGHT = 96; // more vertical breathing room
+// Rescaled so the old 0.75× density is the new 1×. Acuity-style compactness:
+// a whole working day fits without scroll on a 13" display at 1×.
+const BASE_HOUR_HEIGHT = 72;
 const CARD_MINUTES = 45;
+// Per-card ceiling in px. Keeps names legible on wide screens and prevents the
+// single-lane case from stretching a card across the entire column.
+const CARD_MAX_WIDTH = 280;
+// Drag-to-reschedule snaps to this many minutes.
+const DRAG_SNAP_MIN = 5;
+// Below this vertical travel, a pointer-up is treated as a click, not a drag.
+const DRAG_THRESHOLD_PX = 4;
 
 function isSameDay(a: Date, b: Date): boolean {
   return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
@@ -70,6 +79,8 @@ export interface TimelineHandlers {
   onEdit?: (visit: TimelineVisit) => void;
   /** Persists the full replacement tag list (add, rename, remove). */
   onTagsChange?: (id: string, next: string[]) => void;
+  /** Persist a new scheduledAt after a drag-to-reschedule. */
+  onReschedule?: (id: string, scheduledAt: string) => void;
 }
 
 export function Timeline({
@@ -83,6 +94,7 @@ export function Timeline({
   onReconfirm,
   onEdit,
   onTagsChange,
+  onReschedule,
   zoom = 1,
 }: {
   date: Date;
@@ -162,11 +174,12 @@ export function Timeline({
           );
         })}
 
-        {/* Half-hour dashes */}
+        {/* Half-hour dotted rules — a touch lighter and thinner than the hour
+            lines so they read as secondary gridding (Acuity-style). */}
         {Array.from({ length: TOTAL_HOURS }).map((_, i) => (
           <div
             key={`h-${i}`}
-            className="absolute left-20 right-0 border-t border-dashed border-paper-100"
+            className="pointer-events-none absolute left-20 right-0 border-t border-dotted border-paper-200/60"
             style={{ top: i * HOUR_HEIGHT + HOUR_HEIGHT / 2 }}
           />
         ))}
@@ -201,11 +214,15 @@ export function Timeline({
                 visit={v}
                 fields={fields ?? []}
                 zoom={zoom}
+                hourHeight={HOUR_HEIGHT}
+                startHour={START_HOUR}
+                totalHours={TOTAL_HOURS}
                 style={{
                   top: top + 3,
                   height: (CARD_MINUTES / 60) * HOUR_HEIGHT - 6,
                   left: `calc(${leftPct}% + 6px)`,
                   width: `calc(${widthPct}% - 12px)`,
+                  maxWidth: CARD_MAX_WIDTH,
                 }}
                 handlers={{
                   ...(onCancel ? { onCancel } : {}),
@@ -213,6 +230,7 @@ export function Timeline({
                   ...(onReconfirm ? { onReconfirm } : {}),
                   ...(onEdit ? { onEdit } : {}),
                   ...(onTagsChange ? { onTagsChange } : {}),
+                  ...(onReschedule ? { onReschedule } : {}),
                 }}
               />
             );
@@ -231,12 +249,18 @@ function VisitCard({
   style,
   handlers,
   zoom,
+  hourHeight,
+  startHour,
+  totalHours,
 }: {
   visit: TimelineVisit;
   fields: FormField[];
   style: React.CSSProperties;
   handlers: TimelineHandlers;
   zoom: number;
+  hourHeight: number;
+  startHour: number;
+  totalHours: number;
 }) {
   const d = new Date(visit.scheduledAt);
   const name = visit.piiRedacted
@@ -246,11 +270,65 @@ function VisitCard({
   const party = partyRaw != null ? String(partyRaw) : null;
   const dim = visit.status === 'cancelled';
   const tags = visit.tags ?? [];
+  const canDrag = !!handlers.onReschedule && visit.status !== 'cancelled';
 
   const cardRef = useRef<HTMLDivElement>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [tagPopoverOpen, setTagPopoverOpen] = useState(false);
   const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null);
+
+  // Drag-to-reschedule state. We render a translateY preview during the drag
+  // and only commit on pointer-up. Snapping happens on the snapped-minute
+  // offset, not on pixel position, so small jitter doesn't flip the target.
+  const [dragDy, setDragDy] = useState(0);
+  const dragStartYRef = useRef<number | null>(null);
+  const draggedRef = useRef(false);
+
+  const minuteDelta = dragStartYRef.current !== null
+    ? Math.round((dragDy / hourHeight) * 60 / DRAG_SNAP_MIN) * DRAG_SNAP_MIN
+    : 0;
+  const previewDate = minuteDelta !== 0
+    ? new Date(d.getTime() + minuteDelta * 60_000)
+    : null;
+  // Clamp preview within the visible grid so labels don't float off the rails.
+  const previewInRange = previewDate
+    ? (() => {
+        const h = previewDate.getHours() + previewDate.getMinutes() / 60;
+        return h >= startHour && h <= startHour + totalHours;
+      })()
+    : false;
+
+  function onPointerDown(e: React.PointerEvent<HTMLDivElement>) {
+    if (!canDrag) return;
+    const t = e.target as HTMLElement;
+    // Don't steal pointer events from buttons inside the card.
+    if (t.closest('button, [role="menu"]')) return;
+    if (e.button !== 0) return;
+    dragStartYRef.current = e.clientY;
+    draggedRef.current = false;
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+  }
+
+  function onPointerMove(e: React.PointerEvent<HTMLDivElement>) {
+    if (dragStartYRef.current === null) return;
+    const dy = e.clientY - dragStartYRef.current;
+    if (Math.abs(dy) > DRAG_THRESHOLD_PX) draggedRef.current = true;
+    setDragDy(dy);
+  }
+
+  function onPointerUp(e: React.PointerEvent<HTMLDivElement>) {
+    if (dragStartYRef.current === null) return;
+    const dy = e.clientY - dragStartYRef.current;
+    dragStartYRef.current = null;
+    setDragDy(0);
+    try { (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId); } catch {}
+    if (!draggedRef.current) return; // treat as click
+    if (Math.abs(dy) <= DRAG_THRESHOLD_PX) return;
+    const mins = Math.round((dy / hourHeight) * 60 / DRAG_SNAP_MIN) * DRAG_SNAP_MIN;
+    if (mins === 0 || !handlers.onReschedule) return;
+    const next = new Date(d.getTime() + mins * 60_000);
+    handlers.onReschedule(visit.id, next.toISOString());
+  }
 
   function openMenu() {
     const r = cardRef.current?.getBoundingClientRect() ?? null;
@@ -276,54 +354,82 @@ function VisitCard({
     handlers.onTagsChange(visit.id, [...tags, next]);
   }
 
+  const isDragging = dragStartYRef.current !== null && draggedRef.current;
+
   return (
     <div
       ref={cardRef}
-      className={`group absolute flex rounded-md bg-white transition hover:ring-1 hover:ring-paper-300 ${dim ? 'opacity-60' : ''}`}
-      style={{ ...style, fontSize: `${15 * zoom}px` }}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+      onPointerCancel={onPointerUp}
+      className={[
+        'group absolute flex overflow-hidden rounded-md border border-paper-200/70 bg-white',
+        'shadow-[0_1px_0_rgb(0_0_0/0.02)] transition hover:border-paper-300 hover:shadow-[0_2px_8px_rgb(0_0_0/0.06)]',
+        dim ? 'opacity-60' : '',
+        canDrag ? (isDragging ? 'cursor-grabbing select-none' : 'cursor-grab') : '',
+        isDragging ? 'z-30 ring-2 ring-brand-accent/40' : '',
+      ].join(' ')}
+      style={{
+        ...style,
+        fontSize: `${13 * zoom}px`,
+        transform: isDragging ? `translateY(${dragDy}px)` : undefined,
+        transition: isDragging ? 'none' : undefined,
+      }}
     >
-      <div className={`w-1 shrink-0 rounded-l-md ${statusLeftBar(visit.status)}`} />
-      <div className="flex min-w-0 flex-1 items-start justify-between gap-[0.53em] px-[0.8em] py-[0.53em]">
-        <div className="min-w-0 flex-1">
-          <div className="flex items-baseline gap-[0.53em]">
-            <span className="font-display text-[0.93em] font-medium tabular-nums text-paper-700">
-              {d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }).toLowerCase()}
+      <div className={`w-[3px] shrink-0 ${statusLeftBar(visit.status)}`} />
+      <div className="flex min-w-0 flex-1 items-start justify-between gap-[0.4em] px-[0.77em] py-[0.5em]">
+        <div className="flex min-w-0 flex-1 flex-col gap-[0.1em]">
+          <div className="flex min-w-0 items-baseline gap-[0.46em] overflow-hidden whitespace-nowrap">
+            <span className="font-display text-[0.95em] font-medium tabular-nums text-paper-800">
+              {(previewDate && previewInRange ? previewDate : d)
+                .toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+                .toLowerCase()}
             </span>
-            <span className="text-[0.67em] uppercase tracking-wider text-paper-400">{methodTag(visit.bookingMethod)}</span>
+            <span className="text-[0.68em] uppercase tracking-[0.08em] text-paper-400">{methodTag(visit.bookingMethod)}</span>
             {visit.status !== 'confirmed' ? (
-              <span className="text-[0.67em] uppercase tracking-wider text-paper-500">· {visit.status.replace('_', ' ')}</span>
+              <span className="truncate text-[0.68em] uppercase tracking-[0.08em] text-paper-500">· {visit.status.replace('_', ' ')}</span>
             ) : null}
           </div>
-          <div className="mt-[0.13em] truncate text-[1em] font-medium text-ink">{name}</div>
-          <div className="mt-[0.13em] flex items-center gap-[0.4em] text-[0.8em] text-paper-500">
-            {party ? <span>Party of {party}</span> : null}
-            {party && tags.length ? <span className="text-paper-300">·</span> : null}
-            {tags.length ? (
-              <div className="flex min-w-0 flex-wrap gap-[0.33em]">
-                {tags.map((t) => (
-                  <span
-                    key={t}
-                    className="group/tag inline-flex items-center gap-[0.33em] rounded-full bg-brand-accent/10 px-[0.5em] py-[0.17em] text-[0.83em] font-medium text-brand-accent"
-                  >
-                    {t}
-                    {handlers.onTagsChange ? (
-                      <button
-                        type="button"
-                        onClick={(e) => { e.stopPropagation(); removeTag(t); }}
-                        className="text-brand-accent/50 opacity-0 transition hover:text-brand-accent group-hover/tag:opacity-100"
-                        aria-label={`Remove tag ${t}`}
-                      >
-                        ×
-                      </button>
-                    ) : null}
-                  </span>
-                ))}
-              </div>
-            ) : null}
-          </div>
+          <div className="truncate text-[1em] font-medium leading-tight text-ink">{name}</div>
+          {(party || tags.length) ? (
+            <div className="flex min-w-0 items-center gap-[0.4em] overflow-hidden whitespace-nowrap text-[0.8em] text-paper-500">
+              {party ? <span className="shrink-0">Party of {party}</span> : null}
+              {party && tags.length ? <span className="shrink-0 text-paper-300">·</span> : null}
+              {tags.length ? (
+                <div className="flex min-w-0 flex-nowrap items-center gap-[0.33em] overflow-hidden">
+                  {tags.map((t) => (
+                    <span
+                      key={t}
+                      className="group/tag inline-flex max-w-[10em] shrink-0 items-center gap-[0.3em] truncate rounded-full bg-brand-accent/10 px-[0.55em] py-[0.12em] text-[0.83em] font-medium leading-tight text-brand-accent"
+                    >
+                      <span className="truncate">{t}</span>
+                      {handlers.onTagsChange ? (
+                        <button
+                          type="button"
+                          onPointerDown={(e) => e.stopPropagation()}
+                          onClick={(e) => { e.stopPropagation(); removeTag(t); }}
+                          className="shrink-0 text-brand-accent/50 opacity-0 transition hover:text-brand-accent group-hover/tag:opacity-100"
+                          aria-label={`Remove tag ${t}`}
+                        >
+                          ×
+                        </button>
+                      ) : null}
+                    </span>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
         </div>
 
-        <div className="flex shrink-0 items-center gap-[0.13em] opacity-0 transition focus-within:opacity-100 group-hover:opacity-100">
+        <div
+          className={[
+            'flex shrink-0 items-center gap-[0.13em] transition focus-within:opacity-100',
+            isDragging ? 'opacity-0' : 'opacity-0 group-hover:opacity-100',
+          ].join(' ')}
+          onPointerDown={(e) => e.stopPropagation()}
+        >
           {handlers.onTagsChange ? (
             <button
               type="button"
