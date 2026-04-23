@@ -6,6 +6,7 @@ import { AuthenticationError, ConflictError, NotFoundError, PermissionError } fr
 import { verifyManageToken } from '../utils/manage-token.js';
 import { slotsForDate, type SlotRounding } from '../services/availability.js';
 import { cancelVisitInTx, rescheduleVisitInTx } from '../services/visits.js';
+import { buildCalendar } from '../services/ical.js';
 
 const tokenParam = z.object({ token: z.string().min(10) });
 
@@ -164,6 +165,67 @@ export function registerManageRoutes(app: FastifyInstance): void {
           },
         },
       };
+    });
+  });
+
+  app.get('/api/v1/manage/:token/calendar.ics', rl, async (req, reply) => {
+    const { token } = tokenParam.parse(req.params);
+    const { visit } = await resolveToken(token);
+    return withOrgRead(visit.org_id, async (tx) => {
+      const [org, location, event] = await Promise.all([
+        getDb()
+          .selectFrom('orgs')
+          .select(['name', 'terminology'])
+          .where('id', '=', visit.org_id)
+          .executeTakeFirstOrThrow(),
+        tx
+          .selectFrom('locations')
+          .select(['name', 'address', 'city', 'state', 'zip'])
+          .where('id', '=', visit.location_id)
+          .executeTakeFirst(),
+        visit.event_id
+          ? tx
+              .selectFrom('events')
+              .select(['title', 'starts_at', 'ends_at'])
+              .where('id', '=', visit.event_id)
+              .executeTakeFirst()
+          : Promise.resolve(null),
+      ]);
+      const start =
+        event?.starts_at instanceof Date
+          ? event.starts_at
+          : event?.starts_at
+            ? new Date(event.starts_at as unknown as string)
+            : visit.scheduled_at instanceof Date
+              ? visit.scheduled_at
+              : new Date(visit.scheduled_at);
+      const end =
+        event?.ends_at instanceof Date
+          ? event.ends_at
+          : event?.ends_at
+            ? new Date(event.ends_at as unknown as string)
+            : new Date(start.getTime() + 60 * 60 * 1000);
+      const locationText = location
+        ? [location.name, location.address, [location.city, location.state].filter(Boolean).join(', '), location.zip]
+            .filter((x) => x && String(x).trim())
+            .join(', ')
+        : null;
+      const summary = event?.title ?? `${org.terminology === 'appointment' ? 'Appointment' : 'Visit'} — ${org.name}`;
+      const ics = buildCalendar([
+        {
+          uid: `visit-${visit.id}@butterbook.app`,
+          dtstamp: new Date(),
+          start,
+          end,
+          summary,
+          location: locationText,
+        },
+      ]);
+      return reply
+        .type('text/calendar; charset=utf-8')
+        .header('content-disposition', `attachment; filename="booking-${visit.id}.ics"`)
+        .header('cache-control', 'private, no-store')
+        .send(ics);
     });
   });
 

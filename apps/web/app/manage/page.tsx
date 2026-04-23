@@ -201,6 +201,12 @@ function ManageInner() {
         <p className="mt-6 text-sm text-paper-600">This booking has been cancelled.</p>
       ) : (
         <div className="mt-6 space-y-3">
+          <a
+            className="btn-ghost block w-full text-center"
+            href={`${API_BASE_URL}/api/v1/manage/${encodeURIComponent(token)}/calendar.ics`}
+          >
+            Add to calendar
+          </a>
           {rescheduleAllowed ? (
             <div>
               <button className="btn w-full" disabled={working} onClick={() => setShowReschedule((v) => !v)}>

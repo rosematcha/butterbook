@@ -5,6 +5,7 @@ import { getDb, withOrgContext, withOrgRead } from '../db/index.js';
 import { NotFoundError } from '../errors/index.js';
 import { createVisitInTx } from '../services/booking.js';
 import { handleIdempotent } from '../middleware/idempotency.js';
+import { buildCalendar } from '../services/ical.js';
 
 const params = z.object({
   orgSlug: z.string().min(1),
@@ -25,6 +26,43 @@ export function registerPublicEventRoutes(app: FastifyInstance): void {
     const fields = ev.form_fields ?? (await getDb().selectFrom('orgs').select(['form_fields']).where('id', '=', ev.org_id).executeTakeFirstOrThrow()).form_fields;
     return { data: { fields } };
   });
+
+  app.get(
+    '/api/v1/public/:orgSlug/:slugPrefix/:slugOrPublicId/calendar.ics',
+    { config: { rateLimit: { max: 30, timeWindow: '1 minute' } } },
+    async (req, reply) => {
+      const p = params.parse(req.params);
+      const ev = await resolveEvent(p);
+      if (!ev.is_published) throw new NotFoundError();
+      const loc = await getDb()
+        .selectFrom('locations')
+        .select(['name', 'address', 'city', 'state', 'zip'])
+        .where('id', '=', ev.location_id)
+        .where('deleted_at', 'is', null)
+        .executeTakeFirst();
+      const locationText = loc
+        ? [loc.name, loc.address, [loc.city, loc.state].filter(Boolean).join(', '), loc.zip]
+            .filter((x) => x && String(x).trim())
+            .join(', ')
+        : null;
+      const ics = buildCalendar([
+        {
+          uid: `event-${ev.id}@butterbook.app`,
+          dtstamp: new Date(),
+          start: ev.starts_at instanceof Date ? ev.starts_at : new Date(ev.starts_at),
+          end: ev.ends_at instanceof Date ? ev.ends_at : new Date(ev.ends_at),
+          summary: ev.title,
+          description: ev.description,
+          location: locationText,
+        },
+      ]);
+      return reply
+        .type('text/calendar; charset=utf-8')
+        .header('content-disposition', `inline; filename="${ev.public_id}.ics"`)
+        .header('cache-control', 'public, max-age=300')
+        .send(ics);
+    },
+  );
 
   app.post(
     '/api/v1/public/:orgSlug/:slugPrefix/:slugOrPublicId/register',
