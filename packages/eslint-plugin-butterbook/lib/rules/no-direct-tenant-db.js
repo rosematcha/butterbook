@@ -46,6 +46,8 @@ const TENANT_TABLES = new Set([
   'memberships',
   'membership_payments',
   'guest_passes',
+  'org_stripe_accounts',
+  'stripe_events',
 ]);
 
 const MUTATING_METHODS = new Set(['selectFrom', 'insertInto', 'updateTable', 'deleteFrom']);

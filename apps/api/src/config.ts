@@ -48,6 +48,12 @@ const ConfigSchema = z.object({
   // single-instance deployment, unsafe for multi-instance.
   REDIS_URL: z.string().url().optional(),
 
+  // Stripe Connect. Optional until Phase 3 is enabled for a deployment; routes
+  // that need these values return 409 when they are missing.
+  STRIPE_SECRET_KEY: z.string().min(10).optional(),
+  STRIPE_CONNECT_CLIENT_ID: z.string().min(5).optional(),
+  STRIPE_WEBHOOK_SIGNING_SECRET: z.string().min(10).optional(),
+
   // Demo deployment flags.
   // DEMO_MODE=true turns on: the /demo/session provisioning route, the
   // X-Robots-Tag: noindex response header, and the requireNotDemo() guard on

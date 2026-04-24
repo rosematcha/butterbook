@@ -116,6 +116,11 @@ const ROUTES: RouteCase[] = [
   { name: 'POST membership renew', method: 'POST', url: (c) => `/api/v1/orgs/${c.orgId}/memberships/${c.membershipId}/renew`, body: () => ({ amountCents: 5000 }), invalidBody: () => ({ amountCents: -1 }), notFoundUrl: (c) => `/api/v1/orgs/${c.orgId}/memberships/00000000-0000-0000-0000-000000000000/renew` },
   { name: 'POST membership refund', method: 'POST', url: (c) => `/api/v1/orgs/${c.orgId}/memberships/${c.membershipId}/refund`, body: () => ({ amountCents: 5000 }), invalidBody: () => ({ amountCents: -1 }), notFoundUrl: (c) => `/api/v1/orgs/${c.orgId}/memberships/00000000-0000-0000-0000-000000000000/refund` },
 
+  // --- Stripe Connect foundation ---
+  { name: 'GET Stripe status', method: 'GET', url: (c) => `/api/v1/orgs/${c.orgId}/stripe` },
+  { name: 'POST Stripe connect URL', method: 'POST', url: (c) => `/api/v1/orgs/${c.orgId}/stripe/connect` },
+  { name: 'DELETE Stripe account', method: 'DELETE', url: (c) => `/api/v1/orgs/${c.orgId}/stripe` },
+
   // --- members ---
   { name: 'GET members (admin.manage_users)', method: 'GET', url: (c) => `/api/v1/orgs/${c.orgId}/members` },
   // Superadmin invariant is exercised in a dedicated test; skip a success-path delete here.

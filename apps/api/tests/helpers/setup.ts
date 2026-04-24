@@ -23,6 +23,7 @@ if (!process.env.MANAGE_TOKEN_SECRET) {
 }
 if (!process.env.APP_BASE_URL) process.env.APP_BASE_URL = 'http://localhost:3000';
 if (!process.env.CORS_ALLOWED_ORIGINS) process.env.CORS_ALLOWED_ORIGINS = 'http://localhost:3000';
+if (!process.env.STRIPE_CONNECT_CLIENT_ID) process.env.STRIPE_CONNECT_CLIENT_ID = 'ca_test_12345';
 process.env.NODE_ENV = 'test';
 process.env.LOG_LEVEL = 'warn';
 loadConfig();

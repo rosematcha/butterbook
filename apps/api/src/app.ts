@@ -36,6 +36,7 @@ import { registerBookingPolicyRoutes } from './routes/booking-policies.js';
 import { registerBookingPageRoutes } from './routes/booking-page.js';
 import { registerContactRoutes } from './routes/contacts.js';
 import { registerMembershipRoutes } from './routes/memberships.js';
+import { registerStripeRoutes } from './routes/stripe.js';
 import { registerMetricsRoutes } from './plugins/metrics.js';
 
 export async function buildApp(): Promise<FastifyInstance> {
@@ -143,6 +144,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   registerBookingPageRoutes(app);
   registerContactRoutes(app);
   registerMembershipRoutes(app);
+  registerStripeRoutes(app);
   registerMetricsRoutes(app);
 
   return app;

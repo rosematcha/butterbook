@@ -36,6 +36,30 @@ export interface DB {
   memberships: MembershipsTable;
   membership_payments: MembershipPaymentsTable;
   guest_passes: GuestPassesTable;
+  org_stripe_accounts: OrgStripeAccountsTable;
+  stripe_events: StripeEventsTable;
+}
+
+export interface OrgStripeAccountsTable {
+  org_id: string;
+  stripe_account_id: string;
+  charges_enabled: Generated<boolean>;
+  payouts_enabled: Generated<boolean>;
+  default_currency: Generated<string>;
+  webhook_secret: Buffer | null;
+  connected_at: Generated<Timestamp>;
+  disconnected_at: Timestamp | null;
+  updated_at: Generated<Timestamp>;
+}
+
+export interface StripeEventsTable {
+  id: Generated<string>;
+  org_id: string;
+  stripe_event_id: string;
+  event_type: string;
+  payload: ColumnType<Jsonb, string, string>;
+  processed_at: Timestamp | null;
+  created_at: Generated<Timestamp>;
 }
 
 export interface OrgMembershipPoliciesTable {

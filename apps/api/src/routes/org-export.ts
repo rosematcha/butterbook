@@ -31,6 +31,8 @@ const EXPORT_SECTIONS = [
   'memberships',
   'membership_payments',
   'guest_passes',
+  'org_stripe_accounts',
+  'stripe_events',
   'audit_log',
 ] as const;
 type ExportSection = (typeof EXPORT_SECTIONS)[number];
@@ -152,6 +154,15 @@ async function pageSection(tx: Tx, section: ExportSection, offset: number, limit
       return tx.selectFrom('membership_payments').selectAll().limit(limit).offset(offset).execute() as unknown as Array<Record<string, unknown>>;
     case 'guest_passes':
       return tx.selectFrom('guest_passes').selectAll().limit(limit).offset(offset).execute() as unknown as Array<Record<string, unknown>>;
+    case 'org_stripe_accounts':
+      return tx
+        .selectFrom('org_stripe_accounts')
+        .select(['org_id', 'stripe_account_id', 'charges_enabled', 'payouts_enabled', 'default_currency', 'connected_at', 'disconnected_at', 'updated_at'])
+        .limit(limit)
+        .offset(offset)
+        .execute() as unknown as Array<Record<string, unknown>>;
+    case 'stripe_events':
+      return tx.selectFrom('stripe_events').selectAll().limit(limit).offset(offset).execute() as unknown as Array<Record<string, unknown>>;
     case 'audit_log':
       return tx.selectFrom('audit_log').selectAll().limit(limit).offset(offset).execute() as unknown as Array<Record<string, unknown>>;
   }
