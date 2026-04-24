@@ -4,6 +4,7 @@ import fastifyEtag from '@fastify/etag';
 import fastifyRateLimit from '@fastify/rate-limit';
 import { Redis } from 'ioredis';
 import crypto from 'node:crypto';
+import { Readable } from 'node:stream';
 import { getConfig } from './config.js';
 import { buildLoggerOptions } from './utils/logger.js';
 import { registerErrorHandler } from './plugins/error-handler.js';
@@ -39,6 +40,12 @@ import { registerMembershipRoutes } from './routes/memberships.js';
 import { registerStripeRoutes } from './routes/stripe.js';
 import { registerPublicMembershipRoutes } from './routes/public-memberships.js';
 import { registerMetricsRoutes } from './plugins/metrics.js';
+
+declare module 'fastify' {
+  interface FastifyRequest {
+    rawBody?: Buffer;
+  }
+}
 
 export async function buildApp(): Promise<FastifyInstance> {
   const cfg = getConfig();
@@ -96,6 +103,17 @@ export async function buildApp(): Promise<FastifyInstance> {
   registerSecurityHeaders(app);
   registerErrorHandler(app);
   registerAuthContext(app);
+
+  app.addHook('preParsing', async (req, _reply, payload) => {
+    if (req.method !== 'POST' || !req.url.startsWith('/api/v1/stripe/webhook/')) return payload;
+    const chunks: Buffer[] = [];
+    for await (const chunk of payload) {
+      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    }
+    const raw = Buffer.concat(chunks);
+    req.rawBody = raw;
+    return Readable.from(raw);
+  });
 
   // Hash-based ETag on every response; @fastify/etag also returns 304 when
   // the incoming If-None-Match matches, so repeat dashboard refetches

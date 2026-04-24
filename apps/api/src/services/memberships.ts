@@ -141,7 +141,7 @@ export async function createMembershipInTx(
   }
 
   const startsAt = input.startsAt ?? new Date();
-  const expiresAt = input.expiresAt === undefined ? defaultExpiry(startsAt, tier.duration_days, tier.billing_interval) : input.expiresAt;
+  const expiresAt = input.expiresAt === undefined ? defaultMembershipExpiry(startsAt, tier.duration_days, tier.billing_interval) : input.expiresAt;
   const membership = await tx
     .insertInto('memberships')
     .values({
@@ -208,7 +208,7 @@ export async function renewMembershipInTx(
     .executeTakeFirst();
   if (!current) throw new NotFoundError();
   const base = current.expires_at && current.expires_at > new Date() ? current.expires_at : new Date();
-  const expiresAt = input.expiresAt === undefined ? defaultExpiry(base, current.duration_days, current.billing_interval) : input.expiresAt;
+  const expiresAt = input.expiresAt === undefined ? defaultMembershipExpiry(base, current.duration_days, current.billing_interval) : input.expiresAt;
   await tx.updateTable('memberships').set({ status: 'active', expires_at: expiresAt, cancelled_at: null, cancelled_reason: null }).where('org_id', '=', orgId).where('id', '=', membershipId).execute();
   await tx
     .insertInto('membership_payments')
@@ -266,7 +266,7 @@ export async function sweepMembershipStatus(tx: Tx, orgId: string, now = new Dat
   return { expired: expired.length, lapsed: lapsed.length };
 }
 
-function defaultExpiry(start: Date, durationDays: number | null, interval: string): Date | null {
+export function defaultMembershipExpiry(start: Date, durationDays: number | null, interval: string): Date | null {
   if (interval === 'lifetime') return null;
   const days = durationDays ?? (interval === 'month' ? 30 : 365);
   return new Date(start.getTime() + days * 24 * 60 * 60 * 1000);
