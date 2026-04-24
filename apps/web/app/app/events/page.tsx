@@ -1,9 +1,10 @@
 'use client';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { Suspense, useEffect, useState, type FormEvent } from 'react';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import { apiDelete, apiGet, apiPost, ApiError } from '../../../lib/api';
+import { useOptimisticMutation } from '../../../lib/mutations';
 import { useSession } from '../../../lib/session';
 import { useConfirm } from '../../../lib/confirm';
 import { useToast } from '../../../lib/toast';
@@ -91,23 +92,31 @@ function EventsPageInner() {
     staleTime: 5 * 60_000,
   });
 
-  const publish = useMutation({
-    mutationFn: (value: { id: string; next: boolean }) =>
+  const listKey = ['events', activeOrgId] as const;
+
+  const publish = useOptimisticMutation<{ id: string; next: boolean }>({
+    mutationFn: (value) =>
       apiPost(`/api/v1/orgs/${activeOrgId}/events/${value.id}/${value.next ? 'publish' : 'unpublish'}`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['events', activeOrgId] }),
+    queryKeys: [listKey],
+    apply: (current, vars) => {
+      const list = current as { data: EventRow[] } | undefined;
+      if (!list) return undefined;
+      return { data: list.data.map((e) => (e.id === vars.id ? { ...e, isPublished: vars.next } : e)) };
+    },
+    successMessage: (_d, v) => (v.next ? 'Event published' : 'Event unpublished'),
+    errorMessage: 'Could not update publish state',
   });
 
-  const del = useMutation({
-    mutationFn: (id: string) => apiDelete(`/api/v1/orgs/${activeOrgId}/events/${id}`),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['events', activeOrgId] });
-      toast.push({ kind: 'success', message: 'Event deleted' });
+  const del = useOptimisticMutation<string>({
+    mutationFn: (id) => apiDelete(`/api/v1/orgs/${activeOrgId}/events/${id}`),
+    queryKeys: [listKey],
+    apply: (current, id) => {
+      const list = current as { data: EventRow[] } | undefined;
+      if (!list) return undefined;
+      return { data: list.data.filter((e) => e.id !== id) };
     },
-    onError: (error) =>
-      toast.push({
-        kind: 'error',
-        message: error instanceof ApiError ? error.problem.detail ?? error.problem.title : 'Delete failed',
-      }),
+    successMessage: 'Event deleted',
+    errorMessage: 'Delete failed',
   });
 
   async function onDelete(id: string, title: string) {
@@ -203,7 +212,8 @@ function EventsPageInner() {
                       <td className="space-x-2 px-4 py-3 text-right">
                         <button
                           onClick={() => publish.mutate({ id: event.id, next: !event.isPublished })}
-                          className="btn-ghost text-xs"
+                          disabled={publish.isPending}
+                          className="btn-ghost text-xs disabled:opacity-50"
                         >
                           {event.isPublished ? 'Unpublish' : 'Publish'}
                         </button>

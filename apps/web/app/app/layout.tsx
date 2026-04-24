@@ -7,6 +7,7 @@ import { apiGet, getToken, setToken } from '../../lib/api';
 import { IS_DEMO, MARKETING_URL } from '../../lib/env';
 import { useSession, type Membership, type User } from '../../lib/session';
 import { useApplyBranding } from '../../lib/branding';
+import { usePermissions, type Gate } from '../../lib/permissions';
 import { useTerminology } from '../../lib/use-terminology';
 import { makePrefetchers } from '../../lib/prefetch';
 import { CommandPalette } from '../components/command-palette';
@@ -15,18 +16,22 @@ import { PrefetchLink } from '../components/prefetch-link';
 import { SkeletonBlock } from '../components/skeleton-rows';
 
 type PrefetchKey = keyof ReturnType<typeof makePrefetchers>;
-interface NavItem { href: string; label: string; prefetch?: PrefetchKey }
+interface NavItem { href: string; label: string; prefetch?: PrefetchKey; requires?: Gate }
 
+// Gates mirror the API's `requirePermission` / `requireSuperadmin` calls for
+// the page's primary GET — e.g. /app/members fetches members+invitations which
+// both require admin.manage_users, so hiding the nav item when the user can't
+// pass that check avoids a doomed query and the "permission denied" flash.
 const SETTINGS_NAV: NavItem[] = [
-  { href: '/app/locations', label: 'Locations', prefetch: 'locations' },
-  { href: '/app/form', label: 'Form fields', prefetch: 'form' },
-  { href: '/app/members', label: 'Members', prefetch: 'members' },
-  { href: '/app/roles', label: 'Roles', prefetch: 'roles' },
-  { href: '/app/branding', label: 'Branding', prefetch: 'branding' },
-  { href: '/app/booking-page', label: 'Booking page' },
-  { href: '/app/booking-policies', label: 'Booking policies' },
-  { href: '/app/notifications', label: 'Notifications' },
-  { href: '/app/audit', label: 'Audit log', prefetch: 'audit' },
+  { href: '/app/locations', label: 'Locations', prefetch: 'locations', requires: 'admin.manage_locations' },
+  { href: '/app/form', label: 'Form fields', prefetch: 'form', requires: 'admin.manage_forms' },
+  { href: '/app/members', label: 'Members', prefetch: 'members', requires: 'admin.manage_users' },
+  { href: '/app/roles', label: 'Roles', prefetch: 'roles', requires: 'admin.manage_roles' },
+  { href: '/app/branding', label: 'Branding', prefetch: 'branding', requires: 'admin.manage_org' },
+  { href: '/app/booking-page', label: 'Booking page', requires: 'admin.manage_org' },
+  { href: '/app/booking-policies', label: 'Booking policies', requires: 'admin.manage_org' },
+  { href: '/app/notifications', label: 'Notifications', requires: 'notifications.manage' },
+  { href: '/app/audit', label: 'Audit log', prefetch: 'audit', requires: 'superadmin' },
 ];
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
@@ -35,13 +40,20 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const qc = useQueryClient();
   const { user, membership, activeOrgId, setSession, clear } = useSession();
   const term = useTerminology();
+  const perms = usePermissions();
 
   const mainNav: NavItem[] = [
     { href: '/app', label: 'Today', prefetch: 'today' },
-    { href: '/app/visits', label: `All ${term.nounPlural}`, prefetch: 'visits' },
-    { href: '/app/events', label: 'Events', prefetch: 'events' },
-    { href: '/app/contacts', label: 'Contacts', prefetch: 'contacts' },
+    { href: '/app/visits', label: `All ${term.nounPlural}`, prefetch: 'visits', requires: 'visits.view_all' },
+    { href: '/app/events', label: 'Events', prefetch: 'events', requires: 'events.view_registrations' },
+    { href: '/app/contacts', label: 'Contacts', prefetch: 'contacts', requires: 'contacts.view_all' },
   ];
+
+  // While /auth/me is still loading we don't yet know what the user can do, so
+  // show every nav item rather than flashing an empty sidebar for ~200ms on
+  // fresh loads. Once permissions are known we filter down.
+  const filterNav = (items: NavItem[]) =>
+    perms.loading ? items : items.filter((n) => perms.can(n.requires));
 
   // Prefetchers reset when orgId flips so we don't warm the wrong org's data.
   const prefetchers = useMemo(() => makePrefetchers(qc, activeOrgId), [qc, activeOrgId]);
@@ -167,7 +179,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </div>
 
         <nav className="flex flex-1 flex-col gap-0.5">
-          {mainNav.map((n) => (
+          {filterNav(mainNav).map((n) => (
             <PrefetchLink
               key={n.href}
               href={n.href}
@@ -177,8 +189,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               {n.label}
             </PrefetchLink>
           ))}
-          <div className="nav-section">Settings</div>
-          {SETTINGS_NAV.map((n) => (
+          {filterNav(SETTINGS_NAV).length > 0 ? <div className="nav-section">Settings</div> : null}
+          {filterNav(SETTINGS_NAV).map((n) => (
             <PrefetchLink
               key={n.href}
               href={n.href}

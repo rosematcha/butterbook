@@ -2,12 +2,15 @@ import type { FastifyInstance } from 'fastify';
 import {
   changePasswordSchema,
   loginSchema,
+  PERMISSIONS,
+  type Permission,
   registerSchema,
   totpConfirmSchema,
   totpDisableSchema,
 } from '@butterbook/shared';
 import { getDb } from '../db/index.js';
 import { createSession, resolveSession, revokeAllForUser, revokeSession } from '../auth/session.js';
+import { loadMembership } from '../auth/permissions.js';
 import {
   checkPasswordPolicy,
   getDummyHash,
@@ -26,12 +29,16 @@ import {
 // Shared between /auth/login and /auth/me so the login response can prime the
 // web client's React Query cache for the subsequent /me fetch the app layout
 // would otherwise do — saves a full round-trip on fresh sign-in.
+// Returns the full permission set so the web client can gate the sidebar and
+// page components up front, instead of firing a doomed query and flashing a
+// "permission denied" state after the 403 returns.
 async function fetchMembershipForUser(userId: string): Promise<{
   orgId: string;
   orgName: string;
   publicSlug: string;
   isSuperadmin: boolean;
   terminology: 'appointment' | 'visit';
+  permissions: Permission[];
 } | null> {
   const db = getDb();
   const row = await db
@@ -48,7 +55,12 @@ async function fetchMembershipForUser(userId: string): Promise<{
     .where('org_members.deleted_at', 'is', null)
     .where('orgs.deleted_at', 'is', null)
     .executeTakeFirst();
-  return row ?? null;
+  if (!row) return null;
+  // Superadmins implicitly have every permission — return the full registry so
+  // the client's `can()` check is a plain Set lookup without a superadmin branch.
+  if (row.isSuperadmin) return { ...row, permissions: [...PERMISSIONS] };
+  const m = await loadMembership(userId, row.orgId);
+  return { ...row, permissions: m ? [...m.permissions] : [] };
 }
 
 export function registerAuthRoutes(app: FastifyInstance): void {

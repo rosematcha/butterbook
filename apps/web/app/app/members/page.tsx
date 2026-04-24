@@ -1,9 +1,10 @@
 'use client';
 import { useState, type FormEvent } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiDelete, apiGet, apiPost, apiPatch, ApiError } from '../../../lib/api';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { apiDelete, apiGet, apiPost, apiPatch } from '../../../lib/api';
+import { useOptimisticMutation } from '../../../lib/mutations';
+import { usePermissions } from '../../../lib/permissions';
 import { useSession } from '../../../lib/session';
-import { useToast } from '../../../lib/toast';
 import { useConfirm } from '../../../lib/confirm';
 import { CopyButton } from '../../components/copy-button';
 import { Timestamp } from '../../components/timestamp';
@@ -32,71 +33,82 @@ interface Invitation {
   created_at: string;
 }
 
-function apiErrMsg(e: unknown, fallback: string): string {
-  return e instanceof ApiError ? e.problem.detail ?? e.problem.title : fallback;
-}
-
 export default function MembersPage() {
   const { activeOrgId } = useSession();
+  const perms = usePermissions();
+  const canManage = perms.has('admin.manage_users');
   const qc = useQueryClient();
-  const toast = useToast();
   const confirm = useConfirm();
   const [inviteEmail, setInviteEmail] = useState('');
   const [createdUrl, setCreatedUrl] = useState<string | null>(null);
 
+  const membersKey = ['members', activeOrgId] as const;
+  const invitesKey = ['invites', activeOrgId] as const;
+
   const members = useQuery({
-    queryKey: ['members', activeOrgId],
+    queryKey: membersKey,
     queryFn: () => apiGet<{ data: Member[] }>(`/api/v1/orgs/${activeOrgId}/members`),
-    enabled: !!activeOrgId,
+    enabled: !!activeOrgId && canManage,
   });
   const roles = useQuery({
     queryKey: ['roles', activeOrgId],
     queryFn: () => apiGet<{ data: Role[] }>(`/api/v1/orgs/${activeOrgId}/roles`),
-    enabled: !!activeOrgId,
+    enabled: !!activeOrgId && canManage,
   });
   const invites = useQuery({
-    queryKey: ['invites', activeOrgId],
+    queryKey: invitesKey,
     queryFn: () => apiGet<{ data: Invitation[] }>(`/api/v1/orgs/${activeOrgId}/invitations`),
-    enabled: !!activeOrgId,
+    enabled: !!activeOrgId && canManage,
   });
 
-  const invite = useMutation({
-    mutationFn: (email: string) =>
+  const invite = useOptimisticMutation<string, { data: { url: string } }>({
+    mutationFn: (email) =>
       apiPost<{ data: { url: string } }>(`/api/v1/orgs/${activeOrgId}/invitations`, { email, roleIds: [] }),
+    queryKeys: [invitesKey],
+    apply: () => undefined,
     onSuccess: (res) => {
       setCreatedUrl(res.data.url);
       setInviteEmail('');
-      qc.invalidateQueries({ queryKey: ['invites', activeOrgId] });
-      toast.push({ kind: 'success', message: 'Invitation created', description: 'Share the link with the new member.' });
     },
-    onError: (e) => toast.push({ kind: 'error', message: apiErrMsg(e, 'Invite failed') }),
+    reconcile: () => qc.invalidateQueries({ queryKey: invitesKey }),
+    successMessage: 'Invitation created',
+    errorMessage: 'Invite failed',
   });
 
-  const removeMember = useMutation({
-    mutationFn: (memberId: string) => apiDelete(`/api/v1/orgs/${activeOrgId}/members/${memberId}`),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['members', activeOrgId] });
-      toast.push({ kind: 'success', message: 'Member removed' });
+  const removeMember = useOptimisticMutation<string>({
+    mutationFn: (memberId) => apiDelete(`/api/v1/orgs/${activeOrgId}/members/${memberId}`),
+    queryKeys: [membersKey],
+    apply: (current, memberId) => {
+      const list = current as { data: Member[] } | undefined;
+      if (!list) return undefined;
+      return { data: list.data.filter((m) => m.memberId !== memberId) };
     },
-    onError: (e) => toast.push({ kind: 'error', message: apiErrMsg(e, 'Remove failed') }),
+    successMessage: 'Member removed',
+    errorMessage: 'Remove failed',
   });
 
-  const revokeInvite = useMutation({
-    mutationFn: (inviteId: string) => apiDelete(`/api/v1/orgs/${activeOrgId}/invitations/${inviteId}`),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['invites', activeOrgId] });
-      toast.push({ kind: 'success', message: 'Invitation revoked' });
+  const revokeInvite = useOptimisticMutation<string>({
+    mutationFn: (inviteId) => apiDelete(`/api/v1/orgs/${activeOrgId}/invitations/${inviteId}`),
+    queryKeys: [invitesKey],
+    apply: (current, inviteId) => {
+      const list = current as { data: Invitation[] } | undefined;
+      if (!list) return undefined;
+      return { data: list.data.filter((i) => i.id !== inviteId) };
     },
-    onError: (e) => toast.push({ kind: 'error', message: apiErrMsg(e, 'Revoke failed') }),
+    successMessage: 'Invitation revoked',
+    errorMessage: 'Revoke failed',
   });
 
-  const toggleSuperadmin = useMutation({
-    mutationFn: (v: { memberId: string; isSuperadmin: boolean }) =>
-      apiPatch(`/api/v1/orgs/${activeOrgId}/members/${v.memberId}/superadmin`, {
-        isSuperadmin: v.isSuperadmin,
-      }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['members', activeOrgId] }),
-    onError: (e) => toast.push({ kind: 'error', message: apiErrMsg(e, 'Update failed') }),
+  const toggleSuperadmin = useOptimisticMutation<{ memberId: string; isSuperadmin: boolean }>({
+    mutationFn: (v) =>
+      apiPatch(`/api/v1/orgs/${activeOrgId}/members/${v.memberId}/superadmin`, { isSuperadmin: v.isSuperadmin }),
+    queryKeys: [membersKey],
+    apply: (current, v) => {
+      const list = current as { data: Member[] } | undefined;
+      if (!list) return undefined;
+      return { data: list.data.map((m) => (m.memberId === v.memberId ? { ...m, isSuperadmin: v.isSuperadmin } : m)) };
+    },
+    errorMessage: 'Update failed',
   });
 
   async function onRemoveMember(m: Member) {
@@ -111,6 +123,15 @@ export default function MembersPage() {
 
   const memberRows = members.data?.data ?? [];
   const pending = (invites.data?.data ?? []).filter((i) => !i.accepted_at);
+
+  if (!perms.loading && !canManage) {
+    return (
+      <EmptyState
+        title="Permission required."
+        description="Managing members requires the admin.manage_users permission. Ask a superadmin to grant it."
+      />
+    );
+  }
 
   return (
     <div className="space-y-8">

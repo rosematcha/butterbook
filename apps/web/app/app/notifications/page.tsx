@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiGet, apiPost, apiPut } from '../../../lib/api';
+import { usePermissions } from '../../../lib/permissions';
 import { useSession } from '../../../lib/session';
 import { Timestamp } from '../../components/timestamp';
 import { EmptyState } from '../../components/empty-state';
@@ -42,6 +43,8 @@ const STATUS_TINT: Record<string, string> = {
 
 export default function NotificationsPage() {
   const { activeOrgId } = useSession();
+  const perms = usePermissions();
+  const canManage = perms.has('notifications.manage');
   const qc = useQueryClient();
   const [statusFilter, setStatusFilter] = useState<string>('');
   const [page, setPage] = useState(1);
@@ -57,7 +60,7 @@ export default function NotificationsPage() {
       apiGet<{ data: TemplateRow[] }>(
         `/api/v1/orgs/${activeOrgId}/notifications/templates`,
       ),
-    enabled: !!activeOrgId,
+    enabled: !!activeOrgId && canManage,
   });
 
   const outbox = useQuery({
@@ -68,7 +71,7 @@ export default function NotificationsPage() {
           statusFilter ? `&status=${statusFilter}` : ''
         }`,
       ),
-    enabled: !!activeOrgId,
+    enabled: !!activeOrgId && canManage,
   });
 
   const testSend = useMutation({
@@ -149,7 +152,7 @@ export default function NotificationsPage() {
     });
   }, [selectedKey, selectedTemplate?.id, selectedTemplate?.updated_at]);
 
-  if (templates.isError || outbox.isError) {
+  if ((!perms.loading && !canManage) || templates.isError || outbox.isError) {
     return (
       <EmptyState
         title="Permission required."

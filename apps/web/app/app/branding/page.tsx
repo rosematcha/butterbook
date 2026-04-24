@@ -1,9 +1,13 @@
 'use client';
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
-import { apiPatch, ApiError } from '../../../lib/api';
+import { useQueryClient } from '@tanstack/react-query';
+import { apiPatch } from '../../../lib/api';
+import { useOptimisticMutation } from '../../../lib/mutations';
+import { usePermissions } from '../../../lib/permissions';
 import { useSession } from '../../../lib/session';
 import { PALETTES, type Palette } from '../../../lib/palettes';
 import { useBrandingQuery, type BrandingFont, type BrandingRadius } from '../../../lib/branding';
+import { EmptyState } from '../../components/empty-state';
 
 type FontFamily = BrandingFont;
 type ButtonRadius = BrandingRadius;
@@ -77,6 +81,9 @@ function ColorField({
 
 export default function BrandingPage() {
   const { activeOrgId } = useSession();
+  const perms = usePermissions();
+  const canManage = perms.has('admin.manage_org');
+  const qc = useQueryClient();
   const branding = useBrandingQuery(activeOrgId);
   const [logoUrl, setLogoUrl] = useState('');
   const [primary, setPrimary] = useState('');
@@ -85,9 +92,6 @@ export default function BrandingPage() {
   const [fontFamily, setFontFamily] = useState<FontFamily>('system');
   const [radius, setRadius] = useState<ButtonRadius>('medium');
   const [customOpen, setCustomOpen] = useState(false);
-  const [msg, setMsg] = useState<string | null>(null);
-  const [err, setErr] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     const b = branding.data;
@@ -112,31 +116,62 @@ export default function BrandingPage() {
     setCustomOpen(false);
   };
 
-  async function onSubmit(e: FormEvent) {
+  interface BrandingFormPayload {
+    logoUrl: string | null;
+    theme: {
+      fontFamily: FontFamily;
+      buttonRadius: ButtonRadius;
+      primaryColor?: string;
+      secondaryColor?: string;
+      accentColor?: string;
+    };
+  }
+
+  const save = useOptimisticMutation<BrandingFormPayload>({
+    mutationFn: (body) => apiPatch(`/api/v1/orgs/${activeOrgId}/branding`, body),
+    queryKeys: [['branding', activeOrgId]],
+    // Paint the new theme into the cached branding payload so `useApplyBranding`
+    // reflows the CSS custom properties instantly — no waiting on the PATCH.
+    apply: (current, vars) => {
+      const b = current as { data: { theme: Record<string, unknown> } } | undefined;
+      if (!b) return undefined;
+      return {
+        ...b,
+        data: {
+          ...b.data,
+          logoUrl: vars.logoUrl,
+          theme: { ...b.data.theme, ...vars.theme },
+        },
+      };
+    },
+    reconcile: () => qc.invalidateQueries({ queryKey: ['branding', activeOrgId] }),
+    successMessage: 'Branding saved',
+    errorMessage: 'Save failed',
+  });
+
+  function onSubmit(e: FormEvent) {
     e.preventDefault();
-    setMsg(null); setErr(null); setSaving(true);
-    const theme: Record<string, string> = { fontFamily, buttonRadius: radius };
+    if (save.isPending) return;
+    const theme: BrandingFormPayload['theme'] = { fontFamily, buttonRadius: radius };
     if (primary) theme.primaryColor = primary;
     if (secondary) theme.secondaryColor = secondary;
     if (accent) theme.accentColor = accent;
-    try {
-      await apiPatch(`/api/v1/orgs/${activeOrgId}/branding`, {
-        logoUrl: logoUrl || null,
-        theme,
-      });
-      setMsg('Saved.');
-      setTimeout(() => setMsg(null), 2500);
-    } catch (e2) {
-      setErr(e2 instanceof ApiError ? e2.problem.detail ?? e2.problem.title : 'Save failed');
-    } finally {
-      setSaving(false);
-    }
+    save.mutate({ logoUrl: logoUrl || null, theme });
   }
 
   const previewPrimary = primary || '#1a1714';
   const previewAccent = accent || '#b0573d';
   const previewRadius = RADIUS_PX[radius];
   const previewFont = FONT_STACK[fontFamily];
+
+  if (!perms.loading && !canManage) {
+    return (
+      <EmptyState
+        title="Permission required."
+        description="Editing branding requires the admin.manage_org permission. Ask a superadmin to grant it."
+      />
+    );
+  }
 
   return (
     <form onSubmit={onSubmit}>
@@ -149,9 +184,7 @@ export default function BrandingPage() {
           </p>
         </div>
         <div className="flex items-center gap-3">
-          {msg ? <span className="text-sm text-accent-700">{msg}</span> : null}
-          {err ? <span className="text-sm text-red-700">{err}</span> : null}
-          <button type="submit" disabled={saving} className="btn">{saving ? 'Saving…' : 'Save changes'}</button>
+          <button type="submit" disabled={save.isPending} className="btn">{save.isPending ? 'Saving…' : 'Save changes'}</button>
         </div>
       </div>
 

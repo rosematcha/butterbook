@@ -1,8 +1,11 @@
 'use client';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState, type FormEvent } from 'react';
-import { apiDelete, apiGet, apiPost, apiPut, ApiError } from '../../../lib/api';
+import { apiDelete, apiGet, apiPost, apiPut } from '../../../lib/api';
+import { useOptimisticMutation } from '../../../lib/mutations';
+import { usePermissions } from '../../../lib/permissions';
 import { useSession } from '../../../lib/session';
+import { EmptyState } from '../../components/empty-state';
 import { SkeletonRows } from '../../components/skeleton-rows';
 
 interface Role {
@@ -13,18 +16,21 @@ interface Role {
 
 export default function RolesPage() {
   const { activeOrgId } = useSession();
+  const permsCheck = usePermissions();
+  const canManage = permsCheck.has('admin.manage_roles');
   const qc = useQueryClient();
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
-  const [error, setError] = useState<string | null>(null);
   const [permsForRole, setPermsForRole] = useState<string | null>(null);
   const [availablePerms, setAvailablePerms] = useState<string[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
+  const listKey = ['roles', activeOrgId] as const;
+
   const roles = useQuery({
-    queryKey: ['roles', activeOrgId],
+    queryKey: listKey,
     queryFn: () => apiGet<{ data: Role[] }>(`/api/v1/orgs/${activeOrgId}/roles`),
-    enabled: !!activeOrgId,
+    enabled: !!activeOrgId && canManage,
   });
 
   const permsRegistry = useQuery({
@@ -32,18 +38,40 @@ export default function RolesPage() {
     queryFn: () => apiGet<{ data: string[] }>('/api/v1/permissions'),
   });
 
-  const createRole = useMutation({
+  const createRole = useOptimisticMutation<void>({
     mutationFn: () => apiPost(`/api/v1/orgs/${activeOrgId}/roles`, { name, description }),
-    onSuccess: () => {
-      setName(''); setDescription('');
-      qc.invalidateQueries({ queryKey: ['roles', activeOrgId] });
+    queryKeys: [listKey],
+    apply: (current) => {
+      const list = current as { data: Role[] } | undefined;
+      if (!list) return undefined;
+      const temp: Role = { id: `__temp-${Date.now()}`, name, description: description || null };
+      return { data: [...list.data, temp] };
     },
-    onError: (e) => setError(e instanceof ApiError ? e.problem.detail ?? e.problem.title : 'Create failed'),
+    onSuccess: () => { setName(''); setDescription(''); },
+    reconcile: () => qc.invalidateQueries({ queryKey: listKey }),
+    successMessage: 'Role created',
+    errorMessage: 'Create failed',
   });
 
-  const deleteRole = useMutation({
-    mutationFn: (id: string) => apiDelete(`/api/v1/orgs/${activeOrgId}/roles/${id}`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['roles', activeOrgId] }),
+  const deleteRole = useOptimisticMutation<string>({
+    mutationFn: (id) => apiDelete(`/api/v1/orgs/${activeOrgId}/roles/${id}`),
+    queryKeys: [listKey],
+    apply: (current, id) => {
+      const list = current as { data: Role[] } | undefined;
+      if (!list) return undefined;
+      return { data: list.data.filter((r) => r.id !== id) };
+    },
+    successMessage: 'Role deleted',
+    errorMessage: 'Delete failed',
+  });
+
+  const savePerms = useOptimisticMutation<{ roleId: string; permissions: string[] }>({
+    mutationFn: (v) => apiPut(`/api/v1/orgs/${activeOrgId}/roles/${v.roleId}/permissions`, { permissions: v.permissions }),
+    queryKeys: [],
+    apply: () => undefined,
+    onSuccess: () => setPermsForRole(null),
+    successMessage: 'Permissions saved',
+    errorMessage: 'Save failed',
   });
 
   async function openPermissions(roleId: string) {
@@ -53,24 +81,31 @@ export default function RolesPage() {
     setAvailablePerms(permsRegistry.data?.data ?? []);
   }
 
-  async function savePermissions() {
-    if (!permsForRole) return;
-    await apiPut(`/api/v1/orgs/${activeOrgId}/roles/${permsForRole}/permissions`, {
-      permissions: [...selected],
-    });
-    setPermsForRole(null);
+  if (!permsCheck.loading && !canManage) {
+    return (
+      <EmptyState
+        title="Permission required."
+        description="Managing roles requires the admin.manage_roles permission. Ask a superadmin to grant it."
+      />
+    );
   }
 
   return (
     <div className="space-y-6">
       <section className="card">
         <h2 className="text-lg font-semibold">New role</h2>
-        <form onSubmit={(e: FormEvent) => { e.preventDefault(); createRole.mutate(); }} className="mt-2 grid gap-2 md:grid-cols-3">
+        <form
+          onSubmit={(e: FormEvent) => {
+            e.preventDefault();
+            if (createRole.isPending) return;
+            createRole.mutate();
+          }}
+          className="mt-2 grid gap-2 md:grid-cols-3"
+        >
           <input required className="input" placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} />
           <input className="input md:col-span-2" placeholder="Description" value={description} onChange={(e) => setDescription(e.target.value)} />
-          <button className="btn md:col-span-3 md:w-auto md:justify-self-start">Create role</button>
+          <button disabled={createRole.isPending} className="btn md:col-span-3 md:w-auto md:justify-self-start">Create role</button>
         </form>
-        {error ? <p className="mt-2 text-sm text-red-600">{error}</p> : null}
       </section>
 
       <section className="card">
@@ -125,7 +160,13 @@ export default function RolesPage() {
             ))}
           </div>
           <div className="mt-3 flex gap-2">
-            <button onClick={savePermissions} className="btn">Save</button>
+            <button
+              onClick={() => permsForRole && savePerms.mutate({ roleId: permsForRole, permissions: [...selected] })}
+              disabled={savePerms.isPending}
+              className="btn"
+            >
+              {savePerms.isPending ? 'Saving…' : 'Save'}
+            </button>
             <button onClick={() => setPermsForRole(null)} className="btn-secondary">Cancel</button>
           </div>
         </div>

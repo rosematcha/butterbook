@@ -1,7 +1,8 @@
 'use client';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { apiGet, apiPost } from '../../../lib/api';
+import { useOptimisticMutation } from '../../../lib/mutations';
 import { useSession } from '../../../lib/session';
 import { SkeletonRows } from '../../components/skeleton-rows';
 
@@ -14,26 +15,48 @@ interface Visit {
   formResponse: Record<string, unknown>;
 }
 
+type VisitsResponse = { data: Visit[]; meta: { total: number } };
+
 export default function VisitsPage() {
   const { activeOrgId } = useSession();
-  const qc = useQueryClient();
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const from = new Date(`${date}T00:00:00Z`).toISOString();
   const to = new Date(`${date}T23:59:59Z`).toISOString();
+  const listKey = ['visits', activeOrgId, date] as const;
 
   const visits = useQuery({
-    queryKey: ['visits', activeOrgId, date],
-    queryFn: () => apiGet<{ data: Visit[]; meta: { total: number } }>(`/api/v1/orgs/${activeOrgId}/visits?from=${from}&to=${to}&limit=200`),
+    queryKey: listKey,
+    queryFn: () => apiGet<VisitsResponse>(`/api/v1/orgs/${activeOrgId}/visits?from=${from}&to=${to}&limit=200`),
     enabled: !!activeOrgId,
   });
 
-  const cancel = useMutation({
-    mutationFn: (id: string) => apiPost(`/api/v1/orgs/${activeOrgId}/visits/${id}/cancel`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['visits', activeOrgId] }),
+  // Patch the single visit's status in the cached list — avoids refetching the
+  // entire day's worth of rows just to flip one field, so the button feels
+  // instant even on a slow link.
+  const patchStatus = (vars: { id: string; status: 'cancelled' | 'no_show' }) =>
+    (current: unknown) => {
+      const list = current as VisitsResponse | undefined;
+      if (!list) return undefined;
+      return {
+        ...list,
+        data: list.data.map((v) => (v.id === vars.id ? { ...v, status: vars.status } : v)),
+      };
+    };
+
+  const cancel = useOptimisticMutation<{ id: string; status: 'cancelled' }>({
+    mutationFn: ({ id }) => apiPost(`/api/v1/orgs/${activeOrgId}/visits/${id}/cancel`),
+    queryKeys: [listKey],
+    apply: (current, vars) => patchStatus(vars)(current),
+    successMessage: 'Visit cancelled',
+    errorMessage: 'Could not cancel visit',
   });
-  const noShow = useMutation({
-    mutationFn: (id: string) => apiPost(`/api/v1/orgs/${activeOrgId}/visits/${id}/no-show`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['visits', activeOrgId] }),
+
+  const noShow = useOptimisticMutation<{ id: string; status: 'no_show' }>({
+    mutationFn: ({ id }) => apiPost(`/api/v1/orgs/${activeOrgId}/visits/${id}/no-show`),
+    queryKeys: [listKey],
+    apply: (current, vars) => patchStatus(vars)(current),
+    successMessage: 'Marked as no-show',
+    errorMessage: 'Could not mark no-show',
   });
 
   return (
@@ -71,8 +94,20 @@ export default function VisitsPage() {
                   <td className="space-x-3 text-right">
                     {v.status === 'confirmed' ? (
                       <>
-                        <button onClick={() => cancel.mutate(v.id)} className="text-xs text-red-600 underline">Cancel</button>
-                        <button onClick={() => noShow.mutate(v.id)} className="text-xs underline">No-show</button>
+                        <button
+                          onClick={() => cancel.mutate({ id: v.id, status: 'cancelled' })}
+                          disabled={cancel.isPending || noShow.isPending}
+                          className="text-xs text-red-600 underline disabled:opacity-50"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          onClick={() => noShow.mutate({ id: v.id, status: 'no_show' })}
+                          disabled={cancel.isPending || noShow.isPending}
+                          className="text-xs underline disabled:opacity-50"
+                        >
+                          No-show
+                        </button>
                       </>
                     ) : null}
                   </td>

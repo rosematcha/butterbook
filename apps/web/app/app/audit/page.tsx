@@ -2,6 +2,7 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { apiGet } from '../../../lib/api';
+import { usePermissions } from '../../../lib/permissions';
 import { useSession } from '../../../lib/session';
 import { Timestamp } from '../../components/timestamp';
 import { EmptyState } from '../../components/empty-state';
@@ -20,6 +21,7 @@ interface AuditRow {
 
 export default function AuditPage() {
   const { activeOrgId } = useSession();
+  const perms = usePermissions();
   const [page, setPage] = useState(1);
   const [q, setQ] = useState('');
   const limit = 50;
@@ -30,8 +32,19 @@ export default function AuditPage() {
       apiGet<{ data: AuditRow[]; meta: { total: number; pages: number } }>(
         `/api/v1/orgs/${activeOrgId}/audit?page=${page}&limit=${limit}`,
       ),
-    enabled: !!activeOrgId,
+    // Gate the fetch on permissions so a non-superadmin never fires a doomed
+    // request that would 403 a second later and flash the denied state.
+    enabled: !!activeOrgId && perms.isSuperadmin,
   });
+
+  if (!perms.loading && !perms.isSuperadmin) {
+    return (
+      <EmptyState
+        title="Superadmin only."
+        description="Audit log access is restricted to organization superadmins. If you need access, ask an existing superadmin to promote you."
+      />
+    );
+  }
 
   const rows = audit.data?.data ?? [];
   const filtered = useMemo(() => {

@@ -7,6 +7,10 @@ export interface Membership {
   publicSlug: string;
   isSuperadmin: boolean;
   terminology?: 'appointment' | 'visit';
+  // Permission keys the user has in this org. For superadmins the API returns
+  // the full registry so the client can do a flat Set lookup without branching
+  // on isSuperadmin on every render.
+  permissions: string[];
 }
 
 export interface User {

@@ -3,8 +3,10 @@ import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import Link from 'next/link';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiGet, apiPatch, ApiError } from '../../../lib/api';
+import { usePermissions } from '../../../lib/permissions';
 import { useSession } from '../../../lib/session';
 import { API_BASE_URL } from '../../../lib/env';
+import { EmptyState } from '../../components/empty-state';
 
 interface BookingPageContent {
   heroTitle: string | null;
@@ -60,24 +62,26 @@ async function copyToClipboard(text: string): Promise<boolean> {
 
 export default function BookingPageEditor() {
   const { activeOrgId, membership } = useSession();
+  const perms = usePermissions();
+  const canManage = perms.has('admin.manage_org');
   const qc = useQueryClient();
 
   const contentQ = useQuery({
     queryKey: ['booking-page', activeOrgId],
     queryFn: () => apiGet<{ data: BookingPageContent }>(`/api/v1/orgs/${activeOrgId}/booking-page`),
-    enabled: !!activeOrgId,
+    enabled: !!activeOrgId && canManage,
   });
 
   const locationsQ = useQuery({
     queryKey: ['locations-primary', activeOrgId],
     queryFn: () => apiGet<{ data: LocationRow[] }>(`/api/v1/orgs/${activeOrgId}/locations`),
-    enabled: !!activeOrgId,
+    enabled: !!activeOrgId && canManage,
   });
 
   const policyQ = useQuery({
     queryKey: ['booking-policies', activeOrgId],
     queryFn: () => apiGet<{ data: PolicyRow }>(`/api/v1/orgs/${activeOrgId}/booking-policies`),
-    enabled: !!activeOrgId,
+    enabled: !!activeOrgId && canManage,
   });
 
   const [heroTitle, setHeroTitle] = useState('');
@@ -148,6 +152,15 @@ export default function BookingPageEditor() {
     } finally {
       setSaving(false);
     }
+  }
+
+  if (!perms.loading && !canManage) {
+    return (
+      <EmptyState
+        title="Permission required."
+        description="Editing the booking page requires the admin.manage_org permission. Ask a superadmin to grant it."
+      />
+    );
   }
 
   return (

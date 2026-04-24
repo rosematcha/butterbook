@@ -2,7 +2,9 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiGet, apiPatch, ApiError } from '../../../lib/api';
+import { usePermissions } from '../../../lib/permissions';
 import { useSession } from '../../../lib/session';
+import { EmptyState } from '../../components/empty-state';
 
 interface Policy {
   cancelCutoffHours: number;
@@ -14,11 +16,13 @@ interface Policy {
 
 export default function BookingPoliciesPage() {
   const { activeOrgId } = useSession();
+  const perms = usePermissions();
+  const canManage = perms.has('admin.manage_org');
   const qc = useQueryClient();
   const query = useQuery({
     queryKey: ['booking-policies', activeOrgId],
     queryFn: () => apiGet<{ data: Policy }>(`/api/v1/orgs/${activeOrgId}/booking-policies`),
-    enabled: !!activeOrgId,
+    enabled: !!activeOrgId && canManage,
   });
 
   const [cancelCutoffHours, setCancelCutoffHours] = useState(2);
@@ -62,6 +66,15 @@ export default function BookingPoliciesPage() {
     } finally {
       setSaving(false);
     }
+  }
+
+  if (!perms.loading && !canManage) {
+    return (
+      <EmptyState
+        title="Permission required."
+        description="Editing booking policies requires the admin.manage_org permission. Ask a superadmin to grant it."
+      />
+    );
   }
 
   return (

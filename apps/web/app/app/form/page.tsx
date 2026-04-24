@@ -3,10 +3,12 @@ import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { FormField, FieldType, FieldLibraryEntry } from '@butterbook/shared';
 import { apiGet, apiPut, ApiError } from '../../../lib/api';
+import { usePermissions } from '../../../lib/permissions';
 import { useSession } from '../../../lib/session';
 import { SkeletonBlock } from '../../components/skeleton-rows';
 import { uniqueFieldKey } from '../../../lib/unique-field-key';
 import { LibraryModal } from '../../components/field-library-modal';
+import { EmptyState } from '../../components/empty-state';
 
 type Draft = FormField & { _id: string };
 
@@ -43,12 +45,14 @@ const canBePrimary = (t: FieldType) => t !== 'checkbox';
 
 export default function FormFieldsPage() {
   const { activeOrgId } = useSession();
+  const perms = usePermissions();
+  const canManage = perms.has('admin.manage_forms');
   const qc = useQueryClient();
 
   const q = useQuery({
     queryKey: ['form-fields', activeOrgId],
     queryFn: () => apiGet<{ data: { fields: FormField[] } }>(`/api/v1/orgs/${activeOrgId}/form`),
-    enabled: !!activeOrgId,
+    enabled: !!activeOrgId && canManage,
   });
 
   const [drafts, setDrafts] = useState<Draft[]>([]);
@@ -200,6 +204,15 @@ export default function FormFieldsPage() {
   };
 
   const hasPrimary = drafts.some((d) => d.isPrimaryLabel);
+
+  if (!perms.loading && !canManage) {
+    return (
+      <EmptyState
+        title="Permission required."
+        description="Editing the visitor form requires the admin.manage_forms permission. Ask a superadmin to grant it."
+      />
+    );
+  }
 
   return (
     <div>
