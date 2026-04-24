@@ -24,6 +24,19 @@ interface ManageData {
   };
 }
 
+interface ManagedMembership {
+  id: string;
+  status: 'pending' | 'active' | 'expired' | 'lapsed' | 'cancelled' | 'refunded';
+  startedAt: string | null;
+  expiresAt: string | null;
+  autoRenew: boolean;
+  tier: {
+    name: string;
+    priceCents: number;
+    billingInterval: string;
+  };
+}
+
 interface Slot {
   start: string;
   end: string;
@@ -43,6 +56,7 @@ function ManageInner() {
   const [loading, setLoading] = useState(true);
   const [working, setWorking] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const [memberships, setMemberships] = useState<ManagedMembership[]>([]);
   const [showReschedule, setShowReschedule] = useState(false);
   const [rescheduleDate, setRescheduleDate] = useState('');
   const [slots, setSlots] = useState<Slot[] | null>(null);
@@ -67,6 +81,13 @@ function ManageInner() {
       if (!res.ok) throw new Error('Unable to load booking.');
       const body = (await res.json()) as { data: ManageData };
       setData(body.data);
+      const memberRes = await apiFetch(`/api/v1/manage/${encodeURIComponent(token)}/memberships`);
+      if (memberRes.ok) {
+        const memberBody = (await memberRes.json()) as { data: ManagedMembership[] };
+        setMemberships(memberBody.data);
+      } else {
+        setMemberships([]);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Unable to load booking.');
     } finally {
@@ -89,6 +110,29 @@ function ManageInner() {
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Cancel failed.');
+    } finally {
+      setWorking(false);
+    }
+  }
+
+  async function onCancelMembership(membership: ManagedMembership) {
+    if (!confirm(`Cancel your ${membership.tier.name} membership?`)) return;
+    setWorking(true);
+    setNotice(null);
+    try {
+      const res = await apiFetch(`/api/v1/manage/${encodeURIComponent(token)}/memberships/${membership.id}/cancel`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason: 'visitor self-cancelled' }),
+      });
+      if (!res.ok) {
+        const p = (await res.json().catch(() => null)) as { detail?: string; title?: string } | null;
+        throw new Error(p?.detail ?? p?.title ?? 'Membership cancellation failed.');
+      }
+      setNotice('Your membership has been cancelled.');
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Membership cancellation failed.');
     } finally {
       setWorking(false);
     }
@@ -161,6 +205,7 @@ function ManageInner() {
   const hoursUntil = (new Date(data.visit.scheduledAt).getTime() - Date.now()) / 3600000;
   const cancelAllowed = data.policy.selfCancelEnabled && hoursUntil >= data.policy.cancelCutoffHours && !isCancelled;
   const rescheduleAllowed = data.policy.selfRescheduleEnabled && hoursUntil >= data.policy.rescheduleCutoffHours && !isCancelled;
+  const canCancelMembership = (membership: ManagedMembership) => ['pending', 'active', 'expired', 'lapsed'].includes(membership.status);
 
   return (
     <main className="mx-auto min-h-screen max-w-xl px-6 py-12">
@@ -265,6 +310,41 @@ function ManageInner() {
         <div className="mt-6 rounded-md border border-paper-200 bg-paper-50 p-4 text-sm text-paper-700">
           <div className="h-eyebrow mb-1">Refund policy</div>
           {data.policy.refundPolicyText}
+        </div>
+      ) : null}
+
+      {memberships.length > 0 ? (
+        <div className="panel mt-6 p-6">
+          <div className="h-eyebrow">Membership</div>
+          <div className="mt-4 space-y-4">
+            {memberships.map((membership) => (
+              <div key={membership.id} className="rounded-md border border-paper-200 p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <div className="font-medium text-ink">{membership.tier.name}</div>
+                    <div className="mt-1 text-sm capitalize text-paper-600">{membership.status}</div>
+                  </div>
+                  {membership.expiresAt ? (
+                    <div className="text-right text-xs text-paper-500">
+                      Expires<br />
+                      {new Intl.DateTimeFormat('en-US', { dateStyle: 'medium', timeZone: data.org.timezone }).format(new Date(membership.expiresAt))}
+                    </div>
+                  ) : (
+                    <div className="text-xs text-paper-500">No expiry</div>
+                  )}
+                </div>
+                {canCancelMembership(membership) ? (
+                  <button
+                    className="btn-ghost mt-4 w-full text-red-700"
+                    disabled={working}
+                    onClick={() => onCancelMembership(membership)}
+                  >
+                    Cancel membership
+                  </button>
+                ) : null}
+              </div>
+            ))}
+          </div>
         </div>
       ) : null}
     </main>

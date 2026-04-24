@@ -5,12 +5,19 @@ import { getDb, withOrgContext, withOrgRead } from '../db/index.js';
 import { AuthenticationError, ConflictError, NotFoundError, PermissionError } from '../errors/index.js';
 import { verifyManageToken } from '../utils/manage-token.js';
 import { slotsForDate, type SlotRounding } from '../services/availability.js';
+import { cancelMembershipInTx, publicMembership, selectMembership } from '../services/memberships.js';
 import { cancelVisitInTx, rescheduleVisitInTx } from '../services/visits.js';
 import { buildCalendar } from '../services/ical.js';
 
 const tokenParam = z.object({ token: z.string().min(10) });
+const membershipTokenParam = tokenParam.extend({ membershipId: z.string().uuid() });
 
 const rescheduleBody = z.object({ scheduledAt: z.string().datetime() });
+const cancelMembershipBody = z
+  .object({
+    reason: z.string().max(1000).nullable().optional(),
+  })
+  .strict();
 
 function selfServeActor(orgId: string, ip: string | null, userAgent: string | null): ActorContext {
   return {
@@ -34,6 +41,7 @@ async function resolveToken(token: string): Promise<{
     org_id: string;
     location_id: string;
     event_id: string | null;
+    visitor_id: string | null;
     status: string;
     scheduled_at: Date;
     form_response: unknown;
@@ -49,6 +57,17 @@ async function resolveToken(token: string): Promise<{
     .executeTakeFirst();
   if (!visit) throw new NotFoundError('Visit not found.');
   return { visit: visit as never };
+}
+
+async function loadMembershipPolicy(tx: import('../db/index.js').Tx, orgId: string): Promise<{
+  self_cancel_enabled: boolean;
+}> {
+  const row = await tx
+    .selectFrom('org_membership_policies')
+    .select(['self_cancel_enabled'])
+    .where('org_id', '=', orgId)
+    .executeTakeFirst();
+  return { self_cancel_enabled: row?.self_cancel_enabled ?? true };
 }
 
 async function loadPolicy(tx: import('../db/index.js').Tx, orgId: string): Promise<{
@@ -226,6 +245,79 @@ export function registerManageRoutes(app: FastifyInstance): void {
         .header('content-disposition', `attachment; filename="booking-${visit.id}.ics"`)
         .header('cache-control', 'private, no-store')
         .send(ics);
+    });
+  });
+
+  app.get('/api/v1/manage/:token/memberships', rl, async (req) => {
+    const { token } = tokenParam.parse(req.params);
+    const { visit } = await resolveToken(token);
+    return withOrgRead(visit.org_id, async (tx) => {
+      if (!visit.visitor_id) return { data: [] };
+      const rows = await tx
+        .selectFrom('memberships')
+        .innerJoin('visitors', 'visitors.id', 'memberships.visitor_id')
+        .innerJoin('membership_tiers', 'membership_tiers.id', 'memberships.tier_id')
+        .selectAll('memberships')
+        .select([
+          'visitors.email as visitor_email',
+          'visitors.first_name as visitor_first_name',
+          'visitors.last_name as visitor_last_name',
+          'membership_tiers.slug as tier_slug',
+          'membership_tiers.name as tier_name',
+          'membership_tiers.price_cents as tier_price_cents',
+          'membership_tiers.billing_interval as tier_billing_interval',
+        ])
+        .where('memberships.org_id', '=', visit.org_id)
+        .where('memberships.visitor_id', '=', visit.visitor_id)
+        .where('memberships.status', 'in', ['pending', 'active', 'expired', 'lapsed'])
+        .orderBy('memberships.created_at', 'desc')
+        .execute();
+      return { data: rows.map((row) => publicMembership(row)) };
+    });
+  });
+
+  app.post('/api/v1/manage/:token/memberships/:membershipId/cancel', rl, async (req) => {
+    const { token, membershipId } = membershipTokenParam.parse(req.params);
+    const body = cancelMembershipBody.parse(req.body ?? {});
+    const { visit } = await resolveToken(token);
+    if (!visit.visitor_id) throw new NotFoundError('Membership not found.');
+    const actor = selfServeActor(
+      visit.org_id,
+      req.ip ?? null,
+      (req.headers['user-agent'] as string | undefined) ?? null,
+    );
+    return withOrgContext(visit.org_id, actor, async ({ tx, audit, emit }) => {
+      const policy = await loadMembershipPolicy(tx, visit.org_id);
+      if (!policy.self_cancel_enabled) {
+        throw new PermissionError('Visitor self-cancel is disabled for memberships in this org.');
+      }
+      const current = await tx
+        .selectFrom('memberships')
+        .select(['id'])
+        .where('org_id', '=', visit.org_id)
+        .where('visitor_id', '=', visit.visitor_id)
+        .where('id', '=', membershipId)
+        .where('status', 'in', ['pending', 'active', 'expired', 'lapsed'])
+        .executeTakeFirst();
+      if (!current) throw new NotFoundError('Membership not found.');
+
+      await cancelMembershipInTx(tx, visit.org_id, membershipId, body.reason ?? 'self_cancel');
+      const row = await selectMembership(tx, visit.org_id, membershipId);
+      await audit({
+        action: 'membership.cancelled',
+        targetType: 'membership',
+        targetId: membershipId,
+        diff: { after: { reason: body.reason ?? 'self_cancel', source: 'manage_link' } },
+      });
+      if (row) {
+        await emit({
+          eventType: 'membership.cancelled',
+          aggregateType: 'membership',
+          aggregateId: membershipId,
+          payload: { to: row.visitor_email, tierName: row.tier_name, membershipId },
+        });
+      }
+      return { data: { ok: true } };
     });
   });
 

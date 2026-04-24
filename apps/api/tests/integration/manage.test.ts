@@ -49,6 +49,66 @@ async function seedVisit(orgId: string, locationId: string, scheduledAt: Date): 
   return row.id;
 }
 
+async function seedVisitorVisitAndMembership(orgId: string, locationId: string, scheduledAt: Date): Promise<{
+  visitId: string;
+  visitorId: string;
+  membershipId: string;
+}> {
+  const suffix = Math.floor(Math.random() * 1000000);
+  const email = `member-${suffix}@example.com`;
+  const visitor = await getDb()
+    .insertInto('visitors')
+    .values({
+      org_id: orgId,
+      email,
+      first_name: 'Member',
+      last_name: 'Person',
+    })
+    .returning(['id'])
+    .executeTakeFirstOrThrow();
+  const tier = await getDb()
+    .insertInto('membership_tiers')
+    .values({
+      org_id: orgId,
+      slug: `family-${suffix}`,
+      name: 'Family',
+      price_cents: 5000,
+      billing_interval: 'year',
+      duration_days: 365,
+      sort_order: 1,
+    })
+    .returning(['id'])
+    .executeTakeFirstOrThrow();
+  const membership = await getDb()
+    .insertInto('memberships')
+    .values({
+      org_id: orgId,
+      visitor_id: visitor.id,
+      tier_id: tier.id,
+      status: 'active',
+      started_at: new Date(),
+      expires_at: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
+      metadata: {} as never,
+    })
+    .returning(['id'])
+    .executeTakeFirstOrThrow();
+  const visit = await getDb()
+    .insertInto('visits')
+    .values({
+      org_id: orgId,
+      location_id: locationId,
+      event_id: null,
+      visitor_id: visitor.id,
+      booked_by: null,
+      booking_method: 'self',
+      scheduled_at: scheduledAt,
+      form_response: { name: 'Member Person', email } as never,
+    })
+    .returning(['id'])
+    .executeTakeFirstOrThrow();
+  return { visitId: visit.id, visitorId: visitor.id, membershipId: membership.id };
+}
+
 describe('visitor manage links', () => {
   let app: FastifyInstance;
   beforeAll(async () => { app = await makeApp(); });
@@ -135,6 +195,78 @@ describe('visitor manage links', () => {
     const mtoken = makeManageToken(visitId, defaultManageExpiry(scheduledAt));
 
     const res = await app.inject({ method: 'POST', url: `/api/v1/manage/${mtoken}/cancel` });
+    expect(res.statusCode).toBe(403);
+  });
+
+  it('lists memberships attached to the managed visit visitor', async () => {
+    const { orgId, locationId } = await setupOrgWithHours(app, 'g5b@example.com');
+    const scheduledAt = new Date(Date.now() + 48 * 60 * 60 * 1000);
+    const { visitId, membershipId } = await seedVisitorVisitAndMembership(orgId, locationId, scheduledAt);
+    const mtoken = makeManageToken(visitId, defaultManageExpiry(scheduledAt));
+
+    const res = await app.inject({ method: 'GET', url: `/api/v1/manage/${mtoken}/memberships` });
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body);
+    expect(body.data).toHaveLength(1);
+    expect(body.data[0]).toMatchObject({
+      id: membershipId,
+      status: 'active',
+      tier: { name: 'Family' },
+    });
+    expect(body.data[0].visitor.email).toMatch(/^member-\d+@example\.com$/);
+  });
+
+  it('self-cancels a membership for the managed visit visitor', async () => {
+    const { orgId, locationId } = await setupOrgWithHours(app, 'g5c@example.com');
+    const scheduledAt = new Date(Date.now() + 48 * 60 * 60 * 1000);
+    const { visitId, membershipId } = await seedVisitorVisitAndMembership(orgId, locationId, scheduledAt);
+    const mtoken = makeManageToken(visitId, defaultManageExpiry(scheduledAt));
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `/api/v1/manage/${mtoken}/memberships/${membershipId}/cancel`,
+      payload: { reason: 'moving away' },
+    });
+    expect(res.statusCode).toBe(200);
+
+    const membership = await getDb().selectFrom('memberships').select(['status', 'cancelled_reason']).where('id', '=', membershipId).executeTakeFirstOrThrow();
+    expect(membership.status).toBe('cancelled');
+    expect(membership.cancelled_reason).toBe('moving away');
+
+    const outbox = await getDb().selectFrom('event_outbox').selectAll().where('aggregate_id', '=', membershipId).execute();
+    expect(outbox.some((r) => r.event_type === 'membership.cancelled')).toBe(true);
+
+    const audit = await getDb().selectFrom('audit_log').selectAll().where('target_id', '=', membershipId).execute();
+    expect(audit.some((a) => a.action === 'membership.cancelled')).toBe(true);
+  });
+
+  it('does not allow a manage token to cancel another visitor membership', async () => {
+    const { orgId, locationId } = await setupOrgWithHours(app, 'g5d@example.com');
+    const scheduledAt = new Date(Date.now() + 48 * 60 * 60 * 1000);
+    const { visitId } = await seedVisitorVisitAndMembership(orgId, locationId, scheduledAt);
+    const other = await seedVisitorVisitAndMembership(orgId, locationId, scheduledAt);
+    const mtoken = makeManageToken(visitId, defaultManageExpiry(scheduledAt));
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `/api/v1/manage/${mtoken}/memberships/${other.membershipId}/cancel`,
+      payload: {},
+    });
+    expect(res.statusCode).toBe(404);
+  });
+
+  it('membership self-cancel respects membership policy toggle', async () => {
+    const { orgId, locationId } = await setupOrgWithHours(app, 'g5e@example.com');
+    await getDb().updateTable('org_membership_policies').set({ self_cancel_enabled: false }).where('org_id', '=', orgId).execute();
+    const scheduledAt = new Date(Date.now() + 48 * 60 * 60 * 1000);
+    const { visitId, membershipId } = await seedVisitorVisitAndMembership(orgId, locationId, scheduledAt);
+    const mtoken = makeManageToken(visitId, defaultManageExpiry(scheduledAt));
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `/api/v1/manage/${mtoken}/memberships/${membershipId}/cancel`,
+      payload: {},
+    });
     expect(res.statusCode).toBe(403);
   });
 
