@@ -3,6 +3,7 @@ import type { Tx } from '../db/index.js';
 import { AvailabilityError, CapacityError, NotFoundError, ValidationError } from '../errors/index.js';
 import { isTimeAvailable } from './availability.js';
 import { DEFAULT_FORM_FIELDS } from '@butterbook/shared';
+import { upsertVisitorFromFormResponse } from './contacts.js';
 
 export interface CreateVisitInput {
   orgId: string;
@@ -80,6 +81,7 @@ export async function createVisitInTx(
             .values({
               org_id: input.orgId,
               event_id: event.id,
+              visitor_id: await upsertVisitorFromFormResponse(tx, input.orgId, parsed.data),
               form_response: parsed.data as never,
               sort_order: nextOrder,
               idempotency_key: input.idempotencyKey,
@@ -120,6 +122,7 @@ export async function createVisitInTx(
       org_id: input.orgId,
       location_id: input.locationId,
       event_id: input.eventId,
+      visitor_id: await upsertVisitorFromFormResponse(tx, input.orgId, parsed.data),
       booked_by: input.bookedBy,
       booking_method: input.bookingMethod,
       scheduled_at: input.scheduledAt,

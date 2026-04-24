@@ -10,3 +10,4 @@ export * from './visit.js';
 export * from './role.js';
 export * from './notifications.js';
 export * from './booking-page.js';
+export * from './contacts.js';

@@ -24,6 +24,15 @@ export const PERMISSIONS = [
 
   'notifications.manage',
 
+  'contacts.view_all',
+  'contacts.manage',
+  'memberships.view_all',
+  'memberships.manage',
+  'memberships.refund',
+  'promo_codes.manage',
+  'broadcasts.send',
+  'stripe.manage',
+
   'kiosk.access',
 ] as const;
 

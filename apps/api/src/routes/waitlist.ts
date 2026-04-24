@@ -39,6 +39,7 @@ export function registerWaitlistRoutes(app: FastifyInstance): void {
           org_id: orgId,
           location_id: ev.location_id,
           event_id: eventId,
+          visitor_id: entry.visitor_id,
           booked_by: req.userId,
           booking_method: 'self',
           scheduled_at: ev.starts_at,

@@ -29,6 +29,37 @@ export interface DB {
   notification_suppressions: NotificationSuppressionsTable;
   org_booking_policies: OrgBookingPoliciesTable;
   org_booking_page: OrgBookingPageTable;
+  visitors: VisitorsTable;
+  visitor_segments: VisitorSegmentsTable;
+}
+
+export interface VisitorsTable {
+  id: Generated<string>;
+  org_id: string;
+  email: string;
+  first_name: string | null;
+  last_name: string | null;
+  phone: string | null;
+  address: Jsonb | null;
+  tags: Generated<string[]>;
+  notes: string | null;
+  stripe_customer_id: string | null;
+  pii_redacted: Generated<boolean>;
+  created_at: Generated<Timestamp>;
+  updated_at: Generated<Timestamp>;
+  deleted_at: Timestamp | null;
+}
+
+export interface VisitorSegmentsTable {
+  id: Generated<string>;
+  org_id: string;
+  name: string;
+  filter: ColumnType<Jsonb, string, string>;
+  visitor_count: number | null;
+  last_computed_at: Timestamp | null;
+  created_at: Generated<Timestamp>;
+  updated_at: Generated<Timestamp>;
+  deleted_at: Timestamp | null;
 }
 
 export interface OrgBookingPageTable {
@@ -232,6 +263,7 @@ export interface VisitsTable {
   org_id: string;
   location_id: string;
   event_id: string | null;
+  visitor_id: string | null;
   booked_by: string | null;
   booking_method: 'self' | 'admin' | 'kiosk';
   scheduled_at: Timestamp;
@@ -250,6 +282,7 @@ export interface WaitlistEntriesTable {
   id: Generated<string>;
   org_id: string;
   event_id: string;
+  visitor_id: string | null;
   form_response: Jsonb;
   sort_order: number;
   status: Generated<'waiting' | 'promoted' | 'removed'>;

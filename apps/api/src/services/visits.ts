@@ -8,6 +8,7 @@ export interface VisitRow {
   org_id: string;
   location_id: string;
   event_id: string | null;
+  visitor_id?: string | null;
   status: string;
   scheduled_at: Date | string;
   form_response: unknown;
@@ -89,6 +90,7 @@ export async function cancelVisitInTx(
             org_id: visit.org_id,
             location_id: event.location_id,
             event_id: event.id,
+            visitor_id: next.visitor_id,
             booked_by: null,
             booking_method: 'self',
             scheduled_at: event.starts_at,

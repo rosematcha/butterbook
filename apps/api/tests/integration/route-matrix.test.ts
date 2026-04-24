@@ -35,6 +35,9 @@ interface Ctx {
   memberId: string;             // org_members.id for owner
   unprivilegedMemberId: string;
   invitationId: string;
+  contactId: string;
+  mergeContactId: string;
+  segmentId: string;
 }
 
 interface RouteCase {
@@ -55,7 +58,7 @@ interface RouteCase {
   // Expected status code on happy path (owner token). Defaults to 200.
   happyStatus?: number;
   // Optional invalid-body generator to exercise 422.
-  invalidBody?: () => unknown;
+  invalidBody?: (c: Ctx) => unknown;
   // Optional URL that should produce a 404 (e.g., wrong UUID).
   notFoundUrl?: (c: Ctx) => string;
 }
@@ -81,6 +84,20 @@ const ROUTES: RouteCase[] = [
         { fieldKey: 'party_size', label: 'Party', fieldType: 'number', required: true, isSystem: true, displayOrder: 2 },
       ],
     }) },
+
+  // --- contacts / CRM ---
+  { name: 'GET contacts (contacts.view_all)', method: 'GET', url: (c) => `/api/v1/orgs/${c.orgId}/contacts` },
+  { name: 'POST contact (contacts.manage)', method: 'POST', url: (c) => `/api/v1/orgs/${c.orgId}/contacts`, body: () => ({ email: 'new-contact@example.com', firstName: 'New', lastName: 'Contact' }), invalidBody: () => ({ email: 'bad' }) },
+  { name: 'GET single contact', method: 'GET', url: (c) => `/api/v1/orgs/${c.orgId}/contacts/${c.contactId}`, notFoundUrl: (c) => `/api/v1/orgs/${c.orgId}/contacts/00000000-0000-0000-0000-000000000000` },
+  { name: 'PATCH contact', method: 'PATCH', url: (c) => `/api/v1/orgs/${c.orgId}/contacts/${c.contactId}`, body: () => ({ tags: ['member'] }), invalidBody: () => ({ tags: [''] }) },
+  { name: 'GET contact timeline', method: 'GET', url: (c) => `/api/v1/orgs/${c.orgId}/contacts/${c.contactId}/timeline`, notFoundUrl: (c) => `/api/v1/orgs/${c.orgId}/contacts/00000000-0000-0000-0000-000000000000/timeline` },
+  { name: 'POST contact merge', method: 'POST', url: (c) => `/api/v1/orgs/${c.orgId}/contacts/merge`, body: (c) => ({ keepId: c.contactId, mergeIds: [c.mergeContactId] }), invalidBody: (c) => ({ keepId: c.contactId, mergeIds: [c.contactId] }) },
+  { name: 'POST contact redact', method: 'POST', url: (c) => `/api/v1/orgs/${c.orgId}/contacts/${c.contactId}/redact`, notFoundUrl: (c) => `/api/v1/orgs/${c.orgId}/contacts/00000000-0000-0000-0000-000000000000/redact` },
+  { name: 'GET segments (contacts.view_all)', method: 'GET', url: (c) => `/api/v1/orgs/${c.orgId}/segments` },
+  { name: 'POST segment (contacts.manage)', method: 'POST', url: (c) => `/api/v1/orgs/${c.orgId}/segments`, body: () => ({ name: 'Members', filter: { tag: 'member' } }), invalidBody: () => ({ name: '', filter: { nope: true } }) },
+  { name: 'GET single segment', method: 'GET', url: (c) => `/api/v1/orgs/${c.orgId}/segments/${c.segmentId}`, notFoundUrl: (c) => `/api/v1/orgs/${c.orgId}/segments/00000000-0000-0000-0000-000000000000` },
+  { name: 'PATCH segment', method: 'PATCH', url: (c) => `/api/v1/orgs/${c.orgId}/segments/${c.segmentId}`, body: () => ({ filter: { emailDomain: 'example.com' } }), invalidBody: () => ({ filter: { nope: true } }) },
+  { name: 'POST segment preview', method: 'POST', url: (c) => `/api/v1/orgs/${c.orgId}/segments/${c.segmentId}/preview`, notFoundUrl: (c) => `/api/v1/orgs/${c.orgId}/segments/00000000-0000-0000-0000-000000000000/preview` },
 
   // --- members ---
   { name: 'GET members (admin.manage_users)', method: 'GET', url: (c) => `/api/v1/orgs/${c.orgId}/members` },
@@ -259,6 +276,36 @@ describe('route matrix: happy + 401 + 403 + 422 + 404', () => {
       })
       .returning(['id'])
       .executeTakeFirstOrThrow();
+    const contact = await getDb()
+      .insertInto('visitors')
+      .values({
+        org_id: owner.orgId,
+        email: 'seed-contact@example.com',
+        first_name: 'Seed',
+        last_name: 'Contact',
+        tags: ['member'],
+      })
+      .returning(['id'])
+      .executeTakeFirstOrThrow();
+    const mergeContact = await getDb()
+      .insertInto('visitors')
+      .values({
+        org_id: owner.orgId,
+        email: 'merge-contact@example.com',
+        first_name: 'Merge',
+        last_name: 'Contact',
+      })
+      .returning(['id'])
+      .executeTakeFirstOrThrow();
+    const segment = await getDb()
+      .insertInto('visitor_segments')
+      .values({
+        org_id: owner.orgId,
+        name: 'Seed segment',
+        filter: JSON.stringify({ tag: 'member' }),
+      })
+      .returning(['id'])
+      .executeTakeFirstOrThrow();
     const owMem = await getDb()
       .selectFrom('org_members')
       .select(['id'])
@@ -280,6 +327,9 @@ describe('route matrix: happy + 401 + 403 + 422 + 404', () => {
       memberId: owMem.id,
       unprivilegedMemberId: umRow.id,
       invitationId: inv.id,
+      contactId: contact.id,
+      mergeContactId: mergeContact.id,
+      segmentId: segment.id,
     };
   });
 
@@ -287,7 +337,7 @@ describe('route matrix: happy + 401 + 403 + 422 + 404', () => {
     describe(rc.name, () => {
       const buildReq = (token: string | null, variant: 'happy' | 'invalid' | 'not-found'): InjectOptions => {
         const url = variant === 'not-found' && rc.notFoundUrl ? rc.notFoundUrl(ctx) : rc.url(ctx);
-        const body = variant === 'invalid' && rc.invalidBody ? rc.invalidBody() : rc.body ? rc.body(ctx) : undefined;
+        const body = variant === 'invalid' && rc.invalidBody ? rc.invalidBody(ctx) : rc.body ? rc.body(ctx) : undefined;
         const opts: InjectOptions = {
           method: rc.method,
           url,

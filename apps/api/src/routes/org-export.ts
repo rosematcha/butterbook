@@ -9,7 +9,7 @@ const orgParam = z.object({ orgId: z.string().uuid() });
 // Tables dumped in the export. Order chosen so a consumer can reconstruct
 // referential integrity (orgs → locations → hours/overrides/closed_days →
 // members/roles/permissions → event_series → events → visits/waitlist →
-// invitations → audit_log).
+// invitations → contacts → audit_log).
 const EXPORT_SECTIONS = [
   'locations',
   'location_hours',
@@ -24,6 +24,8 @@ const EXPORT_SECTIONS = [
   'visits',
   'waitlist_entries',
   'invitations',
+  'visitors',
+  'visitor_segments',
   'audit_log',
 ] as const;
 type ExportSection = (typeof EXPORT_SECTIONS)[number];
@@ -131,6 +133,10 @@ async function pageSection(tx: Tx, section: ExportSection, offset: number, limit
       return tx.selectFrom('waitlist_entries').selectAll().limit(limit).offset(offset).execute() as unknown as Array<Record<string, unknown>>;
     case 'invitations':
       return tx.selectFrom('invitations').selectAll().limit(limit).offset(offset).execute() as unknown as Array<Record<string, unknown>>;
+    case 'visitors':
+      return tx.selectFrom('visitors').selectAll().limit(limit).offset(offset).execute() as unknown as Array<Record<string, unknown>>;
+    case 'visitor_segments':
+      return tx.selectFrom('visitor_segments').selectAll().limit(limit).offset(offset).execute() as unknown as Array<Record<string, unknown>>;
     case 'audit_log':
       return tx.selectFrom('audit_log').selectAll().limit(limit).offset(offset).execute() as unknown as Array<Record<string, unknown>>;
   }
