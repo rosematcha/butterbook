@@ -30,7 +30,7 @@ export interface SubPageShellProps {
   /** Page body. */
   children: ReactNode;
   /**
-   * Max width (in px) of header + body containers. 960 suits most text-heavy
+   * Max width (in px) of header + body containers. 1080 suits most text-heavy
    * sub-pages; heavier mockup-driven pages can bump this to 1100–1200.
    */
   maxWidth?: number;
@@ -41,7 +41,7 @@ export function SubPageShell({
   title,
   subtitle,
   children,
-  maxWidth = 960,
+  maxWidth = 1080,
 }: SubPageShellProps) {
   return (
     <div className="font-sans text-ink">

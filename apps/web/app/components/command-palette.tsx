@@ -86,6 +86,8 @@ export function CommandPalette() {
       { href: '/app', label: 'Today', keywords: 'home dashboard calendar timeline' },
       { href: '/app/visits', label: 'All visits', keywords: 'visitors bookings' },
       { href: '/app/events', label: 'Events', keywords: 'programs tours' },
+      { href: '/app/contacts', label: 'Contacts', keywords: 'crm visitors people profiles' },
+      { href: '/app/contacts/segments', label: 'Segments', keywords: 'crm filters audiences tags' },
       { href: '/app/locations', label: 'Locations', keywords: 'place site' },
       { href: '/app/form', label: 'Form fields', keywords: 'questions intake' },
       { href: '/app/members', label: 'Members', keywords: 'staff team invite' },

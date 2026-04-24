@@ -40,6 +40,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     { href: '/app', label: 'Today', prefetch: 'today' },
     { href: '/app/visits', label: `All ${term.nounPlural}`, prefetch: 'visits' },
     { href: '/app/events', label: 'Events', prefetch: 'events' },
+    { href: '/app/contacts', label: 'Contacts', prefetch: 'contacts' },
   ];
 
   // Prefetchers reset when orgId flips so we don't warm the wrong org's data.
