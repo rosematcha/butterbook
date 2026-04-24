@@ -45,10 +45,14 @@ const CARD_MINUTES = 45;
 // Per-card ceiling in px. Keeps names legible on wide screens and prevents the
 // single-lane case from stretching a card across the entire column.
 const CARD_MAX_WIDTH = 280;
-// Drag-to-reschedule snaps to this many minutes.
-const DRAG_SNAP_MIN = 5;
-// Below this vertical travel, a pointer-up is treated as a click, not a drag.
-const DRAG_THRESHOLD_PX = 4;
+// Drag-to-reschedule snaps to this many minutes. 15 matches the dotted
+// half-hour grid visually (two snaps per dashed line) and keeps each drag
+// step a deliberate jump rather than a twitch.
+const DRAG_SNAP_MIN = 15;
+// Pointer must travel this far before a "drag" is recognized. Below the
+// threshold the card doesn't move at all, so a noisy click never nudges the
+// appointment. Tuned above typical click-jitter (~3px) with headroom.
+const DRAG_THRESHOLD_PX = 10;
 
 function isSameDay(a: Date, b: Date): boolean {
   return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
@@ -277,18 +281,20 @@ function VisitCard({
   const [tagPopoverOpen, setTagPopoverOpen] = useState(false);
   const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null);
 
-  // Drag-to-reschedule state. We render a translateY preview during the drag
-  // and only commit on pointer-up. Snapping happens on the snapped-minute
-  // offset, not on pixel position, so small jitter doesn't flip the target.
-  const [dragDy, setDragDy] = useState(0);
+  // Drag-to-reschedule. We keep two phases so a jittery click never moves the
+  // card:
+  //   1. "armed" — pointer is down, but travel < DRAG_THRESHOLD_PX. No visual
+  //      movement yet. A pointerup here is treated as a plain click.
+  //   2. "dragging" — threshold crossed; the card snaps to the 15-min grid
+  //      near the pointer and the time label previews the snapped target.
+  // Snapping the *visual* position (not just the commit) keeps the motion
+  // feeling deliberate instead of skittish.
+  const [minuteOffset, setMinuteOffset] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
   const dragStartYRef = useRef<number | null>(null);
-  const draggedRef = useRef(false);
 
-  const minuteDelta = dragStartYRef.current !== null
-    ? Math.round((dragDy / hourHeight) * 60 / DRAG_SNAP_MIN) * DRAG_SNAP_MIN
-    : 0;
-  const previewDate = minuteDelta !== 0
-    ? new Date(d.getTime() + minuteDelta * 60_000)
+  const previewDate = isDragging && minuteOffset !== 0
+    ? new Date(d.getTime() + minuteOffset * 60_000)
     : null;
   // Clamp preview within the visible grid so labels don't float off the rails.
   const previewInRange = previewDate
@@ -297,6 +303,11 @@ function VisitCard({
         return h >= startHour && h <= startHour + totalHours;
       })()
     : false;
+  const translatePx = isDragging ? (minuteOffset / 60) * hourHeight : 0;
+
+  function snapMinutes(dy: number): number {
+    return Math.round((dy / hourHeight) * 60 / DRAG_SNAP_MIN) * DRAG_SNAP_MIN;
+  }
 
   function onPointerDown(e: React.PointerEvent<HTMLDivElement>) {
     if (!canDrag) return;
@@ -305,26 +316,31 @@ function VisitCard({
     if (t.closest('button, [role="menu"]')) return;
     if (e.button !== 0) return;
     dragStartYRef.current = e.clientY;
-    draggedRef.current = false;
+    setMinuteOffset(0);
+    setIsDragging(false);
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
   }
 
   function onPointerMove(e: React.PointerEvent<HTMLDivElement>) {
     if (dragStartYRef.current === null) return;
     const dy = e.clientY - dragStartYRef.current;
-    if (Math.abs(dy) > DRAG_THRESHOLD_PX) draggedRef.current = true;
-    setDragDy(dy);
+    if (!isDragging) {
+      if (Math.abs(dy) < DRAG_THRESHOLD_PX) return; // still in click-zone
+      setIsDragging(true);
+    }
+    const mins = snapMinutes(dy);
+    setMinuteOffset((prev) => (prev === mins ? prev : mins));
   }
 
   function onPointerUp(e: React.PointerEvent<HTMLDivElement>) {
     if (dragStartYRef.current === null) return;
-    const dy = e.clientY - dragStartYRef.current;
+    const wasDragging = isDragging;
+    const mins = minuteOffset;
     dragStartYRef.current = null;
-    setDragDy(0);
+    setIsDragging(false);
+    setMinuteOffset(0);
     try { (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId); } catch {}
-    if (!draggedRef.current) return; // treat as click
-    if (Math.abs(dy) <= DRAG_THRESHOLD_PX) return;
-    const mins = Math.round((dy / hourHeight) * 60 / DRAG_SNAP_MIN) * DRAG_SNAP_MIN;
+    if (!wasDragging) return; // treat as click
     if (mins === 0 || !handlers.onReschedule) return;
     const next = new Date(d.getTime() + mins * 60_000);
     handlers.onReschedule(visit.id, next.toISOString());
@@ -354,8 +370,6 @@ function VisitCard({
     handlers.onTagsChange(visit.id, [...tags, next]);
   }
 
-  const isDragging = dragStartYRef.current !== null && draggedRef.current;
-
   return (
     <div
       ref={cardRef}
@@ -365,16 +379,18 @@ function VisitCard({
       onPointerCancel={onPointerUp}
       className={[
         'group absolute flex overflow-hidden rounded-md border border-paper-200/70 bg-white',
-        'shadow-[0_1px_0_rgb(0_0_0/0.02)] transition hover:border-paper-300 hover:shadow-[0_2px_8px_rgb(0_0_0/0.06)]',
+        'shadow-[0_1px_0_rgb(0_0_0/0.02)] hover:border-paper-300 hover:shadow-[0_2px_8px_rgb(0_0_0/0.06)]',
         dim ? 'opacity-60' : '',
         canDrag ? (isDragging ? 'cursor-grabbing select-none' : 'cursor-grab') : '',
-        isDragging ? 'z-30 ring-2 ring-brand-accent/40' : '',
+        isDragging ? 'z-30 shadow-[0_10px_24px_rgb(0_0_0/0.12)] ring-2 ring-brand-accent/50' : '',
       ].join(' ')}
       style={{
         ...style,
         fontSize: `${13 * zoom}px`,
-        transform: isDragging ? `translateY(${dragDy}px)` : undefined,
-        transition: isDragging ? 'none' : undefined,
+        transform: translatePx ? `translateY(${translatePx}px)` : undefined,
+        // Easing on snap feels better than a hard jump; skip easing on the
+        // idle state so card repositions from a server refetch aren't animated.
+        transition: isDragging ? 'transform 80ms ease-out' : undefined,
       }}
     >
       <div className={`w-[3px] shrink-0 ${statusLeftBar(visit.status)}`} />
