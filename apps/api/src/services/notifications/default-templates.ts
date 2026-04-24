@@ -68,9 +68,9 @@ export const DEFAULT_TEMPLATES: DefaultTemplate[] = [
     templateKey: 'membership.renewal_reminder',
     subject: 'Your {{orgName}} membership renews soon',
     bodyHtml:
-      '<p>Hi {{visitorName}},</p><p>Your {{tierName}} membership expires soon.</p>',
+      '<p>Hi {{visitorName}},</p><p>Your {{tierName}} membership expires in {{daysOut}} days.</p>{{#if expiresAt}}<p>Membership expires {{expiresAt}}.</p>{{/if}}',
     bodyText:
-      'Hi {{visitorName}},\n\nYour {{tierName}} membership expires soon.',
+      'Hi {{visitorName}},\n\nYour {{tierName}} membership expires in {{daysOut}} days.\n\n{{#if expiresAt}}Membership expires {{expiresAt}}.{{/if}}',
   },
   {
     templateKey: 'membership.expired',

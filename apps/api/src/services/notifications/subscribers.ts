@@ -186,6 +186,7 @@ export const SUBSCRIBERS: Record<string, SubscriberFn> = {
   'membership.created': (ctx) => runSubscriber(ctx, 'membership.welcome'),
   'membership.renewed': (ctx) => runSubscriber(ctx, 'membership.welcome'),
   'membership.cancelled': (ctx) => runSubscriber(ctx, 'membership.cancelled'),
+  'membership.renewal_reminder': (ctx) => runSubscriber(ctx, 'membership.renewal_reminder'),
   'membership.expired': (ctx) => runSubscriber(ctx, 'membership.expired'),
   'membership.lapsed': (ctx) => runSubscriber(ctx, 'membership.lapsed'),
   'membership.payment_failed': (ctx) => runSubscriber(ctx, 'membership.payment_failed'),

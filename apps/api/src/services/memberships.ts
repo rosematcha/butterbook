@@ -1,4 +1,4 @@
-import { sql, type Tx } from '../db/index.js';
+import { sql, type OutboxEventInput, type Tx } from '../db/index.js';
 import { ConflictError, NotFoundError } from '../errors/index.js';
 
 interface MembershipRow {
@@ -241,7 +241,18 @@ export async function activeMembershipSatisfiesTier(tx: Tx, orgId: string, visit
   return Boolean(row);
 }
 
-export async function sweepMembershipStatus(tx: Tx, orgId: string, now = new Date()) {
+type MembershipStatusEvent = {
+  id: string;
+  email: string;
+  firstName: string | null;
+  lastName: string | null;
+  tierName: string;
+  expiresAt: Date | null;
+};
+
+type EmitMembershipEvent = (input: OutboxEventInput) => Promise<void>;
+
+export async function sweepMembershipStatus(tx: Tx, orgId: string, now = new Date(), emit?: EmitMembershipEvent) {
   const expired = await tx
     .updateTable('memberships')
     .set({ status: 'expired' })
@@ -250,9 +261,9 @@ export async function sweepMembershipStatus(tx: Tx, orgId: string, now = new Dat
     .where('auto_renew', '=', false)
     .where('expires_at', 'is not', null)
     .where('expires_at', '<=', now)
-    .returning(['id'])
+    .returning(['id', 'visitor_id', 'tier_id', 'expires_at'])
     .execute();
-  const policy = await tx.selectFrom('org_membership_policies').select(['grace_period_days']).where('org_id', '=', orgId).executeTakeFirst();
+  const policy = await tx.selectFrom('org_membership_policies').select(['grace_period_days', 'renewal_reminder_days']).where('org_id', '=', orgId).executeTakeFirst();
   const graceDays = policy?.grace_period_days ?? 14;
   const lapsed = await tx
     .updateTable('memberships')
@@ -261,13 +272,150 @@ export async function sweepMembershipStatus(tx: Tx, orgId: string, now = new Dat
     .where('status', '=', 'expired')
     .where('expires_at', 'is not', null)
     .where(sql<boolean>`expires_at + (${graceDays} || ' days')::interval <= ${now}`)
-    .returning(['id'])
+    .returning(['id', 'visitor_id', 'tier_id', 'expires_at'])
     .execute();
-  return { expired: expired.length, lapsed: lapsed.length };
+
+  const reminders = await queueRenewalReminders(tx, orgId, policy?.renewal_reminder_days ?? [30, 7], now, emit);
+
+  if (emit) {
+    await emitMembershipStatusEvents(tx, orgId, 'membership.expired', expired, emit);
+    await emitMembershipStatusEvents(tx, orgId, 'membership.lapsed', lapsed, emit);
+  }
+
+  return { expired: expired.length, lapsed: lapsed.length, reminders };
 }
 
 export function defaultMembershipExpiry(start: Date, durationDays: number | null, interval: string): Date | null {
   if (interval === 'lifetime') return null;
   const days = durationDays ?? (interval === 'month' ? 30 : 365);
   return new Date(start.getTime() + days * 24 * 60 * 60 * 1000);
+}
+
+async function emitMembershipStatusEvents(
+  tx: Tx,
+  orgId: string,
+  eventType: 'membership.expired' | 'membership.lapsed',
+  rows: Array<{ id: string; visitor_id: string; tier_id: string; expires_at: Date | null }>,
+  emit: EmitMembershipEvent,
+): Promise<void> {
+  if (rows.length === 0) return;
+  const details = await membershipEventDetails(tx, orgId, rows.map((r) => r.id));
+  for (const row of details) {
+    await emit({
+      eventType,
+      aggregateType: 'membership',
+      aggregateId: row.id,
+      payload: membershipPayload(row),
+    });
+  }
+}
+
+async function queueRenewalReminders(
+  tx: Tx,
+  orgId: string,
+  rawDays: number[],
+  now: Date,
+  emit?: EmitMembershipEvent,
+): Promise<number> {
+  if (!emit) return 0;
+  const days = [...new Set(rawDays.filter((d) => Number.isInteger(d) && d > 0))].sort((a, b) => b - a);
+  if (days.length === 0) return 0;
+  const maxDays = Math.max(...days);
+  const horizon = new Date(now.getTime() + maxDays * 24 * 60 * 60 * 1000);
+  const candidates = await tx
+    .selectFrom('memberships')
+    .innerJoin('visitors', 'visitors.id', 'memberships.visitor_id')
+    .innerJoin('membership_tiers', 'membership_tiers.id', 'memberships.tier_id')
+    .select([
+      'memberships.id',
+      'memberships.expires_at as expiresAt',
+      'visitors.email',
+      'visitors.first_name as firstName',
+      'visitors.last_name as lastName',
+      'membership_tiers.name as tierName',
+    ])
+    .where('memberships.org_id', '=', orgId)
+    .where('memberships.status', '=', 'active')
+    .where('memberships.auto_renew', '=', false)
+    .where('memberships.expires_at', 'is not', null)
+    .where('memberships.expires_at', '>', now)
+    .where('memberships.expires_at', '<=', horizon)
+    .execute();
+
+  let queued = 0;
+  for (const row of candidates) {
+    if (!row.expiresAt) continue;
+    for (const daysOut of days) {
+      if (utcDateKey(addDays(now, daysOut)) !== utcDateKey(row.expiresAt)) continue;
+      const inserted = await tx
+        .insertInto('idempotency_keys')
+        .values({
+          key: `membership-renewal-reminder:${row.id}:${daysOut}:${utcDateKey(row.expiresAt)}`,
+          scope: 'membership-sweep',
+          org_id: orgId,
+          request_hash: 'membership-renewal-reminder',
+          response_status: 202,
+          response_body: { membershipId: row.id, daysOut, expiresAt: row.expiresAt.toISOString() },
+          expires_at: addDays(row.expiresAt, 45),
+        })
+        .onConflict((oc) => oc.columns(['key', 'scope']).doNothing())
+        .returning(['id'])
+        .executeTakeFirst();
+      if (!inserted) continue;
+      queued += 1;
+      await emit({
+        eventType: 'membership.renewal_reminder',
+        aggregateType: 'membership',
+        aggregateId: row.id,
+        payload: membershipPayload({
+          id: row.id,
+          email: row.email,
+          firstName: row.firstName,
+          lastName: row.lastName,
+          tierName: row.tierName,
+          expiresAt: row.expiresAt,
+        }, { daysOut }),
+      });
+    }
+  }
+  return queued;
+}
+
+async function membershipEventDetails(tx: Tx, orgId: string, membershipIds: string[]): Promise<MembershipStatusEvent[]> {
+  if (membershipIds.length === 0) return [];
+  return tx
+    .selectFrom('memberships')
+    .innerJoin('visitors', 'visitors.id', 'memberships.visitor_id')
+    .innerJoin('membership_tiers', 'membership_tiers.id', 'memberships.tier_id')
+    .select([
+      'memberships.id',
+      'memberships.expires_at as expiresAt',
+      'visitors.email',
+      'visitors.first_name as firstName',
+      'visitors.last_name as lastName',
+      'membership_tiers.name as tierName',
+    ])
+    .where('memberships.org_id', '=', orgId)
+    .where('memberships.id', 'in', membershipIds)
+    .execute();
+}
+
+function membershipPayload(row: MembershipStatusEvent, extra: Record<string, unknown> = {}): Record<string, unknown> {
+  const visitorName = [row.firstName, row.lastName].filter(Boolean).join(' ');
+  return {
+    to: row.email,
+    visitorName,
+    tierName: row.tierName,
+    membershipId: row.id,
+    expiresAt: row.expiresAt?.toISOString() ?? '',
+    ...extra,
+  };
+}
+
+function addDays(date: Date, days: number): Date {
+  return new Date(date.getTime() + days * 24 * 60 * 60 * 1000);
+}
+
+function utcDateKey(date: Date): string {
+  return date.toISOString().slice(0, 10);
 }

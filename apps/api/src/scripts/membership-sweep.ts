@@ -18,10 +18,11 @@ async function main(): Promise<void> {
   const orgs = await getDb().selectFrom('orgs').select(['id']).where('deleted_at', 'is', null).execute();
   let expired = 0;
   let lapsed = 0;
+  let reminders = 0;
   for (const org of orgs) {
-    const result = await withOrgContext(org.id, systemActor(org.id), async ({ tx, audit }) => {
-      const r = await sweepMembershipStatus(tx, org.id);
-      if (r.expired > 0 || r.lapsed > 0) {
+    const result = await withOrgContext(org.id, systemActor(org.id), async ({ tx, audit, emit }) => {
+      const r = await sweepMembershipStatus(tx, org.id, new Date(), emit);
+      if (r.expired > 0 || r.lapsed > 0 || r.reminders > 0) {
         await audit({
           action: 'membership.sweep',
           targetType: 'org',
@@ -33,8 +34,9 @@ async function main(): Promise<void> {
     });
     expired += result.expired;
     lapsed += result.lapsed;
+    reminders += result.reminders;
   }
-  console.log(JSON.stringify({ expired, lapsed }));
+  console.log(JSON.stringify({ expired, lapsed, reminders }));
 }
 
 main()
