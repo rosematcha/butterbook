@@ -183,4 +183,10 @@ export const SUBSCRIBERS: Record<string, SubscriberFn> = {
   'waitlist.auto_promoted': (ctx) => runSubscriber(ctx, 'waitlist.promoted'),
   'event.published': (ctx) => runSubscriber(ctx, 'event.published'),
   'invitation.created': (ctx) => runSubscriber(ctx, 'invitation.created'),
+  'membership.created': (ctx) => runSubscriber(ctx, 'membership.welcome'),
+  'membership.renewed': (ctx) => runSubscriber(ctx, 'membership.welcome'),
+  'membership.cancelled': (ctx) => runSubscriber(ctx, 'membership.cancelled'),
+  'membership.expired': (ctx) => runSubscriber(ctx, 'membership.expired'),
+  'membership.lapsed': (ctx) => runSubscriber(ctx, 'membership.lapsed'),
+  'membership.payment_failed': (ctx) => runSubscriber(ctx, 'membership.payment_failed'),
 };

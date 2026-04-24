@@ -38,6 +38,8 @@ interface Ctx {
   contactId: string;
   mergeContactId: string;
   segmentId: string;
+  membershipTierId: string;
+  membershipId: string;
 }
 
 interface RouteCase {
@@ -98,6 +100,21 @@ const ROUTES: RouteCase[] = [
   { name: 'GET single segment', method: 'GET', url: (c) => `/api/v1/orgs/${c.orgId}/segments/${c.segmentId}`, notFoundUrl: (c) => `/api/v1/orgs/${c.orgId}/segments/00000000-0000-0000-0000-000000000000` },
   { name: 'PATCH segment', method: 'PATCH', url: (c) => `/api/v1/orgs/${c.orgId}/segments/${c.segmentId}`, body: () => ({ filter: { emailDomain: 'example.com' } }), invalidBody: () => ({ filter: { nope: true } }) },
   { name: 'POST segment preview', method: 'POST', url: (c) => `/api/v1/orgs/${c.orgId}/segments/${c.segmentId}/preview`, notFoundUrl: (c) => `/api/v1/orgs/${c.orgId}/segments/00000000-0000-0000-0000-000000000000/preview` },
+
+  // --- membership core ---
+  { name: 'GET membership-policies', method: 'GET', url: (c) => `/api/v1/orgs/${c.orgId}/membership-policies` },
+  { name: 'PATCH membership-policies', method: 'PATCH', url: (c) => `/api/v1/orgs/${c.orgId}/membership-policies`, body: () => ({ enabled: true, gracePeriodDays: 10 }), invalidBody: () => ({ gracePeriodDays: -1 }) },
+  { name: 'GET membership tiers', method: 'GET', url: (c) => `/api/v1/orgs/${c.orgId}/membership-tiers` },
+  { name: 'POST membership tier', method: 'POST', url: (c) => `/api/v1/orgs/${c.orgId}/membership-tiers`, body: () => ({ slug: `supporter-${Math.random().toString(36).slice(2, 8)}`, name: 'Supporter', priceCents: 5000, billingInterval: 'year' }), invalidBody: () => ({ slug: 'Bad Slug', name: '', priceCents: -1, billingInterval: 'week' }) },
+  { name: 'GET single membership tier', method: 'GET', url: (c) => `/api/v1/orgs/${c.orgId}/membership-tiers/${c.membershipTierId}`, notFoundUrl: (c) => `/api/v1/orgs/${c.orgId}/membership-tiers/00000000-0000-0000-0000-000000000000` },
+  { name: 'PATCH membership tier', method: 'PATCH', url: (c) => `/api/v1/orgs/${c.orgId}/membership-tiers/${c.membershipTierId}`, body: () => ({ name: 'Household' }), invalidBody: () => ({ priceCents: -1 }) },
+  { name: 'GET memberships', method: 'GET', url: (c) => `/api/v1/orgs/${c.orgId}/memberships` },
+  { name: 'POST membership', method: 'POST', url: (c) => `/api/v1/orgs/${c.orgId}/memberships`, body: (c) => ({ visitorId: c.contactId, tierId: c.membershipTierId }), invalidBody: (c) => ({ visitorId: c.contactId, tierId: 'nope' }) },
+  { name: 'GET single membership', method: 'GET', url: (c) => `/api/v1/orgs/${c.orgId}/memberships/${c.membershipId}`, notFoundUrl: (c) => `/api/v1/orgs/${c.orgId}/memberships/00000000-0000-0000-0000-000000000000` },
+  { name: 'PATCH membership', method: 'PATCH', url: (c) => `/api/v1/orgs/${c.orgId}/memberships/${c.membershipId}`, body: () => ({ autoRenew: true }), invalidBody: () => ({ status: 'bogus' }) },
+  { name: 'POST membership cancel', method: 'POST', url: (c) => `/api/v1/orgs/${c.orgId}/memberships/${c.membershipId}/cancel`, body: () => ({ reason: 'requested' }), notFoundUrl: (c) => `/api/v1/orgs/${c.orgId}/memberships/00000000-0000-0000-0000-000000000000/cancel` },
+  { name: 'POST membership renew', method: 'POST', url: (c) => `/api/v1/orgs/${c.orgId}/memberships/${c.membershipId}/renew`, body: () => ({ amountCents: 5000 }), invalidBody: () => ({ amountCents: -1 }), notFoundUrl: (c) => `/api/v1/orgs/${c.orgId}/memberships/00000000-0000-0000-0000-000000000000/renew` },
+  { name: 'POST membership refund', method: 'POST', url: (c) => `/api/v1/orgs/${c.orgId}/memberships/${c.membershipId}/refund`, body: () => ({ amountCents: 5000 }), invalidBody: () => ({ amountCents: -1 }), notFoundUrl: (c) => `/api/v1/orgs/${c.orgId}/memberships/00000000-0000-0000-0000-000000000000/refund` },
 
   // --- members ---
   { name: 'GET members (admin.manage_users)', method: 'GET', url: (c) => `/api/v1/orgs/${c.orgId}/members` },
@@ -306,6 +323,42 @@ describe('route matrix: happy + 401 + 403 + 422 + 404', () => {
       })
       .returning(['id'])
       .executeTakeFirstOrThrow();
+    const membershipTier = await getDb()
+      .insertInto('membership_tiers')
+      .values({
+        org_id: owner.orgId,
+        slug: 'household',
+        name: 'Household',
+        price_cents: 5000,
+        billing_interval: 'year',
+        duration_days: 365,
+      })
+      .returning(['id'])
+      .executeTakeFirstOrThrow();
+    const membership = await getDb()
+      .insertInto('memberships')
+      .values({
+        org_id: owner.orgId,
+        visitor_id: contact.id,
+        tier_id: membershipTier.id,
+        status: 'active',
+        started_at: new Date('2026-01-01T00:00:00Z'),
+        expires_at: new Date('2027-01-01T00:00:00Z'),
+        metadata: JSON.stringify({}),
+      })
+      .returning(['id'])
+      .executeTakeFirstOrThrow();
+    await getDb()
+      .insertInto('membership_payments')
+      .values({
+        org_id: owner.orgId,
+        membership_id: membership.id,
+        amount_cents: 5000,
+        currency: 'usd',
+        source: 'manual',
+        paid_at: new Date('2026-01-01T00:00:00Z'),
+      })
+      .execute();
     const owMem = await getDb()
       .selectFrom('org_members')
       .select(['id'])
@@ -330,6 +383,8 @@ describe('route matrix: happy + 401 + 403 + 422 + 404', () => {
       contactId: contact.id,
       mergeContactId: mergeContact.id,
       segmentId: segment.id,
+      membershipTierId: membershipTier.id,
+      membershipId: membership.id,
     };
   });
 

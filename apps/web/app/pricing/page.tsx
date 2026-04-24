@@ -1,5 +1,5 @@
 import { MARKETING_URL } from '../../lib/env';
-import { ArrowIcon, SubPageShell } from '../components/sub-page';
+import { SubPageShell } from '../components/sub-page';
 import { FAQList } from '../components/faq-list';
 
 type Plan = {
@@ -68,15 +68,6 @@ const MATRIX: { label: string; vals: MatrixVal[] }[] = [
   { label: 'Priority support', vals: [false, false, false, true] },
 ];
 
-const FLOOR_FEATURES = [
-  'Kiosk and QR code check-in',
-  'Waitlists on any event',
-  'Reports and CSV export',
-  'Append-only audit log',
-  'Visitor self-serve cancel and reschedule',
-  'Unlimited team seats',
-];
-
 const FAQ_ITEMS = [
   {
     q: 'Can I switch plans later?',
@@ -116,37 +107,14 @@ export default function PricingPage() {
       }
       subtitle="One rate per organization. The bill doesn't change when you sell more tickets or add more staff."
     >
-      {/* Hero CTAs */}
-      <div className="mb-14 flex flex-wrap gap-3">
-        <a href={`${MARKETING_URL}/register`} className="btn">Start free</a>
-        <a href={`${MARKETING_URL}/demo`} className="btn-ghost">
-          Try the demo <ArrowIcon size={14} />
-        </a>
+      {/* Plan cards — full-bleed dark band flush against the header */}
+      <div className="-mt-12 w-screen ml-[calc(50%-50vw)] border-b border-paper-200 bg-paper-100 sm:-mt-14">
+        <div className="mx-auto px-6 py-14 sm:px-12" style={{ maxWidth: 1280 }}>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {PLANS.map(p => <PlanCard key={p.name} plan={p} />)}
+          </div>
+        </div>
       </div>
-
-      {/* Plan cards */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {PLANS.map(p => <PlanCard key={p.name} plan={p} />)}
-      </div>
-
-      {/* Included in every plan */}
-      <section className="mt-16 border-t border-paper-200 pt-12">
-        <h2
-          className="font-display mb-2"
-          style={{ fontSize: 28, letterSpacing: '-0.025em', fontWeight: 380 }}
-        >
-          Included in every plan
-        </h2>
-        <p className="mb-8 text-[15px] text-paper-600">Every plan ships with these, from Free up.</p>
-        <ul className="grid gap-x-8 gap-y-3 sm:grid-cols-2">
-          {FLOOR_FEATURES.map(f => (
-            <li key={f} className="flex items-baseline gap-2.5 text-[15px] text-paper-700">
-              <span className="text-brand-accent" aria-hidden>✓</span>
-              {f}
-            </li>
-          ))}
-        </ul>
-      </section>
 
       {/* Why Butterbook? */}
       <section className="mt-16 grid items-start gap-12 border-t border-paper-200 pt-12 lg:grid-cols-[260px_1fr]">
@@ -202,7 +170,7 @@ export default function PricingPage() {
               </tr>
             </thead>
             <tbody>
-              {MATRIX.map((row, ri) => (
+              {MATRIX.map((row) => (
                 <tr key={row.label}>
                   <td className="border-t border-paper-200 px-5 py-3.5 font-medium text-ink">
                     {row.label}
@@ -291,8 +259,8 @@ export default function PricingPage() {
         </p>
       </section>
 
-      {/* FAQ */}
-      <section className="mt-16 border-t border-paper-200 pt-12" style={{ maxWidth: 800 }}>
+      {/* FAQ — full width */}
+      <section className="mt-16 border-t border-paper-200 pt-12">
         <h2
           className="font-display mb-2"
           style={{ fontSize: 28, letterSpacing: '-0.025em', fontWeight: 380 }}
@@ -314,8 +282,7 @@ export default function PricingPage() {
         <p className="mb-8 text-[16px] text-paper-600">No credit card. Cancel any time.</p>
         <a
           href={`${MARKETING_URL}/register`}
-          className="btn"
-          style={{ fontSize: 16, padding: '14px 32px' }}
+          className="inline-flex items-center justify-center gap-1.5 rounded-md bg-brand-accent px-6 py-3.5 text-[15px] font-medium text-brand-on-accent shadow-[0_1px_0_rgb(0_0_0/0.08)] transition hover:-translate-y-px hover:bg-brand-accent/90"
         >
           Start free
         </a>
@@ -330,7 +297,7 @@ function PlanCard({ plan }: { plan: Plan }) {
       className={`relative flex flex-col rounded-xl border p-6 ${
         plan.accent
           ? 'border-brand-accent bg-white shadow-[0_4px_14px_rgb(0_0_0/0.06),0_0_0_1px_rgb(0_0_0/0.03)]'
-          : 'border-paper-200 bg-paper-50 shadow-[0_1px_0_rgb(0_0_0/0.025)]'
+          : 'border-paper-200 bg-white shadow-[0_1px_2px_rgb(0_0_0/0.04)]'
       }`}
     >
       {plan.accent && (

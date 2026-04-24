@@ -80,6 +80,7 @@ export function registerEventRoutes(app: FastifyInstance): void {
         capacity: body.capacity ?? null,
         waitlistEnabled: body.waitlistEnabled ?? false,
         waitlistAutoPromote: body.waitlistAutoPromote ?? false,
+        membershipRequiredTierId: body.membershipRequiredTierId ?? null,
         formFields: body.formFields,
         slug: body.slug ?? null,
         isPublished: false,
@@ -164,6 +165,7 @@ export function registerEventRoutes(app: FastifyInstance): void {
             capacity: body.capacity ?? null,
             waitlist_enabled: body.waitlistEnabled ?? false,
             waitlist_auto_promote: body.waitlistAutoPromote ?? false,
+            membership_required_tier_id: body.membershipRequiredTierId ?? null,
             form_fields: serializeFormFields(body.formFields) ?? null,
             is_published: false,
           })),
@@ -234,6 +236,7 @@ export function registerEventRoutes(app: FastifyInstance): void {
       if (body.capacity !== undefined) updates.capacity = body.capacity;
       if (body.waitlistEnabled !== undefined) updates.waitlist_enabled = body.waitlistEnabled;
       if (body.waitlistAutoPromote !== undefined) updates.waitlist_auto_promote = body.waitlistAutoPromote;
+      if (body.membershipRequiredTierId !== undefined) updates.membership_required_tier_id = body.membershipRequiredTierId;
       if (body.formFields !== undefined) updates.form_fields = serializeFormFields(body.formFields);
       if (body.locationId !== undefined) {
         await assertLocationExists(tx, orgId, body.locationId);
@@ -309,6 +312,7 @@ export function registerEventRoutes(app: FastifyInstance): void {
           'capacity',
           'waitlist_enabled',
           'waitlist_auto_promote',
+          'membership_required_tier_id',
           'form_fields',
         ])
         .where('id', '=', eventId)
@@ -332,6 +336,7 @@ export function registerEventRoutes(app: FastifyInstance): void {
         capacity: body.capacity === undefined ? source.capacity : body.capacity,
         waitlistEnabled: body.waitlistEnabled ?? source.waitlist_enabled,
         waitlistAutoPromote: body.waitlistAutoPromote ?? source.waitlist_auto_promote,
+        membershipRequiredTierId: body.membershipRequiredTierId === undefined ? source.membership_required_tier_id : body.membershipRequiredTierId,
         formFields: (source.form_fields as unknown) ?? null,
         slug: body.slug ?? null,
         isPublished: false,
@@ -432,6 +437,7 @@ interface EventInsertInput {
   capacity: number | null;
   waitlistEnabled: boolean;
   waitlistAutoPromote: boolean;
+  membershipRequiredTierId: string | null;
   formFields: unknown;
   slug: string | null;
   isPublished: boolean;
@@ -451,6 +457,7 @@ async function insertEvent(tx: Tx, input: EventInsertInput): Promise<{ id: strin
       capacity: input.capacity,
       waitlist_enabled: input.waitlistEnabled,
       waitlist_auto_promote: input.waitlistAutoPromote,
+      membership_required_tier_id: input.membershipRequiredTierId,
       form_fields: serializeFormFields(input.formFields) ?? null,
       slug: input.slug,
       public_id: newPublicId(),
@@ -526,6 +533,7 @@ function publicEvent(e: {
   capacity: number | null;
   waitlist_enabled: boolean;
   waitlist_auto_promote: boolean;
+  membership_required_tier_id: string | null;
   form_fields: unknown;
   is_published: boolean;
   series_id: string | null;
@@ -552,6 +560,7 @@ function publicEvent(e: {
     capacity: e.capacity,
     waitlistEnabled: e.waitlist_enabled,
     waitlistAutoPromote: e.waitlist_auto_promote,
+    membershipRequiredTierId: e.membership_required_tier_id,
     formFields: e.form_fields,
     isPublished: e.is_published,
     series: seriesId

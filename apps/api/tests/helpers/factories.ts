@@ -18,11 +18,15 @@ export async function truncateAll(): Promise<void> {
   await db.deleteFrom('notification_suppressions').execute();
   await db.deleteFrom('notification_templates').execute();
   await db.deleteFrom('event_outbox').execute();
+  await db.deleteFrom('guest_passes').execute();
+  await db.deleteFrom('membership_payments').execute();
+  await db.deleteFrom('memberships').execute();
   await db.deleteFrom('waitlist_entries').execute();
   await db.deleteFrom('visits').execute();
   await db.deleteFrom('visitor_segments').execute();
   await db.deleteFrom('visitors').execute();
   await db.deleteFrom('events').execute();
+  await db.deleteFrom('membership_tiers').execute();
   await db.deleteFrom('event_series').execute();
   await db.deleteFrom('invitations').execute();
   await db.deleteFrom('member_roles').execute();
@@ -35,6 +39,7 @@ export async function truncateAll(): Promise<void> {
   await db.deleteFrom('location_hours').execute();
   await db.deleteFrom('locations').execute();
   await db.deleteFrom('org_booking_policies').execute();
+  await db.deleteFrom('org_membership_policies').execute();
   await db.deleteFrom('org_booking_page').execute();
   await db.deleteFrom('orgs').execute();
   await db.deleteFrom('users').execute();

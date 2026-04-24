@@ -56,4 +56,58 @@ export const DEFAULT_TEMPLATES: DefaultTemplate[] = [
     bodyText:
       '{{inviterName}} has invited you to join {{orgName}} on Butterbook.\n\nAccept invitation: {{acceptUrl}}',
   },
+  {
+    templateKey: 'membership.welcome',
+    subject: 'Your {{tierName}} membership is active',
+    bodyHtml:
+      '<p>Hi {{visitorName}},</p><p>Your {{tierName}} membership at {{orgName}} is active.</p>{{#if expiresAt}}<p>Membership expires {{expiresAt}}.</p>{{/if}}',
+    bodyText:
+      'Hi {{visitorName}},\n\nYour {{tierName}} membership at {{orgName}} is active.\n\n{{#if expiresAt}}Membership expires {{expiresAt}}.{{/if}}',
+  },
+  {
+    templateKey: 'membership.renewal_reminder',
+    subject: 'Your {{orgName}} membership renews soon',
+    bodyHtml:
+      '<p>Hi {{visitorName}},</p><p>Your {{tierName}} membership expires soon.</p>',
+    bodyText:
+      'Hi {{visitorName}},\n\nYour {{tierName}} membership expires soon.',
+  },
+  {
+    templateKey: 'membership.expired',
+    subject: 'Your {{orgName}} membership has expired',
+    bodyHtml:
+      '<p>Hi {{visitorName}},</p><p>Your {{tierName}} membership has expired.</p>',
+    bodyText:
+      'Hi {{visitorName}},\n\nYour {{tierName}} membership has expired.',
+  },
+  {
+    templateKey: 'membership.lapsed',
+    subject: 'Your {{orgName}} membership has lapsed',
+    bodyHtml:
+      '<p>Hi {{visitorName}},</p><p>Your {{tierName}} membership has lapsed.</p>',
+    bodyText:
+      'Hi {{visitorName}},\n\nYour {{tierName}} membership has lapsed.',
+  },
+  {
+    templateKey: 'membership.cancelled',
+    subject: 'Your {{orgName}} membership was cancelled',
+    bodyHtml:
+      '<p>Hi {{visitorName}},</p><p>Your {{tierName}} membership was cancelled.</p>',
+    bodyText:
+      'Hi {{visitorName}},\n\nYour {{tierName}} membership was cancelled.',
+  },
+  {
+    templateKey: 'membership.payment_failed',
+    subject: 'Membership payment failed',
+    bodyHtml:
+      '<p>Hi {{visitorName}},</p><p>We could not process payment for your {{tierName}} membership.</p>',
+    bodyText:
+      'Hi {{visitorName}},\n\nWe could not process payment for your {{tierName}} membership.',
+  },
+  {
+    templateKey: 'broadcast.generic',
+    subject: '{{subject}}',
+    bodyHtml: '{{{bodyHtml}}}',
+    bodyText: '{{bodyText}}',
+  },
 ];

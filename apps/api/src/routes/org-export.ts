@@ -9,7 +9,7 @@ const orgParam = z.object({ orgId: z.string().uuid() });
 // Tables dumped in the export. Order chosen so a consumer can reconstruct
 // referential integrity (orgs → locations → hours/overrides/closed_days →
 // members/roles/permissions → event_series → events → visits/waitlist →
-// invitations → contacts → audit_log).
+// invitations → contacts → memberships → audit_log).
 const EXPORT_SECTIONS = [
   'locations',
   'location_hours',
@@ -26,6 +26,11 @@ const EXPORT_SECTIONS = [
   'invitations',
   'visitors',
   'visitor_segments',
+  'org_membership_policies',
+  'membership_tiers',
+  'memberships',
+  'membership_payments',
+  'guest_passes',
   'audit_log',
 ] as const;
 type ExportSection = (typeof EXPORT_SECTIONS)[number];
@@ -137,6 +142,16 @@ async function pageSection(tx: Tx, section: ExportSection, offset: number, limit
       return tx.selectFrom('visitors').selectAll().limit(limit).offset(offset).execute() as unknown as Array<Record<string, unknown>>;
     case 'visitor_segments':
       return tx.selectFrom('visitor_segments').selectAll().limit(limit).offset(offset).execute() as unknown as Array<Record<string, unknown>>;
+    case 'org_membership_policies':
+      return tx.selectFrom('org_membership_policies').selectAll().limit(limit).offset(offset).execute() as unknown as Array<Record<string, unknown>>;
+    case 'membership_tiers':
+      return tx.selectFrom('membership_tiers').selectAll().limit(limit).offset(offset).execute() as unknown as Array<Record<string, unknown>>;
+    case 'memberships':
+      return tx.selectFrom('memberships').selectAll().limit(limit).offset(offset).execute() as unknown as Array<Record<string, unknown>>;
+    case 'membership_payments':
+      return tx.selectFrom('membership_payments').selectAll().limit(limit).offset(offset).execute() as unknown as Array<Record<string, unknown>>;
+    case 'guest_passes':
+      return tx.selectFrom('guest_passes').selectAll().limit(limit).offset(offset).execute() as unknown as Array<Record<string, unknown>>;
     case 'audit_log':
       return tx.selectFrom('audit_log').selectAll().limit(limit).offset(offset).execute() as unknown as Array<Record<string, unknown>>;
   }

@@ -41,6 +41,11 @@ const TENANT_TABLES = new Set([
   'org_booking_page',
   'visitors',
   'visitor_segments',
+  'org_membership_policies',
+  'membership_tiers',
+  'memberships',
+  'membership_payments',
+  'guest_passes',
 ]);
 
 const MUTATING_METHODS = new Set(['selectFrom', 'insertInto', 'updateTable', 'deleteFrom']);

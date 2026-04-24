@@ -108,6 +108,11 @@ export async function createOrgWithOwner(input: {
       .values({ org_id: org.id })
       .execute();
 
+    await tx
+      .insertInto('org_membership_policies')
+      .values({ org_id: org.id })
+      .execute();
+
     // Seed default booking-page content row so admins can GET/PATCH without a
     // pre-existing row dance.
     await tx

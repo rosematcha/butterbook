@@ -31,6 +31,88 @@ export interface DB {
   org_booking_page: OrgBookingPageTable;
   visitors: VisitorsTable;
   visitor_segments: VisitorSegmentsTable;
+  org_membership_policies: OrgMembershipPoliciesTable;
+  membership_tiers: MembershipTiersTable;
+  memberships: MembershipsTable;
+  membership_payments: MembershipPaymentsTable;
+  guest_passes: GuestPassesTable;
+}
+
+export interface OrgMembershipPoliciesTable {
+  org_id: string;
+  enabled: Generated<boolean>;
+  grace_period_days: Generated<number>;
+  renewal_reminder_days: Generated<number[]>;
+  self_cancel_enabled: Generated<boolean>;
+  self_update_enabled: Generated<boolean>;
+  public_page_enabled: Generated<boolean>;
+  updated_at: Generated<Timestamp>;
+}
+
+export interface MembershipTiersTable {
+  id: Generated<string>;
+  org_id: string;
+  slug: string;
+  name: string;
+  description: string | null;
+  price_cents: number;
+  billing_interval: 'year' | 'month' | 'lifetime' | 'one_time';
+  duration_days: number | null;
+  guest_passes_included: Generated<number>;
+  member_only_event_access: Generated<boolean>;
+  stripe_price_id: string | null;
+  max_active: number | null;
+  sort_order: Generated<number>;
+  active: Generated<boolean>;
+  deleted_at: Timestamp | null;
+  created_at: Generated<Timestamp>;
+  updated_at: Generated<Timestamp>;
+}
+
+export interface MembershipsTable {
+  id: Generated<string>;
+  org_id: string;
+  visitor_id: string;
+  tier_id: string;
+  status: 'pending' | 'active' | 'expired' | 'lapsed' | 'cancelled' | 'refunded';
+  started_at: Timestamp | null;
+  expires_at: Timestamp | null;
+  auto_renew: Generated<boolean>;
+  stripe_subscription_id: string | null;
+  stripe_latest_invoice_id: string | null;
+  cancelled_at: Timestamp | null;
+  cancelled_reason: string | null;
+  metadata: ColumnType<Jsonb, string, string>;
+  created_at: Generated<Timestamp>;
+  updated_at: Generated<Timestamp>;
+}
+
+export interface MembershipPaymentsTable {
+  id: Generated<string>;
+  membership_id: string;
+  org_id: string;
+  amount_cents: number;
+  currency: string;
+  source: 'manual' | 'stripe';
+  stripe_charge_id: string | null;
+  stripe_invoice_id: string | null;
+  paid_at: Timestamp | null;
+  refunded_at: Timestamp | null;
+  refunded_amount_cents: number | null;
+  notes: string | null;
+  created_at: Generated<Timestamp>;
+}
+
+export interface GuestPassesTable {
+  id: Generated<string>;
+  membership_id: string;
+  org_id: string;
+  code: string;
+  qr_token: Generated<string>;
+  issued_at: Generated<Timestamp>;
+  expires_at: Timestamp | null;
+  redeemed_at: Timestamp | null;
+  redeemed_by_visit_id: string | null;
 }
 
 export interface VisitorsTable {
@@ -251,6 +333,7 @@ export interface EventsTable {
   capacity: number | null;
   waitlist_enabled: Generated<boolean>;
   waitlist_auto_promote: Generated<boolean>;
+  membership_required_tier_id: string | null;
   form_fields: Jsonb | null;
   is_published: Generated<boolean>;
   created_at: Generated<Timestamp>;

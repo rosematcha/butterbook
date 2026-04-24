@@ -79,8 +79,8 @@ export function SubPageNav() {
         ) : (
           <a href={`${MARKETING_URL}/login`} className="btn-ghost">Sign in</a>
         )}
-        <a href={`${MARKETING_URL}/register?ref=demo`} className="btn">
-          Get started
+        <a href={`${MARKETING_URL}/register`} className="btn inline-flex items-center gap-1.5">
+          Book a demo <ArrowIcon size={14} />
         </a>
       </div>
     </header>

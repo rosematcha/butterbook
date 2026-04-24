@@ -4,6 +4,8 @@ import { registerForEventSchema, type Permission } from '@butterbook/shared';
 import { getDb, withOrgContext, withOrgRead } from '../db/index.js';
 import { NotFoundError } from '../errors/index.js';
 import { createVisitInTx } from '../services/booking.js';
+import { upsertVisitorFromFormResponse } from '../services/contacts.js';
+import { activeMembershipSatisfiesTier } from '../services/memberships.js';
 import { handleIdempotent } from '../middleware/idempotency.js';
 import { buildCalendar } from '../services/ical.js';
 
@@ -86,6 +88,11 @@ export function registerPublicEventRoutes(app: FastifyInstance): void {
 
       const result = await handleIdempotent(req, reply, 'event.register', ev.org_id, async () => {
         const r = await withOrgContext(ev.org_id, actor, async ({ tx, audit }) => {
+          if (ev.membership_required_tier_id) {
+            const visitorId = await upsertVisitorFromFormResponse(tx, ev.org_id, body.formResponse);
+            const eligible = visitorId ? await activeMembershipSatisfiesTier(tx, ev.org_id, visitorId, ev.membership_required_tier_id) : false;
+            if (!eligible) throw new NotFoundError('Event registration is only available to eligible members.');
+          }
           const res = await createVisitInTx(tx, {
             orgId: ev.org_id,
             locationId: ev.location_id,
@@ -127,6 +134,7 @@ interface ResolvedEvent {
   is_published: boolean;
   slug: string | null;
   public_id: string;
+  membership_required_tier_id: string | null;
 }
 
 async function resolveEvent(p: { orgSlug: string; slugPrefix: string; slugOrPublicId: string }): Promise<ResolvedEvent> {
@@ -162,5 +170,6 @@ function publicEvent(e: ResolvedEvent) {
     slug: e.slug,
     publicId: e.public_id,
     isPublished: e.is_published,
+    membershipRequiredTierId: e.membership_required_tier_id,
   };
 }

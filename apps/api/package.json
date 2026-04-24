@@ -18,6 +18,7 @@
     "migrate:down": "pnpm migrate down",
     "bootstrap": "tsx src/scripts/bootstrap.ts",
     "cleanup:idempotency": "tsx src/scripts/cleanup-idempotency.ts",
+    "membership:sweep": "tsx src/scripts/membership-sweep.ts",
     "prune:demo": "tsx src/scripts/prune-demo-orgs.ts"
   },
   "dependencies": {

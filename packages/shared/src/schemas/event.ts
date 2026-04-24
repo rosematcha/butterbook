@@ -12,6 +12,7 @@ export const createEventSchema = z
     capacity: z.number().int().positive().nullable().optional(),
     waitlistEnabled: z.boolean().optional(),
     waitlistAutoPromote: z.boolean().optional(),
+    membershipRequiredTierId: uuidSchema.nullable().optional(),
     formFields: formFieldsArraySchema.nullable().optional(),
     slug: slugSchema.nullable().optional(),
   })
@@ -30,6 +31,7 @@ export const updateEventSchema = z
     capacity: z.number().int().positive().nullable().optional(),
     waitlistEnabled: z.boolean().optional(),
     waitlistAutoPromote: z.boolean().optional(),
+    membershipRequiredTierId: uuidSchema.nullable().optional(),
     formFields: formFieldsArraySchema.nullable().optional(),
   })
   .strict();
@@ -57,6 +59,7 @@ export const createEventSeriesSchema = z
     capacity: z.number().int().positive().nullable().optional(),
     waitlistEnabled: z.boolean().optional(),
     waitlistAutoPromote: z.boolean().optional(),
+    membershipRequiredTierId: uuidSchema.nullable().optional(),
     formFields: formFieldsArraySchema.nullable().optional(),
     slugBase: slugSchema.nullable().optional(),
     recurrence: z.object({
@@ -79,6 +82,7 @@ export const duplicateEventSchema = z
     capacity: z.number().int().positive().nullable().optional(),
     waitlistEnabled: z.boolean().optional(),
     waitlistAutoPromote: z.boolean().optional(),
+    membershipRequiredTierId: uuidSchema.nullable().optional(),
     slug: slugSchema.nullable().optional(),
   })
   .strict()

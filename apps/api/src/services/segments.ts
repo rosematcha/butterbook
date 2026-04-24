@@ -43,8 +43,20 @@ export function segmentPredicate(filter: Filter): RawBuilder<boolean> {
   }
   if (typeof filter.hasMembership === 'boolean') {
     return filter.hasMembership
-      ? sql<boolean>`false`
-      : sql<boolean>`true`;
+      ? sql<boolean>`EXISTS (
+        SELECT 1 FROM memberships m
+        WHERE m.visitor_id = visitors.id
+          AND m.org_id = visitors.org_id
+          AND m.status = 'active'
+          AND (m.expires_at IS NULL OR m.expires_at > now())
+      )`
+      : sql<boolean>`NOT EXISTS (
+        SELECT 1 FROM memberships m
+        WHERE m.visitor_id = visitors.id
+          AND m.org_id = visitors.org_id
+          AND m.status = 'active'
+          AND (m.expires_at IS NULL OR m.expires_at > now())
+      )`;
   }
   return sql<boolean>`true`;
 }
