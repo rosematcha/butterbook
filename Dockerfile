@@ -59,4 +59,4 @@ COPY --from=build /out/package.json ./package.json
 COPY --from=build /out/migrations ./src/db/migrations
 
 EXPOSE 3001
-CMD ["node", "dist/index.js"]
+CMD ["sh", "-c", "pnpm migrate up && exec node dist/index.js"]
