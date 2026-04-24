@@ -30,6 +30,7 @@ const SETTINGS_NAV: NavItem[] = [
   { href: '/app/branding', label: 'Branding', prefetch: 'branding', requires: 'admin.manage_org' },
   { href: '/app/booking-page', label: 'Booking page', requires: 'admin.manage_org' },
   { href: '/app/booking-policies', label: 'Booking policies', requires: 'admin.manage_org' },
+  { href: '/app/memberships/policies', label: 'Membership policies', requires: 'memberships.manage' },
   { href: '/app/notifications', label: 'Notifications', requires: 'notifications.manage' },
   { href: '/app/audit', label: 'Audit log', prefetch: 'audit', requires: 'superadmin' },
 ];
@@ -47,6 +48,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     { href: '/app/visits', label: `All ${term.nounPlural}`, prefetch: 'visits', requires: 'visits.view_all' },
     { href: '/app/events', label: 'Events', prefetch: 'events', requires: 'events.view_registrations' },
     { href: '/app/contacts', label: 'Contacts', prefetch: 'contacts', requires: 'contacts.view_all' },
+    { href: '/app/memberships', label: 'Memberships', prefetch: 'memberships', requires: 'memberships.view_all' },
+    { href: '/app/memberships/tiers', label: 'Tiers', prefetch: 'membershipTiers', requires: 'memberships.view_all' },
   ];
 
   // While /auth/me is still loading we don't yet know what the user can do, so

@@ -37,6 +37,17 @@ export default function AuditPage() {
     enabled: !!activeOrgId && perms.isSuperadmin,
   });
 
+  const filtered = useMemo(() => {
+    const rows = audit.data?.data ?? [];
+    const needle = q.trim().toLowerCase();
+    if (!needle) return rows;
+    return rows.filter((r) =>
+      `${r.action} ${r.actor_type} ${r.target_type} ${r.actor_id ?? ''} ${r.target_id}`
+        .toLowerCase()
+        .includes(needle),
+    );
+  }, [audit.data?.data, q]);
+
   if (!perms.loading && !perms.isSuperadmin) {
     return (
       <EmptyState
@@ -45,17 +56,6 @@ export default function AuditPage() {
       />
     );
   }
-
-  const rows = audit.data?.data ?? [];
-  const filtered = useMemo(() => {
-    const needle = q.trim().toLowerCase();
-    if (!needle) return rows;
-    return rows.filter((r) =>
-      `${r.action} ${r.actor_type} ${r.target_type} ${r.actor_id ?? ''} ${r.target_id}`
-        .toLowerCase()
-        .includes(needle),
-    );
-  }, [rows, q]);
 
   if (audit.isError) {
     return (

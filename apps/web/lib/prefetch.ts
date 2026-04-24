@@ -37,6 +37,12 @@ export function makePrefetchers(qc: QueryClient, orgId: string | null) {
       ]),
     contacts: () => prefetch(['contacts', orgId, 'page=1&limit=50'], `/api/v1/orgs/${orgId}/contacts?page=1&limit=50`),
     segments: () => prefetch(['segments', orgId], `/api/v1/orgs/${orgId}/segments`),
+    memberships: () =>
+      Promise.all([
+        prefetch(['memberships', orgId, 'page=1&limit=50'], `/api/v1/orgs/${orgId}/memberships?page=1&limit=50`),
+        prefetch(['membership-tiers', orgId], `/api/v1/orgs/${orgId}/membership-tiers`),
+      ]),
+    membershipTiers: () => prefetch(['membership-tiers', orgId], `/api/v1/orgs/${orgId}/membership-tiers`),
     locations: () => prefetch(['locations', orgId], `/api/v1/orgs/${orgId}/locations`),
     form: () => prefetch(['form-fields', orgId], `/api/v1/orgs/${orgId}/form`),
     members: () =>
@@ -59,6 +65,8 @@ const EMPTY = {
   events: noop,
   contacts: noop,
   segments: noop,
+  memberships: noop,
+  membershipTiers: noop,
   locations: noop,
   form: noop,
   members: noop,

@@ -35,12 +35,20 @@ interface EventRow {
   publicId: string;
   locationId: string;
   waitlistEnabled: boolean;
+  membershipRequiredTierId: string | null;
   series: EventSeriesMeta | null;
 }
 
 interface Location {
   id: string;
   name: string;
+}
+
+interface MembershipTier {
+  id: string;
+  name: string;
+  active: boolean;
+  sortOrder: number;
 }
 
 type ComposerState =
@@ -88,6 +96,12 @@ function EventsPageInner() {
   const locations = useQuery({
     queryKey: ['locations', activeOrgId],
     queryFn: () => apiGet<{ data: Location[] }>(`/api/v1/orgs/${activeOrgId}/locations`),
+    enabled: !!activeOrgId,
+    staleTime: 5 * 60_000,
+  });
+  const membershipTiers = useQuery({
+    queryKey: ['membership-tiers', activeOrgId],
+    queryFn: () => apiGet<{ data: MembershipTier[] }>(`/api/v1/orgs/${activeOrgId}/membership-tiers`),
     enabled: !!activeOrgId,
     staleTime: 5 * 60_000,
   });
@@ -149,6 +163,7 @@ function EventsPageInner() {
         <EventComposer
           key={composer.kind === 'duplicate' ? `duplicate-${composer.source.id}` : 'create'}
           locations={locations.data?.data ?? []}
+          membershipTiers={membershipTiers.data?.data ?? []}
           sourceEvent={composer.kind === 'duplicate' ? composer.source : null}
           onCancel={() => setComposer(null)}
           onCreated={(message) => {
@@ -189,6 +204,7 @@ function EventsPageInner() {
                         <div className="font-medium text-ink">{event.title}</div>
                         <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-paper-500">
                           {event.series ? <span className="badge-accent">Series</span> : null}
+                          {event.membershipRequiredTierId ? <span className="badge">Members only</span> : null}
                           {event.series?.occurrenceNumber ? (
                             <span className="badge">
                               Occurrence {event.series.occurrenceNumber}
@@ -244,11 +260,13 @@ function EventsPageInner() {
 
 function EventComposer({
   locations,
+  membershipTiers,
   sourceEvent,
   onCancel,
   onCreated,
 }: {
   locations: Location[];
+  membershipTiers: MembershipTier[];
   sourceEvent: EventRow | null;
   onCancel: () => void;
   onCreated: (message: string) => void;
@@ -263,6 +281,7 @@ function EventComposer({
   const [capacity, setCapacity] = useState(sourceEvent?.capacity != null ? String(sourceEvent.capacity) : '');
   const [slug, setSlug] = useState('');
   const [waitlistEnabled, setWaitlistEnabled] = useState(sourceEvent?.waitlistEnabled ?? false);
+  const [membershipRequiredTierId, setMembershipRequiredTierId] = useState(sourceEvent?.membershipRequiredTierId ?? '');
   const [weekday, setWeekday] = useState(weekdayFromInput(sourceEvent ? shiftLocalInputDays(toLocalInput(sourceEvent.startsAt), 7) : '') ?? 1);
   const [endMode, setEndMode] = useState<RecurrenceEndMode>('until_date');
   const [untilDate, setUntilDate] = useState(sourceEvent ? shiftLocalInputDays(toLocalInput(sourceEvent.startsAt), 35).slice(0, 10) : '');
@@ -291,6 +310,7 @@ function EventComposer({
         startsAt: new Date(startsAt).toISOString(),
         endsAt: new Date(endsAt).toISOString(),
         waitlistEnabled,
+        membershipRequiredTierId: membershipRequiredTierId || null,
       };
       baseBody.capacity = capacity.trim() === '' ? null : Number(capacity);
 
@@ -432,6 +452,21 @@ function EventComposer({
           {mode === 'recurring' ? (
             <span className="mt-1 block text-xs text-paper-500">Occurrences become `slug-base-YYYYMMDD`.</span>
           ) : null}
+        </label>
+        <label className="block">
+          <span className="text-sm font-medium">Member-only tier</span>
+          <select
+            className="input mt-1"
+            value={membershipRequiredTierId}
+            onChange={(e) => setMembershipRequiredTierId(e.target.value)}
+          >
+            <option value="">Open to everyone</option>
+            {membershipTiers.filter((tier) => tier.active).map((tier) => (
+              <option key={tier.id} value={tier.id}>
+                {tier.name}
+              </option>
+            ))}
+          </select>
         </label>
       </div>
 
