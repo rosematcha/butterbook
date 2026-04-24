@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import { IS_DEMO } from '../lib/env';
 import { DemoEnter } from './components/demo-enter';
 import { FAQList } from './components/faq-list';
+import { SubPageFooter, SubPageNav } from './components/sub-page';
 
 export default function Home() {
   // On the demo deployment, / is the login screen — the first thing a visitor
@@ -12,7 +13,7 @@ export default function Home() {
   if (IS_DEMO) return <DemoEnter />;
   return (
     <div className="mk">
-      <MkNav />
+      <SubPageNav />
       <MkHero />
       <MkProof />
       <MkTimelineSection />
@@ -20,49 +21,8 @@ export default function Home() {
       <MkKiosk />
       <MkPricing />
       <MkFAQ />
-      <MkFooter />
+      <SubPageFooter maxWidth={1280} />
     </div>
-  );
-}
-
-/* ---------- Wordmark ---------- */
-function Wordmark({ size = 22 }: { size?: number }) {
-  return (
-    <span className="inline-flex items-center gap-2.5 leading-none">
-      <svg width={size} height={size} viewBox="0 0 20 20" aria-hidden="true">
-        <circle cx="4" cy="10" r="2.2" className="fill-brand-accent" />
-        <circle cx="16" cy="10" r="2.2" className="fill-brand-accent" />
-        <rect x="4" y="9.4" width="12" height="1.2" className="fill-brand-accent" opacity="0.55" />
-      </svg>
-      <span
-        style={{ fontSize: size * 0.95, lineHeight: 1 }}
-        className="font-display font-medium tracking-tight-er text-ink"
-      >
-        Butterbook
-      </span>
-    </span>
-  );
-}
-
-/* ---------- Nav ---------- */
-function MkNav() {
-  return (
-    <header className="sticky top-0 z-10 flex items-center justify-between border-b border-paper-200 px-6 py-5 backdrop-blur-md sm:px-12"
-      style={{ background: 'color-mix(in oklch, #fbfaf7 88%, transparent)' }}>
-      <Wordmark size={22} />
-      <nav className="hidden gap-7 text-sm text-paper-600 md:flex">
-        <a href="#product">Product</a>
-        <a href="#audience">Who it&apos;s for</a>
-        <a href="#pricing">Pricing</a>
-        <a href="#faq">FAQ</a>
-      </nav>
-      <div className="flex gap-2.5">
-        <Link href="/login" className="btn-ghost">Sign in</Link>
-        <Link href="/register" className="btn inline-flex items-center gap-1.5">
-          Book a demo <ArrowIcon />
-        </Link>
-      </div>
-    </header>
   );
 }
 
@@ -715,42 +675,6 @@ function MkFAQ() {
       </h2>
       <FAQList items={qs} />
     </section>
-  );
-}
-
-/* ---------- Footer ---------- */
-function MkFooter() {
-  const cols: Array<[string, string[]]> = [
-    ['Product', ['Today', 'Register', 'Kiosk', 'Form builder']],
-    ['For', ['Museums', 'Studios', 'Solo practitioners', 'Community spaces']],
-    ['Company', ['About', 'Changelog', 'Privacy', 'Terms']],
-    ['Support', ['Docs', 'Status', 'Contact', 'Email us']],
-  ];
-  return (
-    <footer className="border-t border-paper-200 bg-paper-100 px-6 pb-10 pt-20 sm:px-12">
-      <div className="mx-auto grid max-w-[1280px] gap-12 md:grid-cols-[2fr_1fr_1fr_1fr_1fr]">
-        <div>
-          <Wordmark size={20} />
-          <p className="mt-4 max-w-[30ch] text-[13px] text-paper-600">
-            Reservation software for places that know their guests by name.
-          </p>
-        </div>
-        {cols.map(([title, links]) => (
-          <div key={title}>
-            <div className="eyebrow mb-3.5">{title}</div>
-            <ul className="grid list-none gap-2 p-0 text-sm text-paper-600">
-              {links.map((l) => (
-                <li key={l}>{l}</li>
-              ))}
-            </ul>
-          </div>
-        ))}
-      </div>
-      <div className="mx-auto mt-12 flex max-w-[1280px] flex-col justify-between gap-2 border-t border-paper-200 pt-6 text-xs text-paper-500 md:flex-row">
-        <span>© {new Date().getFullYear()} Butterbook. All rights reserved.</span>
-        <span>Built for small organizations.</span>
-      </div>
-    </footer>
   );
 }
 

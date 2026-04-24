@@ -68,10 +68,9 @@ export function SubPageNav() {
     >
       <Wordmark size={22} />
       <nav className="hidden gap-7 text-sm text-paper-600 md:flex">
-        <a href={`${MARKETING_URL}/#product`}>Product</a>
-        <a href={`${MARKETING_URL}/#audience`}>Who it&apos;s for</a>
-        <a href={`${MARKETING_URL}/#pricing`}>Pricing</a>
-        <a href={`${MARKETING_URL}/#faq`}>FAQ</a>
+        <a href={`${MARKETING_URL}/how-it-works`}>How it works</a>
+        <a href={`${MARKETING_URL}/pricing`}>Pricing</a>
+        <a href={`${MARKETING_URL}/demo`}>Demo</a>
       </nav>
       <div className="flex gap-2.5">
         {IS_DEMO ? (
@@ -145,23 +144,78 @@ function Breadcrumb({ items }: { items: BreadcrumbSegment[] }) {
 
 /* ---------- Footer ---------- */
 
-function SubPageFooter({ maxWidth }: { maxWidth: number }) {
+export function SubPageFooter({ maxWidth = 1080 }: { maxWidth?: number }) {
   const year = new Date().getFullYear();
+  const signInHref = IS_DEMO ? '/' : `${MARKETING_URL}/login`;
+  const registerHref = `${MARKETING_URL}/register`;
   return (
-    <footer className="border-t border-paper-200 bg-paper-100 px-6 py-8 sm:px-12">
+    <footer className="border-t border-paper-200 bg-paper-100 px-6 pb-10 pt-16 sm:px-12">
       <div
-        className="mx-auto flex flex-wrap items-center justify-between gap-6"
+        className="mx-auto grid gap-12 md:grid-cols-[1.5fr_1fr_1fr_1fr]"
         style={{ maxWidth }}
       >
-        <Wordmark size={17} />
-        <div className="flex gap-[22px] text-[13px] text-paper-600">
-          <a href={`${MARKETING_URL}/#pricing`}>Pricing</a>
-          <a href={`${MARKETING_URL}/#faq`}>FAQ</a>
-          <a href="https://github.com/rosematcha/butterbook">GitHub</a>
+        <div>
+          <Wordmark size={20} />
+          <p className="mt-4 max-w-[32ch] text-[13px] leading-relaxed text-paper-600">
+            Reservation software for places that know their guests by name.
+          </p>
         </div>
-        <span className="text-[12px] text-paper-500">© {year} Butterbook</span>
+        <FooterColumn
+          title="Explore"
+          links={[
+            { label: 'How it works', href: `${MARKETING_URL}/how-it-works` },
+            { label: 'Pricing', href: `${MARKETING_URL}/pricing` },
+            { label: 'Demo', href: `${MARKETING_URL}/demo` },
+          ]}
+        />
+        <FooterColumn
+          title="Get started"
+          links={[
+            { label: 'Sign in', href: signInHref },
+            { label: 'Create an account', href: registerHref },
+          ]}
+        />
+        <FooterColumn
+          title="Project"
+          links={[
+            { label: 'GitHub', href: 'https://github.com/rosematcha/butterbook' },
+            { label: 'Changelog', href: 'https://github.com/rosematcha/butterbook/commits/main' },
+          ]}
+        />
+      </div>
+      <div
+        className="mx-auto mt-14 flex flex-col justify-between gap-2 border-t border-paper-200 pt-6 text-[12px] text-paper-500 md:flex-row"
+        style={{ maxWidth }}
+      >
+        <span>© {year} Butterbook</span>
+        <span>Built for small organizations.</span>
       </div>
     </footer>
+  );
+}
+
+function FooterColumn({
+  title,
+  links,
+}: {
+  title: string;
+  links: Array<{ label: string; href: string }>;
+}) {
+  return (
+    <div>
+      <div className="font-mono mb-3.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-paper-500">
+        {title}
+      </div>
+      <ul className="grid list-none gap-2 p-0 text-[13.5px] text-paper-600">
+        {links.map((l) => (
+          <li key={l.label}>
+            <a href={l.href} className="hover:text-ink">
+              {l.label}
+            </a>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 
