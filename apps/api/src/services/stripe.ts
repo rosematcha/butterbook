@@ -85,6 +85,88 @@ export async function exchangeStripeConnectCode(code: string): Promise<StripeOau
   };
 }
 
+export interface StripeCheckoutSessionInput {
+  orgSlug: string;
+  stripeAccountId: string;
+  membershipId: string;
+  visitorId: string;
+  tierId: string;
+  tierName: string;
+  tierDescription: string | null;
+  amountCents: number;
+  currency: string;
+  billingInterval: 'year' | 'month' | 'lifetime' | 'one_time';
+  customerEmail: string;
+  successUrl?: string | undefined;
+  cancelUrl?: string | undefined;
+}
+
+export interface StripeCheckoutSession {
+  id: string;
+  url: string;
+}
+
+export async function createStripeCheckoutSession(input: StripeCheckoutSessionInput): Promise<StripeCheckoutSession> {
+  const cfg = getConfig();
+  if (!cfg.STRIPE_SECRET_KEY) throw new ConflictError('Stripe secret key is not configured');
+  if (input.amountCents <= 0) throw new ConflictError('Stripe checkout requires a paid membership tier');
+
+  const checkoutBase = cfg.APP_BASE_URL.replace(/\/$/, '');
+  const successUrl = input.successUrl ?? `${checkoutBase}/join/${encodeURIComponent(input.orgSlug)}?checkout=success&session_id={CHECKOUT_SESSION_ID}`;
+  const cancelUrl = input.cancelUrl ?? `${checkoutBase}/join/${encodeURIComponent(input.orgSlug)}?checkout=cancelled`;
+  const isRecurring = input.billingInterval === 'month' || input.billingInterval === 'year';
+
+  const body = new URLSearchParams({
+    mode: isRecurring ? 'subscription' : 'payment',
+    customer_email: input.customerEmail,
+    client_reference_id: input.membershipId,
+    success_url: successUrl,
+    cancel_url: cancelUrl,
+    'line_items[0][quantity]': '1',
+    'line_items[0][price_data][currency]': input.currency,
+    'line_items[0][price_data][unit_amount]': String(input.amountCents),
+    'line_items[0][price_data][product_data][name]': input.tierName,
+    'metadata[orgSlug]': input.orgSlug,
+    'metadata[membershipId]': input.membershipId,
+    'metadata[visitorId]': input.visitorId,
+    'metadata[tierId]': input.tierId,
+  });
+  if (input.tierDescription) {
+    body.set('line_items[0][price_data][product_data][description]', input.tierDescription);
+  }
+  if (isRecurring) {
+    body.set('line_items[0][price_data][recurring][interval]', input.billingInterval);
+    body.set('subscription_data[metadata][membershipId]', input.membershipId);
+    body.set('subscription_data[metadata][visitorId]', input.visitorId);
+    body.set('subscription_data[metadata][tierId]', input.tierId);
+  } else {
+    body.set('payment_intent_data[metadata][membershipId]', input.membershipId);
+    body.set('payment_intent_data[metadata][visitorId]', input.visitorId);
+    body.set('payment_intent_data[metadata][tierId]', input.tierId);
+  }
+
+  const res = await fetch('https://api.stripe.com/v1/checkout/sessions', {
+    method: 'POST',
+    headers: {
+      authorization: `Bearer ${cfg.STRIPE_SECRET_KEY}`,
+      'content-type': 'application/x-www-form-urlencoded',
+      'stripe-account': input.stripeAccountId,
+    },
+    body,
+  });
+  const json = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+  if (!res.ok) {
+    const message = typeof json.error === 'object' && json.error && 'message' in json.error && typeof json.error.message === 'string'
+      ? json.error.message
+      : 'Stripe Checkout Session creation failed';
+    throw new ConflictError(message);
+  }
+  const id = typeof json.id === 'string' ? json.id : '';
+  const url = typeof json.url === 'string' ? json.url : '';
+  if (!id || !url) throw new ConflictError('Stripe Checkout response did not include a session URL');
+  return { id, url };
+}
+
 async function fetchStripeAccountStatus(stripeAccountId: string): Promise<{
   defaultCurrency: string | null;
   chargesEnabled: boolean;

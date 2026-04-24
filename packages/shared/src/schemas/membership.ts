@@ -93,3 +93,17 @@ export const updateMembershipPolicySchema = z
     publicPageEnabled: z.boolean().optional(),
   })
   .strict();
+
+export const publicMembershipOrgParamSchema = z.object({ orgSlug: slugSchema });
+
+export const publicMembershipCheckoutSchema = z
+  .object({
+    tierId: uuidSchema,
+    email: z.string().trim().email().transform((s) => s.toLowerCase()),
+    firstName: z.string().trim().min(1).max(120).optional(),
+    lastName: z.string().trim().min(1).max(120).optional(),
+    phone: z.string().trim().min(1).max(80).optional(),
+    successUrl: z.string().url().optional(),
+    cancelUrl: z.string().url().optional(),
+  })
+  .strict();

@@ -23,6 +23,7 @@ import { getDb } from '../../src/db/index.js';
 
 interface Ctx {
   orgId: string;
+  orgSlug: string;
   otherOrgId: string;
   ownerToken: string;          // superadmin of orgId
   unprivilegedToken: string;    // member of orgId with no roles
@@ -120,6 +121,7 @@ const ROUTES: RouteCase[] = [
   { name: 'GET Stripe status', method: 'GET', url: (c) => `/api/v1/orgs/${c.orgId}/stripe` },
   { name: 'POST Stripe connect URL', method: 'POST', url: (c) => `/api/v1/orgs/${c.orgId}/stripe/connect` },
   { name: 'DELETE Stripe account', method: 'DELETE', url: (c) => `/api/v1/orgs/${c.orgId}/stripe` },
+  { name: 'GET public membership tiers', method: 'GET', url: (c) => `/api/v1/public/orgs/${c.orgSlug}/membership-tiers`, public: true, skip401: true },
 
   // --- members ---
   { name: 'GET members (admin.manage_users)', method: 'GET', url: (c) => `/api/v1/orgs/${c.orgId}/members` },
@@ -370,9 +372,20 @@ describe('route matrix: happy + 401 + 403 + 422 + 404', () => {
       .where('user_id', '=', owner.userId)
       .where('org_id', '=', owner.orgId)
       .executeTakeFirstOrThrow();
+    await getDb()
+      .updateTable('org_membership_policies')
+      .set({ enabled: true, public_page_enabled: true })
+      .where('org_id', '=', owner.orgId)
+      .execute();
+    const orgRow = await getDb()
+      .selectFrom('orgs')
+      .select(['public_slug'])
+      .where('id', '=', owner.orgId)
+      .executeTakeFirstOrThrow();
 
     ctx = {
       orgId: owner.orgId,
+      orgSlug: orgRow.public_slug,
       otherOrgId: other.orgId,
       ownerToken: await loginToken(app, 'owner@example.com'),
       unprivilegedToken: await loginToken(app, 'unpr@example.com'),
