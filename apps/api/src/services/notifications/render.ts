@@ -53,3 +53,7 @@ export function renderTemplate(src: TemplateSource, vars: Record<string, unknown
   const text = hb.compile(src.bodyText, compileOptsText)(vars);
   return { subject, html, text };
 }
+
+export function validateTemplateSource(src: TemplateSource, vars: Record<string, unknown>): void {
+  renderTemplate(src, vars);
+}

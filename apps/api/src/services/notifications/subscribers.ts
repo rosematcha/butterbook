@@ -112,6 +112,14 @@ async function enqueueRendered(
     orgName: org?.name ?? '',
     orgTimezone: org?.timezone ?? 'UTC',
     visitorName: extractVisitorName(payload),
+    eventName: typeof payload.eventName === 'string' ? payload.eventName : typeof payload.title === 'string' ? payload.title : '',
+    eventUrl:
+      typeof payload.eventUrl === 'string'
+        ? payload.eventUrl
+        : typeof payload.slug === 'string' && payload.slug.length > 0
+          ? `${getConfig().APP_BASE_URL}/events/${payload.slug}`
+          : '',
+    inviterName: typeof payload.inviterName === 'string' ? payload.inviterName : 'A team member',
     manageUrl,
     scheduledAtLocal:
       typeof payload.scheduledAt === 'string'

@@ -325,6 +325,7 @@ export interface NotificationTemplatesTable {
   subject: string;
   body_html: string;
   body_text: string;
+  is_customized: Generated<boolean>;
   updated_at: Generated<Timestamp>;
 }
 

@@ -172,6 +172,8 @@ const ROUTES: RouteCase[] = [
   // --- notifications ---
   { name: 'GET notifications/templates', method: 'GET', url: (c) => `/api/v1/orgs/${c.orgId}/notifications/templates` },
   { name: 'GET notifications/templates/:key', method: 'GET', url: (c) => `/api/v1/orgs/${c.orgId}/notifications/templates/visit.confirmation`, notFoundUrl: (c) => `/api/v1/orgs/${c.orgId}/notifications/templates/does.not.exist` },
+  { name: 'PUT notifications/templates/:key', method: 'PUT', url: (c) => `/api/v1/orgs/${c.orgId}/notifications/templates/visit.confirmation`, body: () => ({ subject: 'Updated {{orgName}}', bodyHtml: '<p>Hi {{visitorName}}</p>', bodyText: 'Hi {{visitorName}}' }), invalidBody: () => ({ subject: '', bodyHtml: '<p>Hi</p>', bodyText: 'Hi' }), notFoundUrl: (c) => `/api/v1/orgs/${c.orgId}/notifications/templates/does.not.exist` },
+  { name: 'POST notifications/templates/:key/revert', method: 'POST', url: (c) => `/api/v1/orgs/${c.orgId}/notifications/templates/visit.confirmation/revert`, notFoundUrl: (c) => `/api/v1/orgs/${c.orgId}/notifications/templates/does.not.exist/revert` },
   { name: 'GET notifications/outbox', method: 'GET', url: (c) => `/api/v1/orgs/${c.orgId}/notifications/outbox` },
   { name: 'POST notifications test-send', method: 'POST', url: (c) => `/api/v1/orgs/${c.orgId}/notifications/templates/visit.confirmation/test-send`, body: () => ({ toAddress: 'test@example.com' }), invalidBody: () => ({ toAddress: 'not-an-email' }), notFoundUrl: (c) => `/api/v1/orgs/${c.orgId}/notifications/templates/does.not.exist/test-send` },
 

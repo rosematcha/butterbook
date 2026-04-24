@@ -1,7 +1,7 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { apiGet, apiPost } from '../../../lib/api';
+import { apiGet, apiPost, apiPut } from '../../../lib/api';
 import { useSession } from '../../../lib/session';
 import { Timestamp } from '../../components/timestamp';
 import { EmptyState } from '../../components/empty-state';
@@ -13,6 +13,7 @@ interface TemplateRow {
   subject: string;
   body_html: string;
   body_text: string;
+  is_customized: boolean;
   updated_at: string;
 }
 
@@ -46,7 +47,8 @@ export default function NotificationsPage() {
   const [page, setPage] = useState(1);
   const [testingKey, setTestingKey] = useState<string | null>(null);
   const [testAddress, setTestAddress] = useState('');
-  const [expandedKey, setExpandedKey] = useState<string | null>(null);
+  const [selectedKey, setSelectedKey] = useState<string | null>(null);
+  const [form, setForm] = useState({ subject: '', bodyHtml: '', bodyText: '' });
   const limit = 25;
 
   const templates = useQuery({
@@ -82,6 +84,71 @@ export default function NotificationsPage() {
     },
   });
 
+  const updateTemplate = useMutation({
+    mutationFn: async ({
+      templateKey,
+      values,
+    }: {
+      templateKey: string;
+      values: { subject: string; bodyHtml: string; bodyText: string };
+    }) =>
+      apiPut<{ data: TemplateRow }>(
+        `/api/v1/orgs/${activeOrgId}/notifications/templates/${encodeURIComponent(templateKey)}`,
+        values,
+      ),
+    onSuccess: (res) => {
+      qc.setQueryData<{ data: TemplateRow[] }>(['notif-templates', activeOrgId], (current) => ({
+        data: (current?.data ?? []).map((t) => (t.id === res.data.id ? res.data : t)),
+      }));
+      setForm({
+        subject: res.data.subject,
+        bodyHtml: res.data.body_html,
+        bodyText: res.data.body_text,
+      });
+    },
+  });
+
+  const revertTemplate = useMutation({
+    mutationFn: async (templateKey: string) =>
+      apiPost<{ data: TemplateRow }>(
+        `/api/v1/orgs/${activeOrgId}/notifications/templates/${encodeURIComponent(templateKey)}/revert`,
+      ),
+    onSuccess: (res) => {
+      qc.setQueryData<{ data: TemplateRow[] }>(['notif-templates', activeOrgId], (current) => ({
+        data: (current?.data ?? []).map((t) => (t.id === res.data.id ? res.data : t)),
+      }));
+      setForm({
+        subject: res.data.subject,
+        bodyHtml: res.data.body_html,
+        bodyText: res.data.body_text,
+      });
+    },
+  });
+
+  const templateRows = templates.data?.data ?? [];
+  const outboxRows = outbox.data?.data ?? [];
+  const selectedTemplate = useMemo(
+    () => templateRows.find((t) => t.template_key === selectedKey) ?? templateRows[0] ?? null,
+    [selectedKey, templateRows],
+  );
+  const dirty = selectedTemplate
+    ? form.subject !== selectedTemplate.subject ||
+      form.bodyHtml !== selectedTemplate.body_html ||
+      form.bodyText !== selectedTemplate.body_text
+    : false;
+
+  useEffect(() => {
+    if (!selectedTemplate) return;
+    if (selectedKey !== selectedTemplate.template_key) {
+      setSelectedKey(selectedTemplate.template_key);
+    }
+    setForm({
+      subject: selectedTemplate.subject,
+      bodyHtml: selectedTemplate.body_html,
+      bodyText: selectedTemplate.body_text,
+    });
+  }, [selectedKey, selectedTemplate?.id, selectedTemplate?.updated_at]);
+
   if (templates.isError || outbox.isError) {
     return (
       <EmptyState
@@ -91,9 +158,6 @@ export default function NotificationsPage() {
     );
   }
 
-  const templateRows = templates.data?.data ?? [];
-  const outboxRows = outbox.data?.data ?? [];
-
   return (
     <div className="space-y-8">
       <div>
@@ -101,59 +165,165 @@ export default function NotificationsPage() {
         <h1 className="h-display mt-1">Notifications</h1>
         <p className="mt-2 max-w-2xl text-sm text-paper-600">
           Templates render Handlebars variables (like <code className="rounded bg-paper-100 px-1 py-0.5 text-xs">{'{{visitorName}}'}</code>).
-          Seeded defaults are read-only in this release — use <em>Send test</em> to verify delivery.
+          Saves are validated with strict rendering before delivery can use them.
         </p>
       </div>
 
       <section className="space-y-3">
         <h2 className="font-display text-lg font-medium tracking-tight-er text-ink">Templates</h2>
-        <div className="grid gap-3 md:grid-cols-2">
-          {templates.isPending
-            ? Array.from({ length: 4 }).map((_, i) => (
-                <div key={i} className="panel p-4">
-                  <SkeletonRows cols={1} rows={3} />
+        <div className="grid gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
+          <div className="space-y-2">
+            {templates.isPending ? (
+              <div className="panel p-4">
+                <SkeletonRows cols={1} rows={6} />
+              </div>
+            ) : null}
+            {templateRows.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => setSelectedKey(t.template_key)}
+                className={`w-full rounded-2xl border p-3 text-left transition ${
+                  selectedTemplate?.id === t.id
+                    ? 'border-brand-accent bg-brand-accent/5'
+                    : 'border-paper-200 bg-white hover:border-paper-300'
+                }`}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <code className="truncate rounded bg-paper-100 px-1.5 py-0.5 text-xs text-ink">
+                    {t.template_key}
+                  </code>
+                  <span
+                    className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] ${
+                      t.is_customized
+                        ? 'bg-brand-accent/10 text-brand-accent'
+                        : 'bg-paper-100 text-paper-500'
+                    }`}
+                  >
+                    {t.is_customized ? 'Custom' : 'Default'}
+                  </span>
                 </div>
-              ))
-            : null}
-          {templateRows.map((t) => {
-            const expanded = expandedKey === t.template_key;
-            return (
-              <div key={t.id} className="panel p-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <code className="rounded bg-paper-100 px-1.5 py-0.5 text-xs text-ink">
-                      {t.template_key}
-                    </code>
-                    <div className="mt-2 truncate font-medium text-ink">{t.subject}</div>
+                <div className="mt-2 truncate text-sm font-medium text-ink">{t.subject}</div>
+              </button>
+            ))}
+          </div>
+
+          <div className="panel p-5">
+            {selectedTemplate ? (
+              <form
+                className="space-y-5"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  updateTemplate.mutate({
+                    templateKey: selectedTemplate.template_key,
+                    values: form,
+                  });
+                }}
+              >
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <div className="h-eyebrow">Template editor</div>
+                    <h3 className="mt-1 font-display text-xl font-medium tracking-tight-er text-ink">
+                      {selectedTemplate.template_key}
+                    </h3>
+                    <p className="mt-1 text-xs text-paper-500">
+                      Last updated <Timestamp value={selectedTemplate.updated_at} />
+                    </p>
                   </div>
-                  <div className="flex shrink-0 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setExpandedKey(expanded ? null : t.template_key)}
-                      className="btn-ghost text-xs"
-                    >
-                      {expanded ? 'Hide' : 'Preview'}
-                    </button>
+                  <div className="flex gap-2">
                     <button
                       type="button"
                       onClick={() => {
-                        setTestingKey(t.template_key);
+                        setTestingKey(selectedTemplate.template_key);
                         setTestAddress('');
                       }}
                       className="btn-secondary text-xs"
                     >
                       Send test
                     </button>
+                    <button
+                      type="button"
+                      disabled={!selectedTemplate.is_customized || revertTemplate.isPending}
+                      onClick={() => revertTemplate.mutate(selectedTemplate.template_key)}
+                      className="btn-ghost text-xs disabled:opacity-50"
+                    >
+                      {revertTemplate.isPending ? 'Reverting…' : 'Revert'}
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={!dirty || updateTemplate.isPending}
+                      className="btn-accent text-xs disabled:opacity-50"
+                    >
+                      {updateTemplate.isPending ? 'Saving…' : 'Save'}
+                    </button>
                   </div>
                 </div>
-                {expanded ? (
-                  <pre className="mt-3 max-h-56 overflow-auto whitespace-pre-wrap rounded border border-paper-200 bg-paper-50 p-3 text-xs text-paper-700">
-                    {t.body_text}
-                  </pre>
+
+                <label className="block">
+                  <span className="text-xs font-semibold uppercase tracking-[0.12em] text-paper-500">
+                    Subject
+                  </span>
+                  <input
+                    value={form.subject}
+                    onChange={(e) => setForm((f) => ({ ...f, subject: e.target.value }))}
+                    className="input mt-1 w-full"
+                    maxLength={200}
+                  />
+                </label>
+
+                <label className="block">
+                  <span className="text-xs font-semibold uppercase tracking-[0.12em] text-paper-500">
+                    HTML body
+                  </span>
+                  <textarea
+                    value={form.bodyHtml}
+                    onChange={(e) => setForm((f) => ({ ...f, bodyHtml: e.target.value }))}
+                    className="input mt-1 min-h-48 w-full font-mono text-xs"
+                    spellCheck={false}
+                  />
+                </label>
+
+                <label className="block">
+                  <span className="text-xs font-semibold uppercase tracking-[0.12em] text-paper-500">
+                    Text body
+                  </span>
+                  <textarea
+                    value={form.bodyText}
+                    onChange={(e) => setForm((f) => ({ ...f, bodyText: e.target.value }))}
+                    className="input mt-1 min-h-40 w-full font-mono text-xs"
+                    spellCheck={false}
+                  />
+                </label>
+
+                {updateTemplate.isError || revertTemplate.isError ? (
+                  <div className="rounded border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">
+                    {((updateTemplate.error ?? revertTemplate.error) as Error).message}
+                  </div>
                 ) : null}
-              </div>
-            );
-          })}
+
+                <div className="grid gap-3 md:grid-cols-2">
+                  <div>
+                    <div className="mb-1 text-xs font-semibold uppercase tracking-[0.12em] text-paper-500">
+                      Text preview
+                    </div>
+                    <pre className="max-h-64 overflow-auto whitespace-pre-wrap rounded border border-paper-200 bg-paper-50 p-3 text-xs text-paper-700">
+                      {form.bodyText}
+                    </pre>
+                  </div>
+                  <div>
+                    <div className="mb-1 text-xs font-semibold uppercase tracking-[0.12em] text-paper-500">
+                      HTML template
+                    </div>
+                    <pre className="max-h-64 overflow-auto whitespace-pre-wrap rounded border border-paper-200 bg-paper-50 p-3 text-xs text-paper-700">
+                      {form.bodyHtml}
+                    </pre>
+                  </div>
+                </div>
+              </form>
+            ) : (
+              <EmptyState title="No templates." description="No notification templates are seeded for this org." />
+            )}
+          </div>
         </div>
       </section>
 

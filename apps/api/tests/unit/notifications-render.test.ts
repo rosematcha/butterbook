@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { renderTemplate } from '../../src/services/notifications/render.js';
+import { renderTemplate, validateTemplateSource } from '../../src/services/notifications/render.js';
 
 describe('notification renderer', () => {
   it('substitutes variables', () => {
@@ -45,5 +45,21 @@ describe('notification renderer', () => {
       { name: 'ada' },
     );
     expect(out.subject).toBe('ADA');
+  });
+
+  it('validates editable templates with strict rendering', () => {
+    expect(() =>
+      validateTemplateSource(
+        { subject: 'Hi {{name}}', bodyHtml: '<p>{{name}}</p>', bodyText: '{{name}}' },
+        { name: 'Ada' },
+      ),
+    ).not.toThrow();
+
+    expect(() =>
+      validateTemplateSource(
+        { subject: 'Hi {{missing}}', bodyHtml: '<p>{{name}}</p>', bodyText: '{{name}}' },
+        { name: 'Ada' },
+      ),
+    ).toThrow();
   });
 });

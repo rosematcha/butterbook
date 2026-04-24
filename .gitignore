@@ -13,3 +13,5 @@ CLAUDE.md
 .claude/
 docs/design-system.html
 SCOPE.md
+AGENTS.md
+.agents/skills/frontend-design/SKILL.md

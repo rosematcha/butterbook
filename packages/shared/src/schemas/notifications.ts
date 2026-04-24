@@ -6,6 +6,7 @@ export const NOTIFICATION_TEMPLATE_KEYS = [
   'visit.confirmation',
   'visit.cancelled',
   'waitlist.promoted',
+  'visit.rescheduled',
   'event.published',
   'invitation.created',
 ] as const;
@@ -32,3 +33,13 @@ export const testSendNotificationSchema = z
   .strict();
 
 export type TestSendNotificationInput = z.infer<typeof testSendNotificationSchema>;
+
+export const updateNotificationTemplateSchema = z
+  .object({
+    subject: z.string().trim().min(1).max(200),
+    bodyHtml: z.string().trim().min(1).max(20000),
+    bodyText: z.string().trim().min(1).max(20000),
+  })
+  .strict();
+
+export type UpdateNotificationTemplateInput = z.infer<typeof updateNotificationTemplateSchema>;
