@@ -103,7 +103,7 @@ export function registerStripeRoutes(app: FastifyInstance): void {
         await audit({ action: 'stripe.connected', targetType: 'org', targetId: orgId, diff: { after: { stripeAccountId: account.stripeAccountId } } });
       },
     );
-    return reply.redirect(`${getConfig().APP_BASE_URL.replace(/\/$/, '')}/app/memberships/policies`);
+    return reply.redirect(`${getConfig().APP_BASE_URL.replace(/\/$/, '')}/app/settings/stripe`);
   });
 
   app.post('/api/v1/stripe/webhook/:orgId', { config: { rateLimit: { max: 120, timeWindow: '1 minute' } } }, async (req) => {

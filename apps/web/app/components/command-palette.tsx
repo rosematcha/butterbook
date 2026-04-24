@@ -91,6 +91,7 @@ export function CommandPalette() {
       { href: '/app/memberships', label: 'Memberships', keywords: 'crm members renewals enrollments' },
       { href: '/app/memberships/tiers', label: 'Membership tiers', keywords: 'pricing levels passes' },
       { href: '/app/memberships/policies', label: 'Membership policies', keywords: 'grace reminders self serve' },
+      { href: '/app/settings/stripe', label: 'Stripe settings', keywords: 'payments connect checkout billing' },
       { href: '/app/locations', label: 'Locations', keywords: 'place site' },
       { href: '/app/form', label: 'Form fields', keywords: 'questions intake' },
       { href: '/app/members', label: 'Members', keywords: 'staff team invite' },

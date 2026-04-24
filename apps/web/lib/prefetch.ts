@@ -53,6 +53,7 @@ export function makePrefetchers(qc: QueryClient, orgId: string | null) {
       ]),
     roles: () => prefetch(['roles', orgId], `/api/v1/orgs/${orgId}/roles`),
     branding: () => prefetch(['branding', orgId], `/api/v1/orgs/${orgId}/branding`),
+    stripe: () => prefetch(['stripe', orgId], `/api/v1/orgs/${orgId}/stripe`),
     audit: () =>
       prefetch(['audit', orgId, 1], `/api/v1/orgs/${orgId}/audit?page=1&limit=50`),
   };
@@ -72,5 +73,6 @@ const EMPTY = {
   members: noop,
   roles: noop,
   branding: noop,
+  stripe: noop,
   audit: noop,
 };

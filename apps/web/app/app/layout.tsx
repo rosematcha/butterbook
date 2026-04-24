@@ -31,6 +31,7 @@ const SETTINGS_NAV: NavItem[] = [
   { href: '/app/booking-page', label: 'Booking page', requires: 'admin.manage_org' },
   { href: '/app/booking-policies', label: 'Booking policies', requires: 'admin.manage_org' },
   { href: '/app/memberships/policies', label: 'Membership policies', requires: 'memberships.manage' },
+  { href: '/app/settings/stripe', label: 'Stripe', prefetch: 'stripe', requires: 'stripe.manage' },
   { href: '/app/notifications', label: 'Notifications', requires: 'notifications.manage' },
   { href: '/app/audit', label: 'Audit log', prefetch: 'audit', requires: 'superadmin' },
 ];
