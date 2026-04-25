@@ -170,6 +170,53 @@ export async function createStripeCheckoutSession(input: StripeCheckoutSessionIn
   return { id, url };
 }
 
+export interface StripeRefundInput {
+  stripeAccountId: string;
+  paymentReference: string;
+  amountCents: number;
+  idempotencyKey: string;
+}
+
+export interface StripeRefund {
+  id: string;
+}
+
+export async function createStripeRefund(input: StripeRefundInput): Promise<StripeRefund> {
+  const cfg = getConfig();
+  if (!cfg.STRIPE_SECRET_KEY) throw new ConflictError('Stripe secret key is not configured');
+  if (input.amountCents <= 0) throw new ConflictError('Refund amount must be greater than zero');
+
+  const body = new URLSearchParams({
+    amount: String(input.amountCents),
+  });
+  if (input.paymentReference.startsWith('pi_')) {
+    body.set('payment_intent', input.paymentReference);
+  } else {
+    body.set('charge', input.paymentReference);
+  }
+
+  const res = await fetch('https://api.stripe.com/v1/refunds', {
+    method: 'POST',
+    headers: {
+      authorization: `Bearer ${cfg.STRIPE_SECRET_KEY}`,
+      'content-type': 'application/x-www-form-urlencoded',
+      'stripe-account': input.stripeAccountId,
+      'idempotency-key': input.idempotencyKey,
+    },
+    body,
+  });
+  const json = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+  if (!res.ok) {
+    const message = typeof json.error === 'object' && json.error && 'message' in json.error && typeof json.error.message === 'string'
+      ? json.error.message
+      : 'Stripe refund creation failed';
+    throw new ConflictError(message);
+  }
+  const id = typeof json.id === 'string' ? json.id : '';
+  if (!id) throw new ConflictError('Stripe refund response did not include a refund id');
+  return { id };
+}
+
 export interface StripeWebhookEvent {
   id: string;
   type: string;
@@ -269,6 +316,7 @@ async function handleCheckoutSessionCompleted(
     amountCents: asNumber(obj.amount_total) ?? membership.price_cents,
     currency: asString(obj.currency) ?? 'usd',
     invoiceId: asString(obj.invoice),
+    stripeChargeId: asString(obj.charge) ?? asString(obj.payment_intent),
   });
   const row = await selectMembership(tx, orgId, membershipId);
   if (row) {
@@ -314,6 +362,7 @@ async function handleInvoicePaid(
     amountCents: asNumber(obj.amount_paid) ?? asNumber(obj.total) ?? membership.price_cents,
     currency: asString(obj.currency) ?? 'usd',
     invoiceId: asString(obj.id),
+    stripeChargeId: asString(obj.charge) ?? asString(obj.payment_intent),
   });
   const row = await selectMembership(tx, orgId, membershipId);
   if (row) {
@@ -440,7 +489,7 @@ async function upsertStripePayment(
   tx: Tx,
   orgId: string,
   membershipId: string,
-  input: { amountCents: number; currency: string; invoiceId: string | null },
+  input: { amountCents: number; currency: string; invoiceId: string | null; stripeChargeId?: string | null },
 ) {
   if (input.invoiceId) {
     const existing = await tx
@@ -460,6 +509,7 @@ async function upsertStripePayment(
       currency: input.currency.toLowerCase(),
       source: 'stripe',
       stripe_invoice_id: input.invoiceId,
+      stripe_charge_id: input.stripeChargeId ?? null,
       paid_at: new Date(),
     })
     .execute();

@@ -15,8 +15,9 @@ import {
   updateMembershipTierSchema,
 } from '@butterbook/shared';
 import { withOrgContext, withOrgRead } from '../db/index.js';
-import { NotFoundError } from '../errors/index.js';
+import { ConflictError, NotFoundError } from '../errors/index.js';
 import { allowIncludeDeleted } from '../utils/soft-delete.js';
+import { createStripeRefund } from '../services/stripe.js';
 import {
   cancelMembershipInTx,
   createMembershipInTx,
@@ -311,10 +312,49 @@ function registerMembershipRecordRoutes(app: FastifyInstance): void {
     await req.requirePermission(orgId, 'memberships.refund');
     const m = await req.loadMembershipFor(orgId);
     return withOrgContext(orgId, req.actorForOrg(orgId, m), async ({ tx, audit }) => {
-      const payment = await tx.selectFrom('membership_payments').select(['id', 'amount_cents']).where('org_id', '=', orgId).where('membership_id', '=', membershipId).orderBy('created_at', 'desc').executeTakeFirst();
+      const payment = await tx
+        .selectFrom('membership_payments')
+        .select(['id', 'amount_cents', 'source', 'stripe_charge_id', 'refunded_amount_cents'])
+        .where('org_id', '=', orgId)
+        .where('membership_id', '=', membershipId)
+        .orderBy('created_at', 'desc')
+        .executeTakeFirst();
       if (!payment) throw new NotFoundError();
-      await tx.updateTable('membership_payments').set({ refunded_at: new Date(), refunded_amount_cents: body.amountCents ?? payment.amount_cents, notes: body.notes ?? null }).where('id', '=', payment.id).execute();
-      const updated = await tx.updateTable('memberships').set({ status: 'refunded', auto_renew: false }).where('org_id', '=', orgId).where('id', '=', membershipId).returning(['id']).executeTakeFirst();
+      const alreadyRefunded = payment.refunded_amount_cents ?? 0;
+      const remaining = payment.amount_cents - alreadyRefunded;
+      const refundAmount = body.amountCents ?? remaining;
+      if (refundAmount <= 0) throw new ConflictError('Refund amount must be greater than zero.');
+      if (refundAmount > remaining) throw new ConflictError('Refund amount exceeds the remaining refundable payment amount.');
+
+      if (payment.source === 'stripe') {
+        if (!payment.stripe_charge_id) throw new ConflictError('Stripe payment cannot be refunded because no charge or payment intent is stored.');
+        const account = await tx
+          .selectFrom('org_stripe_accounts')
+          .select(['stripe_account_id'])
+          .where('org_id', '=', orgId)
+          .where('disconnected_at', 'is', null)
+          .executeTakeFirst();
+        if (!account) throw new ConflictError('Stripe account is not connected.');
+        await createStripeRefund({
+          stripeAccountId: account.stripe_account_id,
+          paymentReference: payment.stripe_charge_id,
+          amountCents: refundAmount,
+          idempotencyKey: `membership-refund:${payment.id}:${alreadyRefunded + refundAmount}`,
+        });
+      }
+
+      await tx
+        .updateTable('membership_payments')
+        .set({
+          refunded_at: new Date(),
+          refunded_amount_cents: alreadyRefunded + refundAmount,
+          notes: body.notes ?? null,
+        })
+        .where('id', '=', payment.id)
+        .execute();
+      const nextRefundedAmount = alreadyRefunded + refundAmount;
+      const membershipUpdates = nextRefundedAmount >= payment.amount_cents ? { status: 'refunded' as const, auto_renew: false } : { auto_renew: false };
+      const updated = await tx.updateTable('memberships').set(membershipUpdates).where('org_id', '=', orgId).where('id', '=', membershipId).returning(['id']).executeTakeFirst();
       if (!updated) throw new NotFoundError();
       await audit({ action: 'membership.refunded', targetType: 'membership', targetId: membershipId, diff: { after: body } });
       const row = await selectMembership(tx, orgId, membershipId);

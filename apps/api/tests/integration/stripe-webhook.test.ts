@@ -73,6 +73,7 @@ describe('Stripe webhooks', () => {
             client_reference_id: membership.id,
             customer: 'cus_test_123',
             subscription: 'sub_test_123',
+            payment_intent: 'pi_test_123',
             amount_total: 4200,
             currency: 'usd',
             metadata: { membershipId: membership.id, visitorId: visitor.id, tierId: tier.id },
@@ -109,6 +110,12 @@ describe('Stripe webhooks', () => {
         .where('membership_id', '=', membership.id)
         .executeTakeFirstOrThrow();
       expect(Number(paymentCount.c)).toBe(1);
+      const payment = await getDb()
+        .selectFrom('membership_payments')
+        .select(['stripe_charge_id'])
+        .where('membership_id', '=', membership.id)
+        .executeTakeFirstOrThrow();
+      expect(payment.stripe_charge_id).toBe('pi_test_123');
 
       const eventOutbox = await getDb()
         .selectFrom('event_outbox')

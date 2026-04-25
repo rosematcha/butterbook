@@ -118,9 +118,9 @@ function MembershipProfileInner() {
 
   async function onRefund() {
     const ok = await confirm({
-      title: 'Mark this membership refunded?',
-      description: 'This records a manual refund in Butterbook. It does not send money through Stripe.',
-      confirmLabel: 'Mark refunded',
+      title: 'Refund this membership?',
+      description: 'Stripe payments will be refunded through the connected Stripe account. Manual payments will be marked refunded in Butterbook.',
+      confirmLabel: 'Refund membership',
       danger: true,
     });
     if (ok) refund.mutate();
@@ -213,7 +213,7 @@ function MembershipProfileInner() {
           <div className="panel space-y-3 p-4">
             <h2 className="font-display text-base font-medium text-ink">Actions</h2>
             {canManage ? <button className="btn-secondary w-full justify-center" disabled={cancel.isPending} onClick={onCancel}>Cancel membership</button> : null}
-            {canRefund ? <button className="btn-secondary w-full justify-center text-red-700" disabled={refund.isPending} onClick={onRefund}>Mark refunded</button> : null}
+            {canRefund ? <button className="btn-secondary w-full justify-center text-red-700" disabled={refund.isPending} onClick={onRefund}>Refund membership</button> : null}
             {!canManage && !canRefund ? <p className="text-sm text-paper-600">No management actions are available for your role.</p> : null}
           </div>
         </div>
