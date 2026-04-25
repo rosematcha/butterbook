@@ -5,6 +5,7 @@ import { kioskCheckinSchema, type Permission } from '@butterbook/shared';
 import { getDb, withOrgContext } from '../db/index.js';
 import { AuthenticationError, NotFoundError } from '../errors/index.js';
 import { createVisitInTx } from '../services/booking.js';
+import { redeemGuestPassInTx } from '../services/memberships.js';
 import { handleIdempotent } from '../middleware/idempotency.js';
 import { getConfig } from '../config.js';
 import { hmacHex } from '../utils/ids.js';
@@ -122,6 +123,16 @@ export function registerKioskRoutes(app: FastifyInstance): void {
             idempotencyKey: idemKey,
           });
           await audit({ action: 'visit.kiosk_checkin', targetType: 'visit', targetId: res.visitId ?? '' });
+          const guestPassCode = body.guestPassCode ?? guestPassCodeFromFormResponse(body.formResponse);
+          if (guestPassCode && res.visitId) {
+            const redeemed = await redeemGuestPassInTx(tx, { orgId: loc.orgId, code: guestPassCode, visitId: res.visitId });
+            await audit({
+              action: 'guest_pass.redeemed',
+              targetType: 'guest_pass',
+              targetId: redeemed.id,
+              diff: { after: { visitId: res.visitId, membershipId: redeemed.membershipId } },
+            });
+          }
           return res;
         });
         return { status: 201, body: { data: { id: r.visitId, kind: 'visit' } } };
@@ -130,4 +141,12 @@ export function registerKioskRoutes(app: FastifyInstance): void {
       return result.body;
     },
   );
+}
+
+function guestPassCodeFromFormResponse(formResponse: Record<string, unknown>): string | null {
+  for (const key of ['guestPassCode', 'guest_pass_code', 'passCode', 'pass_code']) {
+    const value = formResponse[key];
+    if (typeof value === 'string' && value.trim().length > 0) return value;
+  }
+  return null;
 }

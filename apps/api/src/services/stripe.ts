@@ -2,7 +2,7 @@ import crypto from 'node:crypto';
 import type { Tx, OutboxEventInput } from '../db/index.js';
 import { ConflictError, ValidationError } from '../errors/index.js';
 import { getConfig } from '../config.js';
-import { defaultMembershipExpiry, selectMembership } from './memberships.js';
+import { defaultMembershipExpiry, issueGuestPassesForMembershipInTx, selectMembership } from './memberships.js';
 
 const STATE_TTL_MS = 10 * 60 * 1000;
 const WEBHOOK_TOLERANCE_SECONDS = 5 * 60;
@@ -318,6 +318,7 @@ async function handleCheckoutSessionCompleted(
     invoiceId: asString(obj.invoice),
     stripeChargeId: asString(obj.charge) ?? asString(obj.payment_intent),
   });
+  await issueGuestPassesForMembershipInTx(tx, orgId, membershipId);
   const row = await selectMembership(tx, orgId, membershipId);
   if (row) {
     await emit({

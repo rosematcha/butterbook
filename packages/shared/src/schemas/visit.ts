@@ -58,5 +58,6 @@ export const listVisitsQuerySchema = z.object({
 export const kioskCheckinSchema = z
   .object({
     formResponse: z.record(z.unknown()),
+    guestPassCode: z.string().trim().min(1).max(80).optional(),
   })
   .strict();

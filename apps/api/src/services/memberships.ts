@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import { sql, type OutboxEventInput, type Tx } from '../db/index.js';
 import { ConflictError, NotFoundError } from '../errors/index.js';
 
@@ -170,7 +171,73 @@ export async function createMembershipInTx(
     })
     .execute();
 
+  await issueGuestPassesForMembershipInTx(tx, input.orgId, membership.id);
+
   return { membershipId: membership.id, visitorEmail: visitor.email, tierName: tier.name, expiresAt };
+}
+
+export async function issueGuestPassesForMembershipInTx(tx: Tx, orgId: string, membershipId: string): Promise<number> {
+  const membership = await tx
+    .selectFrom('memberships')
+    .innerJoin('membership_tiers', 'membership_tiers.id', 'memberships.tier_id')
+    .select(['memberships.id', 'memberships.expires_at', 'membership_tiers.guest_passes_included'])
+    .where('memberships.org_id', '=', orgId)
+    .where('memberships.id', '=', membershipId)
+    .executeTakeFirst();
+  if (!membership) throw new NotFoundError();
+
+  const included = membership.guest_passes_included;
+  if (included <= 0) return 0;
+
+  const existing = await tx
+    .selectFrom('guest_passes')
+    .select((eb) => eb.fn.countAll<number>().as('c'))
+    .where('org_id', '=', orgId)
+    .where('membership_id', '=', membershipId)
+    .executeTakeFirst();
+  const missing = included - Number(existing?.c ?? 0);
+  if (missing <= 0) return 0;
+
+  for (let i = 0; i < missing; i += 1) {
+    await tx
+      .insertInto('guest_passes')
+      .values({
+        org_id: orgId,
+        membership_id: membershipId,
+        code: await uniqueGuestPassCode(tx),
+        expires_at: membership.expires_at,
+      })
+      .execute();
+  }
+  return missing;
+}
+
+export async function redeemGuestPassInTx(
+  tx: Tx,
+  input: { orgId: string; code: string; visitId: string; now?: Date },
+): Promise<{ id: string; membershipId: string }> {
+  const now = input.now ?? new Date();
+  const normalizedCode = normalizeGuestPassCode(input.code);
+  const row = await tx
+    .selectFrom('guest_passes')
+    .select(['id', 'membership_id', 'expires_at', 'redeemed_at'])
+    .where('org_id', '=', input.orgId)
+    .where('code', '=', normalizedCode)
+    .executeTakeFirst();
+  if (!row) throw new NotFoundError('Guest pass not found.');
+  if (row.redeemed_at) throw new ConflictError('Guest pass has already been redeemed.');
+  if (row.expires_at && row.expires_at <= now) throw new ConflictError('Guest pass has expired.');
+
+  const redeemed = await tx
+    .updateTable('guest_passes')
+    .set({ redeemed_at: now, redeemed_by_visit_id: input.visitId })
+    .where('org_id', '=', input.orgId)
+    .where('id', '=', row.id)
+    .where('redeemed_at', 'is', null)
+    .returning(['id'])
+    .executeTakeFirst();
+  if (!redeemed) throw new ConflictError('Guest pass has already been redeemed.');
+  return { id: redeemed.id, membershipId: row.membership_id };
 }
 
 export async function cancelMembershipInTx(tx: Tx, orgId: string, membershipId: string, reason?: string | null) {
@@ -289,6 +356,19 @@ export function defaultMembershipExpiry(start: Date, durationDays: number | null
   if (interval === 'lifetime') return null;
   const days = durationDays ?? (interval === 'month' ? 30 : 365);
   return new Date(start.getTime() + days * 24 * 60 * 60 * 1000);
+}
+
+function normalizeGuestPassCode(code: string): string {
+  return code.trim().toUpperCase().replace(/\s+/g, '');
+}
+
+async function uniqueGuestPassCode(tx: Tx): Promise<string> {
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    const code = `GP-${crypto.randomBytes(5).toString('hex').toUpperCase()}`;
+    const existing = await tx.selectFrom('guest_passes').select(['id']).where('code', '=', code).executeTakeFirst();
+    if (!existing) return code;
+  }
+  throw new ConflictError('Could not allocate a unique guest pass code.');
 }
 
 async function emitMembershipStatusEvents(
