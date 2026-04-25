@@ -100,6 +100,10 @@ export interface StripeCheckoutSessionInput {
   currency: string;
   billingInterval: 'year' | 'month' | 'lifetime' | 'one_time';
   customerEmail: string;
+  promoCodeId?: string | undefined;
+  promoCode?: string | undefined;
+  originalAmountCents?: number | undefined;
+  discountCents?: number | undefined;
   successUrl?: string | undefined;
   cancelUrl?: string | undefined;
 }
@@ -134,6 +138,12 @@ export async function createStripeCheckoutSession(input: StripeCheckoutSessionIn
     'metadata[visitorId]': input.visitorId,
     'metadata[tierId]': input.tierId,
   });
+  if (input.promoCodeId && input.promoCode && input.originalAmountCents !== undefined && input.discountCents !== undefined) {
+    body.set('metadata[promoCodeId]', input.promoCodeId);
+    body.set('metadata[promoCode]', input.promoCode);
+    body.set('metadata[originalAmountCents]', String(input.originalAmountCents));
+    body.set('metadata[discountCents]', String(input.discountCents));
+  }
   if (input.tierDescription) {
     body.set('line_items[0][price_data][product_data][description]', input.tierDescription);
   }
@@ -142,10 +152,22 @@ export async function createStripeCheckoutSession(input: StripeCheckoutSessionIn
     body.set('subscription_data[metadata][membershipId]', input.membershipId);
     body.set('subscription_data[metadata][visitorId]', input.visitorId);
     body.set('subscription_data[metadata][tierId]', input.tierId);
+    if (input.promoCodeId && input.promoCode && input.originalAmountCents !== undefined && input.discountCents !== undefined) {
+      body.set('subscription_data[metadata][promoCodeId]', input.promoCodeId);
+      body.set('subscription_data[metadata][promoCode]', input.promoCode);
+      body.set('subscription_data[metadata][originalAmountCents]', String(input.originalAmountCents));
+      body.set('subscription_data[metadata][discountCents]', String(input.discountCents));
+    }
   } else {
     body.set('payment_intent_data[metadata][membershipId]', input.membershipId);
     body.set('payment_intent_data[metadata][visitorId]', input.visitorId);
     body.set('payment_intent_data[metadata][tierId]', input.tierId);
+    if (input.promoCodeId && input.promoCode && input.originalAmountCents !== undefined && input.discountCents !== undefined) {
+      body.set('payment_intent_data[metadata][promoCodeId]', input.promoCodeId);
+      body.set('payment_intent_data[metadata][promoCode]', input.promoCode);
+      body.set('payment_intent_data[metadata][originalAmountCents]', String(input.originalAmountCents));
+      body.set('payment_intent_data[metadata][discountCents]', String(input.discountCents));
+    }
   }
 
   const res = await fetch('https://api.stripe.com/v1/checkout/sessions', {

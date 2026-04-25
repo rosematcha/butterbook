@@ -46,6 +46,7 @@ const TENANT_TABLES = new Set([
   'memberships',
   'membership_payments',
   'guest_passes',
+  'promo_codes',
   'org_stripe_accounts',
   'stripe_events',
 ]);

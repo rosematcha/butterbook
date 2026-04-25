@@ -61,6 +61,26 @@ export interface MembershipPolicy {
   publicPageEnabled: boolean;
 }
 
+export type PromoCodeDiscountType = 'percent' | 'amount';
+
+export interface PromoCode {
+  id: string;
+  code: string;
+  description: string | null;
+  discountType: PromoCodeDiscountType;
+  discountPercent: number | null;
+  discountAmountCents: number | null;
+  membershipTierId: string | null;
+  startsAt: string | null;
+  expiresAt: string | null;
+  maxRedemptions: number | null;
+  redeemedCount: number;
+  active: boolean;
+  deletedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export function memberName(member: Membership): string {
   const name = [member.visitor.firstName, member.visitor.lastName].filter(Boolean).join(' ').trim();
   return name || member.visitor.email;

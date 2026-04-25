@@ -7,6 +7,7 @@ import {
 import { getDb, sql, withOrgContext, withOrgRead } from '../db/index.js';
 import { ConflictError, NotFoundError } from '../errors/index.js';
 import { publicTier } from '../services/memberships.js';
+import { reservePromoCodeInTx } from '../services/promo-codes.js';
 import { createStripeCheckoutSession } from '../services/stripe.js';
 
 export function registerPublicMembershipRoutes(app: FastifyInstance): void {
@@ -87,6 +88,12 @@ export function registerPublicMembershipRoutes(app: FastifyInstance): void {
         if (!tier) throw new NotFoundError('Membership tier not found.');
         if (!stripe?.charges_enabled) throw new ConflictError('This organization is not ready to accept online membership payments.');
 
+        const promo = body.promoCode
+          ? await reservePromoCodeInTx(tx, { orgId: org.id, tierId: tier.id, code: body.promoCode, amountCents: tier.price_cents })
+          : null;
+        const checkoutAmountCents = promo?.finalAmountCents ?? tier.price_cents;
+        if (checkoutAmountCents <= 0) throw new ConflictError('Promo code reduces this membership to zero; online checkout requires a positive amount.');
+
         const visitor = await tx
           .insertInto('visitors')
           .values({
@@ -120,7 +127,17 @@ export function registerPublicMembershipRoutes(app: FastifyInstance): void {
             started_at: null,
             expires_at: null,
             auto_renew: tier.billing_interval === 'month' || tier.billing_interval === 'year',
-            metadata: JSON.stringify({ source: 'stripe_checkout' }),
+            metadata: JSON.stringify({
+              source: 'stripe_checkout',
+              ...(promo
+                ? {
+                    promoCodeId: promo.row.id,
+                    promoCode: promo.row.code,
+                    originalAmountCents: tier.price_cents,
+                    discountCents: promo.discountCents,
+                  }
+                : {}),
+            }),
           })
           .returning(['id'])
           .executeTakeFirstOrThrow();
@@ -133,10 +150,18 @@ export function registerPublicMembershipRoutes(app: FastifyInstance): void {
           tierId: tier.id,
           tierName: tier.name,
           tierDescription: tier.description,
-          amountCents: tier.price_cents,
+          amountCents: checkoutAmountCents,
           currency: stripe.default_currency,
           billingInterval: tier.billing_interval,
           customerEmail: body.email,
+          ...(promo
+            ? {
+                promoCodeId: promo.row.id,
+                promoCode: promo.row.code,
+                originalAmountCents: tier.price_cents,
+                discountCents: promo.discountCents,
+              }
+            : {}),
           successUrl: body.successUrl,
           cancelUrl: body.cancelUrl,
         });
@@ -147,6 +172,14 @@ export function registerPublicMembershipRoutes(app: FastifyInstance): void {
             metadata: JSON.stringify({
               source: 'stripe_checkout',
               checkoutSessionId: session.id,
+              ...(promo
+                ? {
+                    promoCodeId: promo.row.id,
+                    promoCode: promo.row.code,
+                    originalAmountCents: tier.price_cents,
+                    discountCents: promo.discountCents,
+                  }
+                : {}),
             }),
           })
           .where('org_id', '=', org.id)
@@ -156,10 +189,10 @@ export function registerPublicMembershipRoutes(app: FastifyInstance): void {
           action: 'membership.checkout_started',
           targetType: 'membership',
           targetId: membership.id,
-          diff: { after: { tierId: tier.id, visitorId: visitor.id, checkoutSessionId: session.id } },
+          diff: { after: { tierId: tier.id, visitorId: visitor.id, checkoutSessionId: session.id, promoCodeId: promo?.row.id ?? null } },
         });
 
-        return { data: { url: session.url, sessionId: session.id, membershipId: membership.id } };
+        return { data: { url: session.url, sessionId: session.id, membershipId: membership.id, discountCents: promo?.discountCents ?? 0 } };
       });
     },
   );

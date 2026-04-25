@@ -39,6 +39,9 @@ function JoinInner() {
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
+  const [promoCode, setPromoCode] = useState('');
+  const [appliedPromo, setAppliedPromo] = useState<{ code: string; discountCents: number; finalAmountCents: number } | null>(null);
+  const [checkingPromo, setCheckingPromo] = useState(false);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -69,6 +72,33 @@ function JoinInner() {
     [data?.tiers, selectedTierId],
   );
 
+  useEffect(() => {
+    setAppliedPromo(null);
+  }, [selectedTierId]);
+
+  async function validatePromo() {
+    if (!orgSlug || !selectedTier || !promoCode.trim()) return;
+    setCheckingPromo(true);
+    setError(null);
+    try {
+      const body = await publicJson<{ data: { code: string; discountCents: number; finalAmountCents: number } }>(
+        `/api/v1/public/orgs/${encodeURIComponent(orgSlug)}/membership-promo-codes/validate`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tierId: selectedTier.id, code: promoCode.trim() }),
+        },
+      );
+      setAppliedPromo(body.data);
+      setPromoCode(body.data.code);
+    } catch (err) {
+      setAppliedPromo(null);
+      setError(err instanceof Error ? err.message : 'Promo code could not be applied.');
+    } finally {
+      setCheckingPromo(false);
+    }
+  }
+
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     if (!orgSlug || !selectedTier) return;
@@ -87,6 +117,7 @@ function JoinInner() {
             lastName: lastName.trim() || undefined,
             email: email.trim(),
             phone: phone.trim() || undefined,
+            promoCode: appliedPromo?.code,
             successUrl: `${origin}/join?org=${encodeURIComponent(orgSlug)}&checkout=success`,
             cancelUrl: `${origin}/join?org=${encodeURIComponent(orgSlug)}&checkout=cancelled`,
           }),
@@ -167,12 +198,29 @@ function JoinInner() {
               Phone
               <input className="input mt-1" value={phone} onChange={(e) => setPhone(e.target.value)} autoComplete="tel" />
             </label>
+            <div className="mt-3">
+              <span className="block text-sm">Promo code</span>
+              <div className="mt-1 flex gap-2">
+                <input
+                  className="input font-mono uppercase"
+                  value={promoCode}
+                  onChange={(e) => { setPromoCode(e.target.value); setAppliedPromo(null); }}
+                  autoComplete="off"
+                />
+                <button type="button" className="btn-ghost shrink-0" disabled={!promoCode.trim() || !selectedTier || checkingPromo} onClick={validatePromo}>
+                  {checkingPromo ? 'Checking...' : 'Apply'}
+                </button>
+              </div>
+              {appliedPromo ? (
+                <p className="mt-1 text-xs text-emerald-700">{appliedPromo.code} applied: {money(appliedPromo.discountCents)} off</p>
+              ) : null}
+            </div>
             <button type="submit" disabled={!selectedTier || submitting} className="btn-accent mt-5 w-full justify-center">
               {submitting ? 'Opening checkout...' : 'Continue to checkout'}
             </button>
             {selectedTier ? (
               <p className="mt-3 text-center text-xs text-paper-500">
-                {selectedTier.name} · {money(selectedTier.priceCents)} / {intervalLabel(selectedTier.billingInterval)}
+                {selectedTier.name} · {money(appliedPromo?.finalAmountCents ?? selectedTier.priceCents)} / {intervalLabel(selectedTier.billingInterval)}
               </p>
             ) : null}
           </form>

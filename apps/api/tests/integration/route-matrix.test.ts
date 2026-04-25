@@ -41,6 +41,7 @@ interface Ctx {
   segmentId: string;
   membershipTierId: string;
   membershipId: string;
+  promoCodeId: string;
 }
 
 interface RouteCase {
@@ -116,6 +117,11 @@ const ROUTES: RouteCase[] = [
   { name: 'POST membership cancel', method: 'POST', url: (c) => `/api/v1/orgs/${c.orgId}/memberships/${c.membershipId}/cancel`, body: () => ({ reason: 'requested' }), notFoundUrl: (c) => `/api/v1/orgs/${c.orgId}/memberships/00000000-0000-0000-0000-000000000000/cancel` },
   { name: 'POST membership renew', method: 'POST', url: (c) => `/api/v1/orgs/${c.orgId}/memberships/${c.membershipId}/renew`, body: () => ({ amountCents: 5000 }), invalidBody: () => ({ amountCents: -1 }), notFoundUrl: (c) => `/api/v1/orgs/${c.orgId}/memberships/00000000-0000-0000-0000-000000000000/renew` },
   { name: 'POST membership refund', method: 'POST', url: (c) => `/api/v1/orgs/${c.orgId}/memberships/${c.membershipId}/refund`, body: () => ({ amountCents: 5000 }), invalidBody: () => ({ amountCents: -1 }), notFoundUrl: (c) => `/api/v1/orgs/${c.orgId}/memberships/00000000-0000-0000-0000-000000000000/refund` },
+  { name: 'GET promo codes', method: 'GET', url: (c) => `/api/v1/orgs/${c.orgId}/promo-codes` },
+  { name: 'POST promo code', method: 'POST', url: (c) => `/api/v1/orgs/${c.orgId}/promo-codes`, body: (c) => ({ code: `SAVE${Math.random().toString(36).slice(2, 8)}`, discountType: 'percent', discountPercent: 10, membershipTierId: c.membershipTierId }), invalidBody: () => ({ code: '', discountType: 'percent' }) },
+  { name: 'GET single promo code', method: 'GET', url: (c) => `/api/v1/orgs/${c.orgId}/promo-codes/${c.promoCodeId}`, notFoundUrl: (c) => `/api/v1/orgs/${c.orgId}/promo-codes/00000000-0000-0000-0000-000000000000` },
+  { name: 'PATCH promo code', method: 'PATCH', url: (c) => `/api/v1/orgs/${c.orgId}/promo-codes/${c.promoCodeId}`, body: () => ({ active: false }), invalidBody: () => ({ maxRedemptions: -1 }) },
+  { name: 'DELETE promo code', method: 'DELETE', url: (c) => `/api/v1/orgs/${c.orgId}/promo-codes/${c.promoCodeId}`, notFoundUrl: (c) => `/api/v1/orgs/${c.orgId}/promo-codes/00000000-0000-0000-0000-000000000000` },
 
   // --- Stripe Connect foundation ---
   { name: 'GET Stripe status', method: 'GET', url: (c) => `/api/v1/orgs/${c.orgId}/stripe` },
@@ -355,6 +361,17 @@ describe('route matrix: happy + 401 + 403 + 422 + 404', () => {
       })
       .returning(['id'])
       .executeTakeFirstOrThrow();
+    const promoCode = await getDb()
+      .insertInto('promo_codes')
+      .values({
+        org_id: owner.orgId,
+        code: 'SEED10',
+        discount_type: 'percent',
+        discount_percent: 10,
+        membership_tier_id: membershipTier.id,
+      })
+      .returning(['id'])
+      .executeTakeFirstOrThrow();
     await getDb()
       .insertInto('membership_payments')
       .values({
@@ -403,6 +420,7 @@ describe('route matrix: happy + 401 + 403 + 422 + 404', () => {
       segmentId: segment.id,
       membershipTierId: membershipTier.id,
       membershipId: membership.id,
+      promoCodeId: promoCode.id,
     };
   });
 

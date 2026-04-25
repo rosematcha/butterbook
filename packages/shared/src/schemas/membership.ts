@@ -83,6 +83,72 @@ export const refundMembershipSchema = z
   })
   .strict();
 
+export const promoCodeDiscountTypeSchema = z.enum(['percent', 'amount']);
+export const promoCodeCodeSchema = z
+  .string()
+  .trim()
+  .min(2)
+  .max(40)
+  .regex(/^[A-Za-z0-9][A-Za-z0-9_-]*$/, 'Use letters, numbers, dashes, or underscores.');
+
+const promoCodeFields = z
+  .object({
+    code: promoCodeCodeSchema.transform((s) => s.toUpperCase()),
+    description: z.string().trim().max(500).nullable().optional(),
+    discountType: promoCodeDiscountTypeSchema,
+    discountPercent: z.number().int().min(1).max(100).nullable().optional(),
+    discountAmountCents: z.number().int().positive().nullable().optional(),
+    membershipTierId: uuidSchema.nullable().optional(),
+    startsAt: isoDateTimeSchema.nullable().optional(),
+    expiresAt: isoDateTimeSchema.nullable().optional(),
+    maxRedemptions: z.number().int().positive().nullable().optional(),
+    active: z.boolean().optional(),
+  })
+  .strict();
+
+export const createPromoCodeSchema = promoCodeFields
+  .superRefine((val, ctx) => {
+    if (val.discountType === 'percent' && val.discountPercent == null) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['discountPercent'], message: 'Required for percent discounts.' });
+    }
+    if (val.discountType === 'percent' && val.discountAmountCents != null) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['discountAmountCents'], message: 'Must be empty for percent discounts.' });
+    }
+    if (val.discountType === 'amount' && val.discountAmountCents == null) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['discountAmountCents'], message: 'Required for amount discounts.' });
+    }
+    if (val.discountType === 'amount' && val.discountPercent != null) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['discountPercent'], message: 'Must be empty for amount discounts.' });
+    }
+    if (val.startsAt && val.expiresAt && new Date(val.startsAt) >= new Date(val.expiresAt)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['expiresAt'], message: 'Must be after startsAt.' });
+    }
+  });
+
+export const updatePromoCodeSchema = promoCodeFields.partial().strict().superRefine((val, ctx) => {
+  if (val.discountType === 'percent' && val.discountAmountCents != null) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['discountAmountCents'], message: 'Must be empty for percent discounts.' });
+  }
+  if (val.discountType === 'amount' && val.discountPercent != null) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['discountPercent'], message: 'Must be empty for amount discounts.' });
+  }
+  if (val.startsAt && val.expiresAt && new Date(val.startsAt) >= new Date(val.expiresAt)) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['expiresAt'], message: 'Must be after startsAt.' });
+  }
+});
+
+export const promoCodeIdParamSchema = z.object({ orgId: uuidSchema, promoCodeId: uuidSchema });
+export const listPromoCodesQuerySchema = z.object({
+  include_deleted: z.enum(['true', 'false']).optional(),
+});
+
+export const publicPromoCodeValidationSchema = z
+  .object({
+    tierId: uuidSchema,
+    code: promoCodeCodeSchema.transform((s) => s.toUpperCase()),
+  })
+  .strict();
+
 export const updateMembershipPolicySchema = z
   .object({
     enabled: z.boolean().optional(),
@@ -103,6 +169,7 @@ export const publicMembershipCheckoutSchema = z
     firstName: z.string().trim().min(1).max(120).optional(),
     lastName: z.string().trim().min(1).max(120).optional(),
     phone: z.string().trim().min(1).max(80).optional(),
+    promoCode: promoCodeCodeSchema.transform((s) => s.toUpperCase()).optional(),
     successUrl: z.string().url().optional(),
     cancelUrl: z.string().url().optional(),
   })

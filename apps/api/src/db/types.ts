@@ -36,6 +36,7 @@ export interface DB {
   memberships: MembershipsTable;
   membership_payments: MembershipPaymentsTable;
   guest_passes: GuestPassesTable;
+  promo_codes: PromoCodesTable;
   org_stripe_accounts: OrgStripeAccountsTable;
   stripe_events: StripeEventsTable;
 }
@@ -137,6 +138,25 @@ export interface GuestPassesTable {
   expires_at: Timestamp | null;
   redeemed_at: Timestamp | null;
   redeemed_by_visit_id: string | null;
+}
+
+export interface PromoCodesTable {
+  id: Generated<string>;
+  org_id: string;
+  code: string;
+  description: string | null;
+  discount_type: 'percent' | 'amount';
+  discount_percent: number | null;
+  discount_amount_cents: number | null;
+  membership_tier_id: string | null;
+  starts_at: Timestamp | null;
+  expires_at: Timestamp | null;
+  max_redemptions: number | null;
+  redeemed_count: Generated<number>;
+  active: Generated<boolean>;
+  deleted_at: Timestamp | null;
+  created_at: Generated<Timestamp>;
+  updated_at: Generated<Timestamp>;
 }
 
 export interface VisitorsTable {
