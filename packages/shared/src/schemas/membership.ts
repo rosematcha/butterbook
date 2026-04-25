@@ -161,6 +161,14 @@ export const updateMembershipPolicySchema = z
   })
   .strict();
 
+export const listGuestPassesQuerySchema = paginationSchema.extend({
+  redeemed: z.enum(['true', 'false']).optional(),
+  membership_id: uuidSchema.optional(),
+  expires_before: isoDateTimeSchema.optional(),
+});
+
+export const guestPassIdParamSchema = z.object({ orgId: uuidSchema, passId: uuidSchema });
+
 export const publicMembershipOrgParamSchema = z.object({ orgSlug: slugSchema });
 
 export const publicMembershipCheckoutSchema = z

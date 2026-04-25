@@ -51,6 +51,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     { href: '/app/contacts', label: 'Contacts', prefetch: 'contacts', requires: 'contacts.view_all' },
     { href: '/app/memberships', label: 'Memberships', prefetch: 'memberships', requires: 'memberships.view_all' },
     { href: '/app/memberships/tiers', label: 'Tiers', prefetch: 'membershipTiers', requires: 'memberships.view_all' },
+    { href: '/app/memberships/guest-passes', label: 'Guest passes', requires: 'memberships.view_all' },
     { href: '/app/memberships/promo-codes', label: 'Promo codes', requires: 'promo_codes.manage' },
     { href: '/app/broadcasts', label: 'Broadcasts', requires: 'broadcasts.send' },
   ];
