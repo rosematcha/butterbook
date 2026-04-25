@@ -14,6 +14,7 @@ import { MonthPicker } from '../components/month-picker';
 import { ScaleControl } from '../components/scale-control';
 import { SkeletonBlock } from '../components/skeleton-rows';
 import { useTodayZoom } from '../../lib/use-today-zoom';
+import Link from 'next/link';
 
 function toLocalDateKey(d: Date): string {
   const pad = (n: number) => n.toString().padStart(2, '0');
@@ -75,6 +76,24 @@ function TodayPageInner() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params]);
+
+  const locationsQ = useQuery({
+    queryKey: ['locations', activeOrgId],
+    queryFn: () => apiGet<{ data: { id: string }[] }>(`/api/v1/orgs/${activeOrgId}/locations`),
+    enabled: !!activeOrgId,
+    staleTime: 5 * 60_000,
+  });
+
+  const membersQ = useQuery({
+    queryKey: ['members', activeOrgId],
+    queryFn: () => apiGet<{ data: { id: string }[] }>(`/api/v1/orgs/${activeOrgId}/members`),
+    enabled: !!activeOrgId,
+    staleTime: 5 * 60_000,
+  });
+
+  const hasLocations = (locationsQ.data?.data.length ?? 0) > 0;
+  const hasMembers = (membersQ.data?.data.length ?? 0) > 1;
+  const isNewOrg = locationsQ.isSuccess && !hasLocations;
 
   const active = useActiveDays(activeOrgId, date.getFullYear(), date.getMonth() + 1);
   const dateKey = toLocalDateKey(date);
@@ -278,6 +297,42 @@ function TodayPageInner() {
       }
     }
   };
+
+  if (isNewOrg) {
+    const steps = [
+      { done: hasLocations, label: 'Create a location', href: '/app/locations', desc: 'Add at least one location to start accepting visitors.' },
+      { done: false, label: 'Set your hours', href: '/app/locations', desc: 'Configure weekly opening hours so visitors can book.' },
+      { done: hasMembers, label: 'Invite a teammate', href: '/app/members', desc: 'Add staff so you can share the workload.' },
+    ];
+    return (
+      <div>
+        <div className="mb-8">
+          <div className="h-eyebrow">Get started</div>
+          <h1 className="h-display mt-1">Set up your organization</h1>
+          <p className="mt-2 max-w-xl text-sm text-paper-600">
+            Complete these steps to start accepting visitors. Each one takes about a minute.
+          </p>
+        </div>
+        <div className="max-w-lg space-y-3">
+          {steps.map((s) => (
+            <Link
+              key={s.label}
+              href={s.href}
+              className="panel flex items-start gap-4 p-5 transition hover:border-brand-accent/30 hover:shadow-sm"
+            >
+              <span className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-medium ${s.done ? 'bg-brand-accent text-brand-on-accent' : 'border border-paper-300 text-paper-400'}`}>
+                {s.done ? '✓' : ' '}
+              </span>
+              <div>
+                <div className="font-medium text-ink">{s.label}</div>
+                <div className="mt-0.5 text-sm text-paper-600">{s.desc}</div>
+              </div>
+            </Link>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div>

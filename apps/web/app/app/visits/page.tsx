@@ -5,6 +5,7 @@ import { apiGet, apiPost } from '../../../lib/api';
 import { useOptimisticMutation } from '../../../lib/mutations';
 import { useSession } from '../../../lib/session';
 import { SkeletonRows } from '../../components/skeleton-rows';
+import { EmptyState } from '../../components/empty-state';
 
 interface Visit {
   id: string;
@@ -82,7 +83,13 @@ export default function VisitsPage() {
             {visits.isPending ? (
               <SkeletonRows cols={6} rows={6} />
             ) : (visits.data?.data ?? []).length === 0 ? (
-              <tr><td colSpan={6} className="py-4 text-center text-slate-500">No visits.</td></tr>
+              <tr><td colSpan={6} className="py-8 text-center">
+                <EmptyState
+                  title="No visits on this day."
+                  description="Pick a different date, or add one from the Today view."
+                  className="mx-auto mt-0 text-left"
+                />
+              </td></tr>
             ) : (
               (visits.data?.data ?? []).map((v) => (
                 <tr key={v.id} className="border-t border-slate-100">
