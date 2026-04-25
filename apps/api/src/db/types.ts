@@ -37,8 +37,25 @@ export interface DB {
   membership_payments: MembershipPaymentsTable;
   guest_passes: GuestPassesTable;
   promo_codes: PromoCodesTable;
+  broadcasts: BroadcastsTable;
   org_stripe_accounts: OrgStripeAccountsTable;
   stripe_events: StripeEventsTable;
+}
+
+export interface BroadcastsTable {
+  id: Generated<string>;
+  org_id: string;
+  segment_id: string | null;
+  subject: string;
+  body_html: string;
+  body_text: string;
+  status: Generated<'draft' | 'sending' | 'sent' | 'failed'>;
+  recipient_count: number | null;
+  scheduled_for: Timestamp | null;
+  sent_at: Timestamp | null;
+  created_by: string | null;
+  created_at: Generated<Timestamp>;
+  updated_at: Generated<Timestamp>;
 }
 
 export interface OrgStripeAccountsTable {

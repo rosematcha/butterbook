@@ -125,7 +125,16 @@ function JoinInner() {
       );
       window.location.href = body.data.url;
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Checkout could not start.');
+      const msg = err instanceof Error ? err.message : 'Checkout could not start.';
+      // If the promo became unusable between Apply and Continue (e.g. another
+      // buyer redeemed the last seat), clear the applied promo so the user can
+      // retry at the regular price without re-typing the form.
+      if (appliedPromo && /promo/i.test(msg)) {
+        setAppliedPromo(null);
+        setError(`${msg} The promo has been removed; you can continue at the regular price.`);
+      } else {
+        setError(msg);
+      }
     } finally {
       setSubmitting(false);
     }

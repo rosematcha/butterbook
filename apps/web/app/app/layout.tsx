@@ -52,6 +52,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     { href: '/app/memberships', label: 'Memberships', prefetch: 'memberships', requires: 'memberships.view_all' },
     { href: '/app/memberships/tiers', label: 'Tiers', prefetch: 'membershipTiers', requires: 'memberships.view_all' },
     { href: '/app/memberships/promo-codes', label: 'Promo codes', requires: 'promo_codes.manage' },
+    { href: '/app/broadcasts', label: 'Broadcasts', requires: 'broadcasts.send' },
   ];
 
   // While /auth/me is still loading we don't yet know what the user can do, so

@@ -201,6 +201,7 @@ export default function ContactsPage() {
         />
       ) : (
         <section className="panel overflow-hidden">
+          <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-paper-200 text-left text-[11px] font-semibold uppercase tracking-[0.14em] text-paper-500">
@@ -257,6 +258,7 @@ export default function ContactsPage() {
                 ))}
             </tbody>
           </table>
+          </div>
         </section>
       )}
 

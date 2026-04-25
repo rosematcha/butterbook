@@ -78,6 +78,7 @@ export const renewMembershipSchema = z
 
 export const refundMembershipSchema = z
   .object({
+    paymentId: uuidSchema.optional(),
     amountCents: z.number().int().min(0).optional(),
     notes: z.string().max(2000).nullable().optional(),
   })

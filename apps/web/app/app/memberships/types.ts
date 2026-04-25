@@ -86,8 +86,16 @@ export function memberName(member: Membership): string {
   return name || member.visitor.email;
 }
 
-export function money(cents: number): string {
-  return new Intl.NumberFormat([], { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(cents / 100);
+export function money(cents: number, currency: string = 'USD'): string {
+  // Currency defaults to USD when the caller doesn't have org context (e.g.
+  // older flows). Stripe-connected orgs surface default_currency via the
+  // /api/v1/orgs/:orgId/stripe endpoint; pass it through where available.
+  const code = (currency || 'USD').toUpperCase();
+  try {
+    return new Intl.NumberFormat([], { style: 'currency', currency: code, maximumFractionDigits: 0 }).format(cents / 100);
+  } catch {
+    return new Intl.NumberFormat([], { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(cents / 100);
+  }
 }
 
 export function intervalLabel(interval: MembershipBillingInterval): string {

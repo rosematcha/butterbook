@@ -143,6 +143,14 @@ function MembershipProfileInner() {
 
   return (
     <div className="space-y-8">
+      <div>
+        <Link
+          href="/app/memberships"
+          className="inline-flex items-center gap-1 text-sm text-paper-500 transition hover:text-brand-accent"
+        >
+          <span aria-hidden>←</span> Memberships
+        </Link>
+      </div>
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <div className="h-eyebrow">Membership profile</div>
@@ -151,7 +159,6 @@ function MembershipProfileInner() {
         </div>
         <div className="flex gap-2">
           <Link className="btn-secondary" href={`/app/contacts/profile?id=${member.visitorId}`}>Contact profile</Link>
-          <Link className="btn-secondary" href="/app/memberships">All memberships</Link>
         </div>
       </div>
 

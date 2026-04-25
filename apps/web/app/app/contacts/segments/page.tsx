@@ -10,34 +10,13 @@ import { EmptyState } from '../../../components/empty-state';
 import { SkeletonRows } from '../../../components/skeleton-rows';
 import { Timestamp } from '../../../components/timestamp';
 import { contactName, describeFilter, type Contact, type Segment, type SegmentFilter } from '../types';
-
-type FilterKind = 'tag' | 'emailDomain' | 'visitedAfter' | 'visitedBefore' | 'hasMembership';
-
-const FILTER_KINDS: Array<{ value: FilterKind; label: string }> = [
-  { value: 'tag', label: 'Tag' },
-  { value: 'emailDomain', label: 'Email domain' },
-  { value: 'visitedAfter', label: 'Visited after' },
-  { value: 'visitedBefore', label: 'Visited before' },
-  { value: 'hasMembership', label: 'Membership' },
-];
+import { RuleBuilder, simplify } from './rule-builder';
 
 function apiErrMsg(e: unknown, fallback: string): string {
   return e instanceof ApiError ? e.problem.detail ?? e.problem.title : fallback;
 }
 
-function makeFilter(kind: FilterKind, value: string): SegmentFilter {
-  if (kind === 'hasMembership') return { hasMembership: value === 'true' };
-  if (kind === 'visitedAfter') return { visitedAfter: new Date(`${value}T00:00:00`).toISOString() };
-  if (kind === 'visitedBefore') return { visitedBefore: new Date(`${value}T23:59:59`).toISOString() };
-  if (kind === 'emailDomain') return { emailDomain: value.trim().replace(/^@/, '') };
-  return { tag: value.trim() };
-}
-
-function initialValue(kind: FilterKind): string {
-  if (kind === 'hasMembership') return 'false';
-  if (kind === 'visitedAfter' || kind === 'visitedBefore') return new Date().toISOString().slice(0, 10);
-  return '';
-}
+const EMPTY_FILTER: SegmentFilter = { and: [{ tag: '' }] };
 
 export default function SegmentsPage() {
   const { activeOrgId } = useSession();
@@ -46,8 +25,7 @@ export default function SegmentsPage() {
   const confirm = useConfirm();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [name, setName] = useState('');
-  const [kind, setKind] = useState<FilterKind>('tag');
-  const [value, setValue] = useState('');
+  const [filter, setFilter] = useState<SegmentFilter>(EMPTY_FILTER);
 
   const segments = useQuery({
     queryKey: ['segments', activeOrgId],
@@ -73,11 +51,11 @@ export default function SegmentsPage() {
     mutationFn: () =>
       apiPost<{ data: Segment }>(`/api/v1/orgs/${activeOrgId}/segments`, {
         name,
-        filter: makeFilter(kind, value),
+        filter: simplify(filter),
       }),
     onSuccess: (res) => {
       setName('');
-      setValue(initialValue(kind));
+      setFilter(EMPTY_FILTER);
       setSelectedId(res.data.id);
       qc.invalidateQueries({ queryKey: ['segments', activeOrgId] });
       toast.push({ kind: 'success', message: 'Segment created' });
@@ -89,7 +67,7 @@ export default function SegmentsPage() {
     mutationFn: () =>
       apiPatch<{ data: Segment }>(`/api/v1/orgs/${activeOrgId}/segments/${selectedId}`, {
         name: name || selected?.name,
-        filter: makeFilter(kind, value),
+        filter: simplify(filter),
       }),
     onSuccess: (res) => {
       setSelectedId(res.data.id);
@@ -110,11 +88,6 @@ export default function SegmentsPage() {
     onError: (e) => toast.push({ kind: 'error', message: apiErrMsg(e, 'Delete failed') }),
   });
 
-  function resetBuilder(nextKind: FilterKind) {
-    setKind(nextKind);
-    setValue(initialValue(nextKind));
-  }
-
   function onSubmit(e: FormEvent) {
     e.preventDefault();
     if (selected) update.mutate();
@@ -134,22 +107,13 @@ export default function SegmentsPage() {
   function edit(segment: Segment) {
     setSelectedId(segment.id);
     setName(segment.name);
-    const f = segment.filter;
-    if ('tag' in f) { resetBuilder('tag'); setValue(f.tag); }
-    else if ('emailDomain' in f) { resetBuilder('emailDomain'); setValue(f.emailDomain); }
-    else if ('visitedAfter' in f) { resetBuilder('visitedAfter'); setValue(f.visitedAfter.slice(0, 10)); }
-    else if ('visitedBefore' in f) { resetBuilder('visitedBefore'); setValue(f.visitedBefore.slice(0, 10)); }
-    else if ('hasMembership' in f) { resetBuilder('hasMembership'); setValue(String(f.hasMembership)); }
-    else {
-      resetBuilder('tag');
-      setValue('');
-    }
+    setFilter(segment.filter);
   }
 
   function newSegment() {
     setSelectedId(null);
     setName('');
-    resetBuilder('tag');
+    setFilter(EMPTY_FILTER);
   }
 
   const rows = segments.data?.data ?? [];
@@ -165,7 +129,7 @@ export default function SegmentsPage() {
             <div className="h-eyebrow">Members &amp; CRM</div>
             <h1 className="h-display mt-1">Segments</h1>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-paper-600">
-              Saved contact filters. Useful for reports today; the foundation for broadcasts later.
+              Saved contact filters. Combine rules with All/Any and nest groups for compound logic.
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -175,15 +139,16 @@ export default function SegmentsPage() {
         </div>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_400px]">
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_460px]">
         <section className="panel overflow-hidden">
           {segments.isSuccess && rows.length === 0 ? (
             <EmptyState
               className="m-6"
               title="No segments yet."
-              description="Build one from a tag, email domain, visit date, or membership status. Save it for reuse."
+              description="Build one from a tag, email domain, visit date, or membership status. Combine rules to build something more specific."
             />
           ) : (
+            <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-paper-200 text-left text-[11px] font-semibold uppercase tracking-[0.14em] text-paper-500">
@@ -215,7 +180,9 @@ export default function SegmentsPage() {
                             <span className="font-medium text-ink">{segment.name}</span>
                           </div>
                         </td>
-                        <td className="px-5 py-3.5 text-paper-700">{describeFilter(segment.filter)}</td>
+                        <td className="max-w-[28rem] truncate px-5 py-3.5 text-paper-700" title={describeFilter(segment.filter)}>
+                          {describeFilter(segment.filter)}
+                        </td>
                         <td className="px-5 py-3.5 tabular-nums text-paper-700">
                           {segment.visitorCount ?? <span className="text-paper-400">—</span>}
                         </td>
@@ -245,6 +212,7 @@ export default function SegmentsPage() {
                   })}
               </tbody>
             </table>
+            </div>
           )}
         </section>
 
@@ -276,50 +244,13 @@ export default function SegmentsPage() {
 
               <div>
                 <span className="h-eyebrow">Filter</span>
-                <div className="mt-2 flex flex-wrap gap-1.5">
-                  {FILTER_KINDS.map((f) => {
-                    const active = kind === f.value;
-                    return (
-                      <button
-                        key={f.value}
-                        type="button"
-                        onClick={() => resetBuilder(f.value)}
-                        className={`rounded-md px-2.5 py-1 text-xs font-medium transition ${
-                          active
-                            ? 'bg-ink text-paper-50'
-                            : 'bg-paper-100 text-paper-600 hover:bg-paper-200 hover:text-ink'
-                        }`}
-                      >
-                        {f.label}
-                      </button>
-                    );
-                  })}
+                <div className="mt-2">
+                  <RuleBuilder filter={filter} onChange={setFilter} />
                 </div>
+                <p className="mt-2 text-[11px] text-paper-500">
+                  Date filters use your local browser timezone for the start and end of day.
+                </p>
               </div>
-
-              <label className="block">
-                <span className="h-eyebrow">
-                  {kind === 'tag' ? 'Tag' :
-                    kind === 'emailDomain' ? 'Domain' :
-                    kind === 'visitedAfter' ? 'Date (after)' :
-                    kind === 'visitedBefore' ? 'Date (before)' : 'Status'}
-                </span>
-                {kind === 'hasMembership' ? (
-                  <select className="input mt-1" value={value} onChange={(e) => setValue(e.target.value)}>
-                    <option value="false">Does not have membership</option>
-                    <option value="true">Has membership</option>
-                  </select>
-                ) : (
-                  <input
-                    className="input mt-1"
-                    required
-                    type={kind === 'visitedAfter' || kind === 'visitedBefore' ? 'date' : 'text'}
-                    value={value}
-                    onChange={(e) => setValue(e.target.value)}
-                    placeholder={kind === 'emailDomain' ? 'example.org' : kind === 'tag' ? 'member' : ''}
-                  />
-                )}
-              </label>
 
               <button className="btn w-full" disabled={create.isPending || update.isPending}>
                 {selected

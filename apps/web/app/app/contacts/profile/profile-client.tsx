@@ -44,7 +44,20 @@ export default function ContactProfilePage() {
   const toast = useToast();
   const confirm = useConfirm();
   const contactId = searchParams.get('id') ?? '';
-  const [form, setForm] = useState({ email: '', firstName: '', lastName: '', phone: '', tags: '', notes: '' });
+  const [form, setForm] = useState({
+    email: '',
+    firstName: '',
+    lastName: '',
+    phone: '',
+    tags: '',
+    notes: '',
+    line1: '',
+    line2: '',
+    city: '',
+    region: '',
+    postal: '',
+    country: '',
+  });
   const [mergeId, setMergeId] = useState('');
 
   const contact = useQuery({
@@ -61,6 +74,8 @@ export default function ContactProfilePage() {
   useEffect(() => {
     const c = contact.data?.data;
     if (!c) return;
+    const addr = (c.address && typeof c.address === 'object' ? c.address : {}) as Record<string, unknown>;
+    const s = (k: string) => (typeof addr[k] === 'string' ? (addr[k] as string) : '');
     setForm({
       email: c.email ?? '',
       firstName: c.firstName ?? '',
@@ -68,19 +83,34 @@ export default function ContactProfilePage() {
       phone: c.phone ?? '',
       tags: c.tags.join(', '),
       notes: c.notes ?? '',
+      line1: s('line1'),
+      line2: s('line2'),
+      city: s('city'),
+      region: s('region'),
+      postal: s('postal'),
+      country: s('country'),
     });
   }, [contact.data]);
 
   const save = useMutation({
-    mutationFn: () =>
-      apiPatch<{ data: Contact }>(`/api/v1/orgs/${activeOrgId}/contacts/${contactId}`, {
+    mutationFn: () => {
+      const addr: Record<string, string> = {};
+      if (form.line1.trim()) addr.line1 = form.line1.trim();
+      if (form.line2.trim()) addr.line2 = form.line2.trim();
+      if (form.city.trim()) addr.city = form.city.trim();
+      if (form.region.trim()) addr.region = form.region.trim();
+      if (form.postal.trim()) addr.postal = form.postal.trim();
+      if (form.country.trim()) addr.country = form.country.trim().toUpperCase().slice(0, 2);
+      return apiPatch<{ data: Contact }>(`/api/v1/orgs/${activeOrgId}/contacts/${contactId}`, {
         email: form.email,
         firstName: form.firstName.trim() || null,
         lastName: form.lastName.trim() || null,
         phone: form.phone.trim() || null,
         tags: tagsFromText(form.tags),
         notes: form.notes.trim() || null,
-      }),
+        address: Object.keys(addr).length === 0 ? null : addr,
+      });
+    },
     onSuccess: (res) => {
       qc.setQueryData(['contact', activeOrgId, contactId], { data: res.data });
       qc.invalidateQueries({ queryKey: ['contacts', activeOrgId] });
@@ -284,6 +314,54 @@ export default function ContactProfilePage() {
                 placeholder="Anything the next staff member should know."
               />
             </label>
+            <fieldset className="block sm:col-span-2 mt-2">
+              <legend className="h-eyebrow">Mailing address</legend>
+              <div className="mt-2 grid gap-3 sm:grid-cols-2">
+                <input
+                  className="input sm:col-span-2"
+                  placeholder="Address line 1"
+                  value={form.line1}
+                  onChange={(e) => setForm((f) => ({ ...f, line1: e.target.value }))}
+                  disabled={c?.piiRedacted}
+                />
+                <input
+                  className="input sm:col-span-2"
+                  placeholder="Address line 2"
+                  value={form.line2}
+                  onChange={(e) => setForm((f) => ({ ...f, line2: e.target.value }))}
+                  disabled={c?.piiRedacted}
+                />
+                <input
+                  className="input"
+                  placeholder="City"
+                  value={form.city}
+                  onChange={(e) => setForm((f) => ({ ...f, city: e.target.value }))}
+                  disabled={c?.piiRedacted}
+                />
+                <input
+                  className="input"
+                  placeholder="State / region"
+                  value={form.region}
+                  onChange={(e) => setForm((f) => ({ ...f, region: e.target.value }))}
+                  disabled={c?.piiRedacted}
+                />
+                <input
+                  className="input"
+                  placeholder="Postal code"
+                  value={form.postal}
+                  onChange={(e) => setForm((f) => ({ ...f, postal: e.target.value }))}
+                  disabled={c?.piiRedacted}
+                />
+                <input
+                  className="input"
+                  placeholder="Country (2-letter)"
+                  maxLength={2}
+                  value={form.country}
+                  onChange={(e) => setForm((f) => ({ ...f, country: e.target.value }))}
+                  disabled={c?.piiRedacted}
+                />
+              </div>
+            </fieldset>
           </div>
           <div className="mt-5 flex justify-end">
             <button className="btn" disabled={save.isPending || c?.piiRedacted}>

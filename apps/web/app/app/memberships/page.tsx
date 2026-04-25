@@ -140,6 +140,8 @@ export default function MembershipsPage() {
               type="button"
               onClick={() => setEnrollOpen((v) => !v)}
               className={enrollOpen ? 'btn-secondary' : 'btn'}
+              disabled={!enrollOpen && tierRows.filter((t) => t.active).length === 0}
+              title={tierRows.filter((t) => t.active).length === 0 ? 'Create an active membership tier first.' : undefined}
             >
               {enrollOpen ? 'Close' : 'Enroll member'}
             </button>
@@ -285,6 +287,7 @@ export default function MembershipsPage() {
         />
       ) : (
         <section className="panel overflow-hidden">
+          <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-paper-200 text-left text-[11px] font-semibold uppercase tracking-[0.14em] text-paper-500">
@@ -328,6 +331,7 @@ export default function MembershipsPage() {
                 ))}
             </tbody>
           </table>
+          </div>
         </section>
       )}
 

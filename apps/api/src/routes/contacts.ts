@@ -185,6 +185,9 @@ export function registerContactRoutes(app: FastifyInstance): void {
       const mergedTags = Array.from(new Set(contacts.flatMap((c) => c.tags)));
       await tx.updateTable('visits').set({ visitor_id: body.keepId }).where('org_id', '=', orgId).where('visitor_id', 'in', body.mergeIds).execute();
       await tx.updateTable('waitlist_entries').set({ visitor_id: body.keepId }).where('org_id', '=', orgId).where('visitor_id', 'in', body.mergeIds).execute();
+      // Memberships have ON DELETE CASCADE on visitor, so soft-deleting the source
+      // contacts without re-pointing first would orphan their memberships.
+      await tx.updateTable('memberships').set({ visitor_id: body.keepId, updated_at: new Date() }).where('org_id', '=', orgId).where('visitor_id', 'in', body.mergeIds).execute();
       await tx
         .updateTable('visitors')
         .set({
@@ -311,7 +314,7 @@ function registerSegmentRoutes(app: FastifyInstance): void {
     return withOrgRead(orgId, async (tx) => {
       const segment = await tx.selectFrom('visitor_segments').selectAll().where('org_id', '=', orgId).where('id', '=', id).where('deleted_at', 'is', null).executeTakeFirst();
       if (!segment) throw new NotFoundError();
-      const rows = await tx.selectFrom('visitors').selectAll().where('org_id', '=', orgId).where('deleted_at', 'is', null).where(segmentPredicate(segment.filter)).orderBy('created_at', 'desc').limit(50).execute();
+      const rows = await tx.selectFrom('visitors').selectAll().where('org_id', '=', orgId).where('deleted_at', 'is', null).where('pii_redacted', '=', false).where(segmentPredicate(segment.filter)).orderBy('created_at', 'desc').limit(50).execute();
       return { data: rows.map(publicContact), meta: { previewLimit: 50, count: await countSegmentVisitors(tx, orgId, segment.filter) } };
     });
   });

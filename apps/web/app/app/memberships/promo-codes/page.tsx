@@ -235,6 +235,7 @@ export default function PromoCodesPage() {
         <EmptyState title="No promo codes yet." description="Create a code when a campaign needs a measurable membership discount." />
       ) : (
         <div className="panel overflow-hidden">
+          <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
             <thead className="border-b border-paper-200 bg-paper-50 text-xs uppercase tracking-[0.16em] text-paper-500">
               <tr>
@@ -265,6 +266,7 @@ export default function PromoCodesPage() {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
     </div>

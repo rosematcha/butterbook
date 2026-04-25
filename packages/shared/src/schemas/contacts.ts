@@ -58,10 +58,30 @@ export const segmentFilterSchema: z.ZodType<unknown> = z.lazy(() =>
   ]),
 );
 
+const SEGMENT_MAX_DEPTH = 3;
+
+function segmentFilterDepth(filter: unknown, depth = 0): number {
+  if (depth > SEGMENT_MAX_DEPTH) return depth;
+  if (typeof filter !== 'object' || filter === null || Array.isArray(filter)) return depth;
+  const rec = filter as Record<string, unknown>;
+  const kids = Array.isArray(rec.and) ? rec.and : Array.isArray(rec.or) ? rec.or : null;
+  if (!kids) return depth;
+  let max = depth;
+  for (const k of kids) {
+    const d = segmentFilterDepth(k, depth + 1);
+    if (d > max) max = d;
+  }
+  return max;
+}
+
+const segmentFilterDepthCheck = (val: unknown) => segmentFilterDepth(val) <= SEGMENT_MAX_DEPTH;
+
 export const createSegmentSchema = z
   .object({
     name: z.string().trim().min(1).max(120),
-    filter: segmentFilterSchema,
+    filter: segmentFilterSchema.refine(segmentFilterDepthCheck, {
+      message: `Segment filter cannot nest deeper than ${SEGMENT_MAX_DEPTH} levels.`,
+    }),
   })
   .strict();
 

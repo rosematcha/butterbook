@@ -259,6 +259,32 @@ function registerMembershipRecordRoutes(app: FastifyInstance): void {
     await req.requirePermission(orgId, 'memberships.manage');
     const m = await req.loadMembershipFor(orgId);
     return withOrgContext(orgId, req.actorForOrg(orgId, m), async ({ tx, audit }) => {
+      const current = await tx
+        .selectFrom('memberships')
+        .select(['status'])
+        .where('org_id', '=', orgId)
+        .where('id', '=', membershipId)
+        .executeTakeFirst();
+      if (!current) throw new NotFoundError();
+
+      if (body.status !== undefined && body.status !== current.status) {
+        // Only the obvious admin-corrective transitions belong on PATCH. Anything
+        // that triggers side effects (cancel, refund, renew) has its own route
+        // so notifications, audit reasons, and Stripe calls fire correctly.
+        const allowed: Record<string, ReadonlyArray<string>> = {
+          pending: ['active', 'cancelled'],
+          active: ['expired', 'lapsed'],
+          expired: ['active', 'lapsed'],
+          lapsed: ['active'],
+        };
+        const ok = allowed[current.status]?.includes(body.status);
+        if (!ok) {
+          throw new ConflictError(
+            `Cannot move membership from "${current.status}" to "${body.status}" via PATCH. Use cancel/refund/renew.`,
+          );
+        }
+      }
+
       const updates: Record<string, unknown> = {};
       if (body.status !== undefined) updates.status = body.status;
       if (body.expiresAt !== undefined) updates.expires_at = body.expiresAt === null ? null : new Date(body.expiresAt);
@@ -312,13 +338,16 @@ function registerMembershipRecordRoutes(app: FastifyInstance): void {
     await req.requirePermission(orgId, 'memberships.refund');
     const m = await req.loadMembershipFor(orgId);
     return withOrgContext(orgId, req.actorForOrg(orgId, m), async ({ tx, audit }) => {
-      const payment = await tx
+      // Default behaviour: refund against the latest payment. For multi-payment
+      // memberships (e.g. a renewed annual sub), the caller supplies a
+      // paymentId so they can pick which payment to refund.
+      let q = tx
         .selectFrom('membership_payments')
         .select(['id', 'amount_cents', 'source', 'stripe_charge_id', 'refunded_amount_cents'])
         .where('org_id', '=', orgId)
-        .where('membership_id', '=', membershipId)
-        .orderBy('created_at', 'desc')
-        .executeTakeFirst();
+        .where('membership_id', '=', membershipId);
+      if (body.paymentId) q = q.where('id', '=', body.paymentId);
+      const payment = await q.orderBy('created_at', 'desc').executeTakeFirst();
       if (!payment) throw new NotFoundError();
       const alreadyRefunded = payment.refunded_amount_cents ?? 0;
       const remaining = payment.amount_cents - alreadyRefunded;
@@ -352,8 +381,22 @@ function registerMembershipRecordRoutes(app: FastifyInstance): void {
         })
         .where('id', '=', payment.id)
         .execute();
-      const nextRefundedAmount = alreadyRefunded + refundAmount;
-      const membershipUpdates = nextRefundedAmount >= payment.amount_cents ? { status: 'refunded' as const, auto_renew: false } : { auto_renew: false };
+      // Membership flips to "refunded" only when no payment row has any
+      // unrefunded amount left. A partial refund (or a fully-refunded payment
+      // alongside other unrefunded payments) leaves status alone and just
+      // disables auto-renew.
+      const allPayments = await tx
+        .selectFrom('membership_payments')
+        .select(['amount_cents', 'refunded_amount_cents'])
+        .where('org_id', '=', orgId)
+        .where('membership_id', '=', membershipId)
+        .execute();
+      const allFullyRefunded = allPayments.length > 0 && allPayments.every(
+        (p) => (p.refunded_amount_cents ?? 0) >= p.amount_cents,
+      );
+      const membershipUpdates = allFullyRefunded
+        ? { status: 'refunded' as const, auto_renew: false }
+        : { auto_renew: false };
       const updated = await tx.updateTable('memberships').set(membershipUpdates).where('org_id', '=', orgId).where('id', '=', membershipId).returning(['id']).executeTakeFirst();
       if (!updated) throw new NotFoundError();
       await audit({ action: 'membership.refunded', targetType: 'membership', targetId: membershipId, diff: { after: body } });

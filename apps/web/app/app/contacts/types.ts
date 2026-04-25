@@ -85,12 +85,14 @@ export function tagsFromText(value: string): string[] {
   );
 }
 
-export function describeFilter(filter: SegmentFilter): string {
+export function describeFilter(filter: SegmentFilter, depth = 0): string {
   if ('tag' in filter) return `tag is "${filter.tag}"`;
   if ('emailDomain' in filter) return `email domain is ${filter.emailDomain}`;
   if ('visitedAfter' in filter) return `visited after ${new Date(filter.visitedAfter).toLocaleDateString()}`;
   if ('visitedBefore' in filter) return `visited before ${new Date(filter.visitedBefore).toLocaleDateString()}`;
   if ('hasMembership' in filter) return filter.hasMembership ? 'has membership' : 'does not have membership';
-  if ('and' in filter) return filter.and.map(describeFilter).join(' and ');
-  return filter.or.map(describeFilter).join(' or ');
+  const joiner = 'and' in filter ? ' and ' : ' or ';
+  const parts = ('and' in filter ? filter.and : filter.or).map((f) => describeFilter(f, depth + 1));
+  const joined = parts.join(joiner);
+  return depth === 0 ? joined : `(${joined})`;
 }

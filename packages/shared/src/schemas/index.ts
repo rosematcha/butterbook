@@ -13,3 +13,4 @@ export * from './booking-page.js';
 export * from './contacts.js';
 export * from './membership.js';
 export * from './stripe.js';
+export * from './broadcasts.js';

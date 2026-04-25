@@ -104,6 +104,13 @@ export const DEFAULT_TEMPLATES: DefaultTemplate[] = [
     bodyText:
       'Hi {{visitorName}},\n\nWe could not process payment for your {{tierName}} membership.',
   },
+  // broadcast.generic is a marker template, not a rendered one. Broadcasts
+  // pre-render their own subject/body in renderBroadcastFor and write the
+  // rendered_subject/html/text directly to the outbox. The template_key is
+  // stored on each outbox row so admins can filter the outbox by "broadcasts"
+  // vs transactional emails. Keeping a row in notification_templates with a
+  // self-substituting body lets admins customise these defaults without
+  // crashing if a future delivery worker ever tries to look it up.
   {
     templateKey: 'broadcast.generic',
     subject: '{{subject}}',

@@ -42,6 +42,10 @@ interface Ctx {
   membershipTierId: string;
   membershipId: string;
   promoCodeId: string;
+  broadcastId: string;
+  // Send is a one-shot state transition; reuse a separate row so the rest of
+  // the broadcast matrix can keep operating on a draft.
+  sendableBroadcastId: string;
 }
 
 interface RouteCase {
@@ -102,6 +106,7 @@ const ROUTES: RouteCase[] = [
   { name: 'GET single segment', method: 'GET', url: (c) => `/api/v1/orgs/${c.orgId}/segments/${c.segmentId}`, notFoundUrl: (c) => `/api/v1/orgs/${c.orgId}/segments/00000000-0000-0000-0000-000000000000` },
   { name: 'PATCH segment', method: 'PATCH', url: (c) => `/api/v1/orgs/${c.orgId}/segments/${c.segmentId}`, body: () => ({ filter: { emailDomain: 'example.com' } }), invalidBody: () => ({ filter: { nope: true } }) },
   { name: 'POST segment preview', method: 'POST', url: (c) => `/api/v1/orgs/${c.orgId}/segments/${c.segmentId}/preview`, notFoundUrl: (c) => `/api/v1/orgs/${c.orgId}/segments/00000000-0000-0000-0000-000000000000/preview` },
+  { name: 'DELETE segment', method: 'DELETE', url: (c) => `/api/v1/orgs/${c.orgId}/segments/${c.segmentId}`, notFoundUrl: (c) => `/api/v1/orgs/${c.orgId}/segments/00000000-0000-0000-0000-000000000000` },
 
   // --- membership core ---
   { name: 'GET membership-policies', method: 'GET', url: (c) => `/api/v1/orgs/${c.orgId}/membership-policies` },
@@ -122,6 +127,18 @@ const ROUTES: RouteCase[] = [
   { name: 'GET single promo code', method: 'GET', url: (c) => `/api/v1/orgs/${c.orgId}/promo-codes/${c.promoCodeId}`, notFoundUrl: (c) => `/api/v1/orgs/${c.orgId}/promo-codes/00000000-0000-0000-0000-000000000000` },
   { name: 'PATCH promo code', method: 'PATCH', url: (c) => `/api/v1/orgs/${c.orgId}/promo-codes/${c.promoCodeId}`, body: () => ({ active: false }), invalidBody: () => ({ maxRedemptions: -1 }) },
   { name: 'DELETE promo code', method: 'DELETE', url: (c) => `/api/v1/orgs/${c.orgId}/promo-codes/${c.promoCodeId}`, notFoundUrl: (c) => `/api/v1/orgs/${c.orgId}/promo-codes/00000000-0000-0000-0000-000000000000` },
+
+  // --- broadcasts ---
+  { name: 'GET broadcasts', method: 'GET', url: (c) => `/api/v1/orgs/${c.orgId}/broadcasts` },
+  { name: 'POST broadcast', method: 'POST', url: (c) => `/api/v1/orgs/${c.orgId}/broadcasts`, body: (c) => ({ segmentId: c.segmentId, subject: 'Hello {{visitorName}}', bodyHtml: '<p>Hi {{visitorName}}</p>', bodyText: 'Hi {{visitorName}}' }), invalidBody: () => ({ subject: '', bodyHtml: '', bodyText: '' }) },
+  { name: 'GET single broadcast', method: 'GET', url: (c) => `/api/v1/orgs/${c.orgId}/broadcasts/${c.broadcastId}`, notFoundUrl: (c) => `/api/v1/orgs/${c.orgId}/broadcasts/00000000-0000-0000-0000-000000000000` },
+  { name: 'PATCH broadcast', method: 'PATCH', url: (c) => `/api/v1/orgs/${c.orgId}/broadcasts/${c.broadcastId}`, body: () => ({ subject: 'Updated subject' }), invalidBody: () => ({ subject: '' }) },
+  { name: 'POST broadcast preview', method: 'POST', url: (c) => `/api/v1/orgs/${c.orgId}/broadcasts/${c.broadcastId}/preview`, notFoundUrl: (c) => `/api/v1/orgs/${c.orgId}/broadcasts/00000000-0000-0000-0000-000000000000/preview` },
+  { name: 'POST broadcast test-send', method: 'POST', url: (c) => `/api/v1/orgs/${c.orgId}/broadcasts/${c.broadcastId}/test-send`, body: () => ({ toAddress: 'test@example.com' }), invalidBody: () => ({ toAddress: 'nope' }), notFoundUrl: (c) => `/api/v1/orgs/${c.orgId}/broadcasts/00000000-0000-0000-0000-000000000000/test-send` },
+  // The send route mutates state to 'sending' on its first happy-path hit, so
+  // the matrix re-uses a fresh draft broadcast instead of c.broadcastId.
+  { name: 'POST broadcast send', method: 'POST', url: (c) => `/api/v1/orgs/${c.orgId}/broadcasts/${c.sendableBroadcastId}/send`, notFoundUrl: (c) => `/api/v1/orgs/${c.orgId}/broadcasts/00000000-0000-0000-0000-000000000000/send` },
+  { name: 'DELETE broadcast', method: 'DELETE', url: (c) => `/api/v1/orgs/${c.orgId}/broadcasts/${c.broadcastId}`, notFoundUrl: (c) => `/api/v1/orgs/${c.orgId}/broadcasts/00000000-0000-0000-0000-000000000000` },
 
   // --- Stripe Connect foundation ---
   { name: 'GET Stripe status', method: 'GET', url: (c) => `/api/v1/orgs/${c.orgId}/stripe` },
@@ -372,6 +389,30 @@ describe('route matrix: happy + 401 + 403 + 422 + 404', () => {
       })
       .returning(['id'])
       .executeTakeFirstOrThrow();
+    const broadcast = await getDb()
+      .insertInto('broadcasts')
+      .values({
+        org_id: owner.orgId,
+        segment_id: segment.id,
+        subject: 'Seed broadcast',
+        body_html: '<p>Hello {{visitorName}}</p>',
+        body_text: 'Hello {{visitorName}}',
+        status: 'draft',
+      })
+      .returning(['id'])
+      .executeTakeFirstOrThrow();
+    const sendableBroadcast = await getDb()
+      .insertInto('broadcasts')
+      .values({
+        org_id: owner.orgId,
+        segment_id: segment.id,
+        subject: 'Seed sendable broadcast',
+        body_html: '<p>Hello {{visitorName}}</p>',
+        body_text: 'Hello {{visitorName}}',
+        status: 'draft',
+      })
+      .returning(['id'])
+      .executeTakeFirstOrThrow();
     await getDb()
       .insertInto('membership_payments')
       .values({
@@ -421,6 +462,8 @@ describe('route matrix: happy + 401 + 403 + 422 + 404', () => {
       membershipTierId: membershipTier.id,
       membershipId: membership.id,
       promoCodeId: promoCode.id,
+      broadcastId: broadcast.id,
+      sendableBroadcastId: sendableBroadcast.id,
     };
   });
 

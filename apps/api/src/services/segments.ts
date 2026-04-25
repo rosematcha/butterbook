@@ -62,11 +62,15 @@ export function segmentPredicate(filter: Filter): RawBuilder<boolean> {
 }
 
 export async function countSegmentVisitors(tx: Tx, orgId: string, filter: Filter): Promise<number> {
+  // Mirror the recipient set used by broadcasts.resolveBroadcastRecipients so
+  // the count an admin sees on the segment matches what would actually receive
+  // a broadcast. Redacted contacts are excluded from both.
   const row = await tx
     .selectFrom('visitors')
     .select((eb) => eb.fn.countAll<number>().as('c'))
     .where('org_id', '=', orgId)
     .where('deleted_at', 'is', null)
+    .where('pii_redacted', '=', false)
     .where(segmentPredicate(filter))
     .executeTakeFirst();
   return Number(row?.c ?? 0);

@@ -24,6 +24,7 @@ export async function truncateAll(): Promise<void> {
   await db.deleteFrom('membership_payments').execute();
   await db.deleteFrom('memberships').execute();
   await db.deleteFrom('promo_codes').execute();
+  await db.deleteFrom('broadcasts').execute();
   await db.deleteFrom('waitlist_entries').execute();
   await db.deleteFrom('visits').execute();
   await db.deleteFrom('visitor_segments').execute();
