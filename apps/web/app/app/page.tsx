@@ -183,7 +183,7 @@ function TodayPageInner() {
           onClick: () => {
             reconfirm.mutate(id, {
               onError: () =>
-                toast.push({ kind: 'error', message: "Couldn't undo — reconfirm manually from the visit." }),
+                toast.push({ kind: 'error', message: "Couldn't undo. Reconfirm manually from the visit." }),
             });
           },
         },
@@ -206,7 +206,7 @@ function TodayPageInner() {
           onClick: () => {
             reconfirm.mutate(id, {
               onError: () =>
-                toast.push({ kind: 'error', message: "Couldn't undo — reconfirm manually from the visit." }),
+                toast.push({ kind: 'error', message: "Couldn't undo. Reconfirm manually from the visit." }),
             });
           },
         },
@@ -297,7 +297,7 @@ function TodayPageInner() {
             ) : active.isLoading ? (
               <span className="text-paper-400">Checking hours…</span>
             ) : (
-              <span className="text-paper-500">Closed — no hours or events scheduled.</span>
+              <span className="text-paper-500">Closed. No hours or events scheduled.</span>
             )}
           </div>
         </div>
@@ -335,7 +335,7 @@ function TodayPageInner() {
       ) : list.length === 0 ? (
         <div className="mt-16 max-w-md">
           <h2 className="font-display text-2xl font-medium tracking-tight-er text-ink">A quiet day.</h2>
-          <p className="mt-2 text-paper-600">No visitors scheduled. When someone checks in at the kiosk or you add them here, they’ll appear on the timeline.</p>
+          <p className="mt-2 text-paper-600">No visitors scheduled. When someone checks in at the kiosk or you add them here, they appear on the timeline.</p>
           <button className="btn mt-5" onClick={() => setAddOpen(true)}>+ Add visitor</button>
         </div>
       ) : (

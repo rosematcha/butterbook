@@ -29,7 +29,7 @@ const FAQ_ITEMS = [
   },
   {
     q: 'How often does data reset?',
-    a: "Your sandbox holds for twelve hours of inactivity, then wipes itself. Come back later and you'll land in a fresh copy, reseeded with dates around the day you return.",
+    a: "We delete your sandbox after twelve hours of inactivity. Come back later and you’ll land in a fresh copy, reseeded with dates around the day you return.",
   },
   {
     q: 'Can I use it on mobile?',
@@ -37,11 +37,11 @@ const FAQ_ITEMS = [
   },
   {
     q: 'Is there a time limit while I browse?',
-    a: 'No. Stay as long as you like. The twelve-hour clock starts when you stop clicking.',
+    a: 'No. The twelve-hour clock starts when you stop clicking.',
   },
   {
     q: 'Is any of this data real?',
-    a: "None of it. The Whitman is a fictional museum, the guests are invented, and nothing you enter reaches a real inbox or address book. Please keep it that way and don't type real names in the forms.",
+    a: "None. The Whitman is a fictional museum and the guests are invented. Emails won’t leave the sandbox, but please don’t type real visitor names into the forms.",
   },
 ];
 
@@ -50,7 +50,7 @@ export default function DemoInfoPage() {
     <SubPageShell
       breadcrumb={[{ label: 'Butterbook', href: MARKETING_URL }, { label: 'Try the demo' }]}
       title="Try the demo"
-      subtitle="A live copy of Butterbook running the latest release. Click around, book a visit, try the kiosk. No signup."
+      subtitle="A live copy running the latest release. Click around, book a visit, try the kiosk. No signup."
     >
       <div className="grid items-start gap-12 lg:grid-cols-2">
         <LaunchColumn />
@@ -89,7 +89,7 @@ function LaunchColumn() {
 
       <ul className="mt-5 grid list-none gap-2.5 p-0 text-[13.5px]">
         {[
-          ['Your sandbox wipes after 12 hours idle', 'No need to tidy up after yourself.'],
+          ['Sandbox deletes after twelve hours idle', 'No cleanup on your end.'],
           ['Invitations don’t send', 'No real email leaves this instance.'],
           ['Every page of the real app', 'Same code as production. No fake buttons.'],
         ].map(([title, body]) => (
@@ -109,7 +109,7 @@ function LaunchColumn() {
           >
             Start a free account
           </a>
-          {' '}— takes about an afternoon, no credit card.
+          . No credit card.
         </p>
       </div>
     </div>

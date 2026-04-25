@@ -66,7 +66,7 @@ function SlugStatus({
   suggestion?: string;
   onUse: (s: string) => void;
 }) {
-  if (status === 'idle') return <span className="text-paper-500">Letters, numbers, and dashes — used in your booking URL.</span>;
+  if (status === 'idle') return <span className="text-paper-500">Letters, numbers, and dashes. Used in your booking URL.</span>;
   if (status === 'invalid') return <span className="text-red-700">Slug must be lowercase letters, numbers, or dashes.</span>;
   if (status === 'checking') return <span className="text-paper-500">Checking availability…</span>;
   if (status === 'available') return <span className="badge-accent">Available</span>;

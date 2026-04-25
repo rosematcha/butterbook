@@ -336,7 +336,7 @@ export default function BrandingPage() {
             </div>
           </div>
           <p className="mt-2 text-xs text-paper-500">
-            This is a rough preview — the live kiosk applies these values.
+            Rough preview. The live kiosk applies these values.
           </p>
         </aside>
       </div>

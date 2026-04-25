@@ -148,12 +148,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           <div className="h-eyebrow">Welcome, {user.email}</div>
           <h1 className="h-display mt-2">Let’s set up your organization</h1>
           <p className="mt-3 text-paper-600">
-            An organization is the top-level container for your museum: its locations, staff, events,
-            and visitor forms all live here. You’ll be the first superadmin.
+            An organization holds your locations, staff, events, and visitor forms. You’ll be the
+            first superadmin.
           </p>
           <ul className="mt-5 space-y-2 text-sm text-paper-700">
-            <li className="flex gap-2"><span className="text-brand-accent">•</span>Takes about a minute — just name, address, and timezone.</li>
-            <li className="flex gap-2"><span className="text-brand-accent">•</span>You can invite staff and add more locations afterwards.</li>
+            <li className="flex gap-2"><span className="text-brand-accent">•</span>Takes about a minute. Name, address, and timezone.</li>
+            <li className="flex gap-2"><span className="text-brand-accent">•</span>Invite staff and add more locations afterwards.</li>
             <li className="flex gap-2"><span className="text-brand-accent">•</span>Nothing is public until you publish an event.</li>
           </ul>
           <div className="mt-7 flex items-center gap-3">

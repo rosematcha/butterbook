@@ -221,8 +221,10 @@ export default function FormFieldsPage() {
           <div className="h-eyebrow">Settings</div>
           <h1 className="h-display mt-1">Form fields</h1>
           <p className="mt-2 max-w-xl text-sm text-paper-600">
-            These are the questions every visitor answers when they check in. Fields can be reordered, edited, or removed freely — mark one as the
-            {' '}<span className="text-ink">primary label</span> to decide whose value shows up in the visitor list.
+            The questions every visitor answers when they check in. Reorder, edit, or remove
+            freely. Mark one field as the{' '}
+            <span className="text-ink">primary label</span> to decide whose value appears in the
+            visitor list.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -235,7 +237,7 @@ export default function FormFieldsPage() {
 
       {!hasPrimary && drafts.length > 0 ? (
         <div className="mb-4 rounded-md border border-amber-300 bg-amber-50 px-4 py-2 text-sm text-amber-900">
-          No field is marked as the primary label — visitors will show up as “Unknown” in lists. Pick one below.
+          No field is marked as the primary label. Visitors will show up as “Unknown” in lists. Pick one below.
         </div>
       ) : null}
 
@@ -431,7 +433,7 @@ export default function FormFieldsPage() {
                                     Custom validation pattern
                                   </summary>
                                   <p className="mt-2 text-xs text-paper-500">
-                                    For advanced users. Enter a regular expression the answer must match — e.g. <span className="font-mono">^[A-Z]{'{2}'}\d{'{4}'}$</span> for a ticket code like <span className="font-mono">AB1234</span>. Leave blank if unsure.
+                                    For advanced users. Enter a regular expression the answer must match. Example: <span className="font-mono">^[A-Z]{'{2}'}\d{'{4}'}$</span> for a ticket code like <span className="font-mono">AB1234</span>. Leave blank if unsure.
                                   </p>
                                   <div className="mt-3 grid gap-3">
                                     <div>

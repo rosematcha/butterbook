@@ -13,15 +13,15 @@ const jetbrainsMono = JetBrains_Mono({ subsets: ['latin'], variable: '--font-mon
 // is in addition to the X-Robots-Tag header the demo API emits.
 export const metadata: Metadata = IS_DEMO
   ? {
-      title: 'Butterbook — Interactive demo',
+      title: 'Butterbook · Interactive demo',
       description:
-        'A working copy of Butterbook, loaded with fake guests at a fictional museum. Log in as admin, change anything, and come back in twelve hours. It resets on its own.',
+        'A working copy of Butterbook, loaded with fake guests at a fictional museum. Log in as admin, change anything, and come back in twelve hours. The sandbox resets on its own.',
       robots: { index: false, follow: false, nocache: true },
     }
   : {
-      title: 'Butterbook — Reservation software for small organizations',
+      title: 'Butterbook · Reservation software for small organizations',
       description:
-        "The quiet software small places run on. Butterbook helps art museums, community studios, and solo practitioners understand who's coming and when, without making a warm welcome feel transactional.",
+        "Reservation software for art museums, community studios, and solo practitioners. Bookings, events, payments, and visitor records in one place. Flat-rate pricing.",
     };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

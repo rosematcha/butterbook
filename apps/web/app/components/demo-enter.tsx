@@ -72,7 +72,7 @@ export function DemoEnter() {
         </button>
       </div>
       <p className="mt-5 text-[13px] text-paper-600">
-        Your sandbox wipes after twelve hours of inactivity.{' '}
+        Sandbox deletes after twelve hours of inactivity.{' '}
         <Link href="/demo" className="text-brand-accent">
           What&apos;s in it?
         </Link>

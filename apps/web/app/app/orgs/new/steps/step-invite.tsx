@@ -33,7 +33,7 @@ export function StepInvite({ state, patch }: StepProps) {
       <div>
         <div className="h-eyebrow">Invite teammates</div>
         <p className="mt-1 text-xs text-paper-500">
-          We&apos;ll send each teammate an invite email after you finish setup. They&apos;ll join as staff — you can adjust roles
+          Each teammate gets an invite email after setup. They join as staff. Adjust roles
           from Members.
         </p>
       </div>
@@ -78,7 +78,7 @@ export function StepInvite({ state, patch }: StepProps) {
       </button>
 
       <p className="text-xs text-paper-500">
-        Leave this empty if you&apos;re flying solo — you can invite people later from Settings → Members.
+        Leave empty if it&apos;s just you. Invite later from Settings → Members.
       </p>
     </div>
   );

@@ -66,7 +66,7 @@ export function StepTerminology({ state, patch }: StepProps) {
           ))}
         </div>
         <p className="mt-3 text-xs text-paper-500">
-          You can change any of this later from Settings — it&apos;s cosmetic labelling plus a default for new booking forms.
+          Change any of this later from Settings. It&apos;s cosmetic labelling plus a default for new booking forms.
         </p>
       </section>
     </div>

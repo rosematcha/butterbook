@@ -46,7 +46,7 @@ function CopyButton({ value, disabled }: { value: string; disabled?: boolean }) 
 }
 
 const CHANNELS: { id: Tab; num: string; label: string; blurb: string; disabled?: boolean }[] = [
-  { id: 'link', num: '01', label: 'Direct link', blurb: 'A plain URL. Email, text, print — anywhere a link can go.' },
+  { id: 'link', num: '01', label: 'Direct link', blurb: 'A plain URL. Email it, text it, print it.' },
   { id: 'qr', num: '02', label: 'QR code', blurb: 'Printable signage for gallery walls, tabletops, and lobby cards.' },
   { id: 'iframe', num: '03', label: 'Embed', blurb: 'Drop the form into any page of your website via iframe.' },
   { id: 'wordpress', num: '04', label: 'WordPress', blurb: 'One-click plugin. Currently in preparation.', disabled: true },
@@ -183,11 +183,11 @@ function ShareInner() {
     <div className="space-y-8">
       {/* Masthead */}
       <header className="flex flex-col gap-2 border-b border-paper-200 pb-6">
-        <span className="eyebrow">Plate — Distribution</span>
+        <span className="eyebrow">Plate · Distribution</span>
         <h1 className="h-display">Share your intake form</h1>
         <p className="max-w-2xl text-sm text-paper-600">
-          Four channels for reaching your visitors. Choose the one that fits the space — a link in an email,
-          a QR on a gallery wall, an embed on your site, or a plugin for WordPress.
+          Four channels for reaching your visitors. Pick the one that fits the space: a link in an
+          email, a QR on a gallery wall, an embed on your site, or a plugin for WordPress.
         </p>
       </header>
 
@@ -287,7 +287,7 @@ function ShareInner() {
               </div>
               {IS_DEMO ? (
                 <p className="rounded-md border border-amber-200/70 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-                  Demo instance — this link redirects to the marketing site instead of a real form.
+                  Demo instance. This link redirects to the marketing site instead of a real form.
                 </p>
               ) : null}
             </section>
@@ -334,9 +334,9 @@ function ShareInner() {
                         value={size}
                         onChange={(e) => setSize(Number(e.target.value) as 256 | 512 | 1024)}
                       >
-                        <option value={256}>256 px — small</option>
-                        <option value={512}>512 px — standard</option>
-                        <option value={1024}>1024 px — poster</option>
+                        <option value={256}>256 px · small</option>
+                        <option value={512}>512 px · standard</option>
+                        <option value={1024}>1024 px · poster</option>
                       </select>
                     </label>
                     <div className="mt-3 grid grid-cols-2 gap-3">
@@ -411,7 +411,7 @@ function ShareInner() {
 
                   {IS_DEMO ? (
                     <p className="rounded-md border border-amber-200/70 bg-amber-50 px-3 py-2 text-[11px] text-amber-800">
-                      Downloads disabled in demo — QR encodes the marketing site.
+                      Downloads disabled in demo. QR encodes the marketing site.
                     </p>
                   ) : null}
                 </div>
@@ -435,8 +435,8 @@ function ShareInner() {
           {tab === 'iframe' ? (
             <section className="panel space-y-5 p-6">
               <p className="text-sm leading-relaxed text-paper-700">
-                Paste this snippet into any HTML page. The iframe renders the intake form inline on your
-                site — visitors never leave.
+                Paste this snippet into any HTML page. The iframe renders the intake form inline on
+                your site. Visitors never leave.
               </p>
               <div>
                 <label className="eyebrow mb-2 block">HTML snippet</label>
@@ -453,7 +453,7 @@ function ShareInner() {
               </div>
               {IS_DEMO ? (
                 <p className="rounded-md border border-amber-200/70 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-                  Demo instance — embedded frame redirects to the marketing site.
+                  Demo instance. Embedded frame redirects to the marketing site.
                 </p>
               ) : null}
             </section>
@@ -473,8 +473,8 @@ function ShareInner() {
                 <span className="badge">In preparation</span>
                 <h3 className="h-display text-2xl">A one-click WordPress plugin</h3>
                 <p className="max-w-xl text-sm leading-relaxed text-paper-700">
-                  Install, enter your org slug, and drop an intake shortcode onto any post or page. We&apos;re
-                  polishing the submission now — if you&apos;d like early access, let us know.
+                  Install, enter your org slug, and drop an intake shortcode onto any post or page.
+                  We&apos;re polishing the submission now. Email us if you&apos;d like early access.
                 </p>
               </div>
             </section>

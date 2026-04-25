@@ -14,6 +14,15 @@ function apiErrMsg(e: unknown, fallback: string): string {
   return e instanceof ApiError ? e.problem.detail ?? e.problem.title : fallback;
 }
 
+function initials(c: Contact): string {
+  if (c.piiRedacted) return '—';
+  const first = (c.firstName ?? '').trim();
+  const last = (c.lastName ?? '').trim();
+  if (first || last) return `${first[0] ?? ''}${last[0] ?? ''}`.toUpperCase();
+  const email = c.email ?? '';
+  return email[0]?.toUpperCase() ?? '?';
+}
+
 export default function ContactsPage() {
   const { activeOrgId } = useSession();
   const qc = useQueryClient();
@@ -21,6 +30,7 @@ export default function ContactsPage() {
   const [q, setQ] = useState('');
   const [tag, setTag] = useState('');
   const [page, setPage] = useState(1);
+  const [addOpen, setAddOpen] = useState(false);
   const [newContact, setNewContact] = useState({ email: '', firstName: '', lastName: '', tags: '' });
 
   const query = useMemo(() => {
@@ -47,6 +57,7 @@ export default function ContactsPage() {
     onSuccess: (res) => {
       qc.invalidateQueries({ queryKey: ['contacts', activeOrgId] });
       setNewContact({ email: '', firstName: '', lastName: '', tags: '' });
+      setAddOpen(false);
       toast.push({ kind: 'success', message: 'Contact created', description: res.data.email ?? undefined });
     },
     onError: (e) => toast.push({ kind: 'error', message: apiErrMsg(e, 'Contact could not be created') }),
@@ -59,100 +70,207 @@ export default function ContactsPage() {
 
   const rows = contacts.data?.data ?? [];
   const meta = contacts.data?.meta;
+  const filtered = q.trim() || tag.trim();
 
   return (
-    <div className="space-y-8">
-      <div className="flex flex-wrap items-end justify-between gap-4">
+    <div>
+      <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
         <div>
-          <div className="h-eyebrow">Members & CRM</div>
+          <div className="h-eyebrow">Members &amp; CRM</div>
           <h1 className="h-display mt-1">Contacts</h1>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-paper-600">
-            Unified visitor records collected from bookings, kiosk check-ins, waitlists, and manual entry.
+            Records from bookings, kiosk check-ins, waitlists, and manual entries. Searchable and
+            taggable.
           </p>
         </div>
-        <Link href="/app/contacts/segments" className="btn-secondary">
-          Segments
-        </Link>
+        <div className="flex items-center gap-3">
+          <Link href="/app/contacts/segments" className="btn-ghost">Segments</Link>
+          <button type="button" className={addOpen ? 'btn-secondary' : 'btn'} onClick={() => setAddOpen((v) => !v)}>
+            {addOpen ? 'Close' : 'Add contact'}
+          </button>
+        </div>
       </div>
 
-      <section className="grid gap-4 lg:grid-cols-[1fr_360px]">
-        <div className="panel p-4">
-          <div className="grid gap-3 sm:grid-cols-[1fr_180px_auto]">
+      {addOpen ? (
+        <form onSubmit={onCreate} className="panel mb-6 p-5">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h2 className="font-display text-lg font-medium tracking-tight-er text-ink">Add a contact</h2>
+              <p className="mt-1 text-sm text-paper-600">
+                For walk-ins, paper sign-ups, or quick manual entry. Tags are lowercased and
+                de-duplicated.
+              </p>
+            </div>
+            <button type="button" className="btn-ghost" onClick={() => setAddOpen(false)}>Cancel</button>
+          </div>
+          <div className="mt-5 grid gap-4 md:grid-cols-2">
+            <label className="block md:col-span-2">
+              <span className="h-eyebrow">Email</span>
+              <input
+                className="input mt-1"
+                required
+                type="email"
+                value={newContact.email}
+                onChange={(e) => setNewContact((c) => ({ ...c, email: e.target.value }))}
+                placeholder="email@example.com"
+              />
+            </label>
+            <label className="block">
+              <span className="h-eyebrow">First name</span>
+              <input
+                className="input mt-1"
+                value={newContact.firstName}
+                onChange={(e) => setNewContact((c) => ({ ...c, firstName: e.target.value }))}
+              />
+            </label>
+            <label className="block">
+              <span className="h-eyebrow">Last name</span>
+              <input
+                className="input mt-1"
+                value={newContact.lastName}
+                onChange={(e) => setNewContact((c) => ({ ...c, lastName: e.target.value }))}
+              />
+            </label>
+            <label className="block md:col-span-2">
+              <span className="h-eyebrow">Tags</span>
+              <input
+                className="input mt-1"
+                value={newContact.tags}
+                onChange={(e) => setNewContact((c) => ({ ...c, tags: e.target.value }))}
+                placeholder="donor, volunteer, board"
+              />
+              <span className="mt-1 block text-xs text-paper-500">Comma-separated.</span>
+            </label>
+          </div>
+          <div className="mt-5 flex justify-end">
+            <button className="btn" disabled={create.isPending}>
+              {create.isPending ? 'Saving…' : 'Create contact'}
+            </button>
+          </div>
+        </form>
+      ) : null}
+
+      <section className="mb-4 panel p-3">
+        <div className="grid gap-2 sm:grid-cols-[1fr_220px_auto] sm:items-center">
+          <div className="relative">
+            <svg
+              width={15}
+              height={15}
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={1.8}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden
+              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-paper-400"
+            >
+              <circle cx={11} cy={11} r={7} />
+              <path d="m20 20-3-3" />
+            </svg>
             <input
-              className="input"
+              className="input pl-9"
               value={q}
               onChange={(e) => { setQ(e.target.value); setPage(1); }}
               placeholder="Search name, email, or phone"
             />
-            <input
-              className="input"
-              value={tag}
-              onChange={(e) => { setTag(e.target.value); setPage(1); }}
-              placeholder="Filter by tag"
-            />
-            <button className="btn-secondary" onClick={() => { setQ(''); setTag(''); setPage(1); }}>
-              Clear
-            </button>
           </div>
+          <input
+            className="input"
+            value={tag}
+            onChange={(e) => { setTag(e.target.value); setPage(1); }}
+            placeholder="Filter by tag"
+          />
+          <button
+            type="button"
+            className="btn-ghost"
+            onClick={() => { setQ(''); setTag(''); setPage(1); }}
+            disabled={!filtered}
+          >
+            Clear filters
+          </button>
         </div>
-
-        <form onSubmit={onCreate} className="panel p-4">
-          <h2 className="font-display text-base font-medium text-ink">Add contact</h2>
-          <div className="mt-3 space-y-2">
-            <input className="input" required type="email" value={newContact.email} onChange={(e) => setNewContact((c) => ({ ...c, email: e.target.value }))} placeholder="email@example.com" />
-            <div className="grid grid-cols-2 gap-2">
-              <input className="input" value={newContact.firstName} onChange={(e) => setNewContact((c) => ({ ...c, firstName: e.target.value }))} placeholder="First name" />
-              <input className="input" value={newContact.lastName} onChange={(e) => setNewContact((c) => ({ ...c, lastName: e.target.value }))} placeholder="Last name" />
-            </div>
-            <input className="input" value={newContact.tags} onChange={(e) => setNewContact((c) => ({ ...c, tags: e.target.value }))} placeholder="Tags, comma separated" />
-            <button className="btn w-full" disabled={create.isPending}>{create.isPending ? 'Saving...' : 'Create contact'}</button>
-          </div>
-        </form>
       </section>
 
       {contacts.isSuccess && rows.length === 0 ? (
-        <EmptyState title="No contacts match this view." description="Try a different search, or add a contact manually." />
+        <EmptyState
+          title={filtered ? 'No contacts match.' : 'No contacts yet.'}
+          description={filtered
+            ? 'Broaden the search, drop a tag filter, or add one by hand.'
+            : 'Contacts arrive from bookings and kiosk check-ins. Or add one by hand.'}
+        />
       ) : (
         <section className="panel overflow-hidden">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-paper-200 text-left text-[11px] font-semibold uppercase tracking-[0.14em] text-paper-500">
-                <th className="px-4 py-2">Contact</th>
-                <th className="px-4 py-2">Tags</th>
-                <th className="px-4 py-2">Phone</th>
-                <th className="px-4 py-2">Updated</th>
+                <th className="px-5 py-3">Contact</th>
+                <th className="px-5 py-3">Tags</th>
+                <th className="px-5 py-3">Phone</th>
+                <th className="px-5 py-3">Updated</th>
               </tr>
             </thead>
             <tbody>
-              {contacts.isPending ? <SkeletonRows cols={4} rows={6} /> : rows.map((c) => (
-                <tr key={c.id} className="border-t border-paper-100 transition hover:bg-paper-50/70">
-                  <td className="px-4 py-3">
-                    <Link href={`/app/contacts/profile?id=${c.id}`} className="font-medium text-ink hover:text-brand-accent">
-                      {contactName(c)}
-                    </Link>
-                    <div className="text-xs text-paper-500">{c.piiRedacted ? 'PII redacted' : c.email}</div>
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex max-w-md flex-wrap gap-1.5">
-                      {c.tags.length ? c.tags.map((t) => <span key={t} className="badge">{t}</span>) : <span className="text-paper-400">-</span>}
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 text-paper-700">{c.phone ?? '-'}</td>
-                  <td className="px-4 py-3 text-paper-600"><Timestamp value={c.updatedAt} /></td>
-                </tr>
-              ))}
+              {contacts.isPending
+                ? <SkeletonRows cols={4} rows={8} />
+                : rows.map((c) => (
+                  <tr key={c.id} className="group border-t border-paper-100 transition hover:bg-paper-50/70">
+                    <td className="px-5 py-3.5">
+                      <div className="flex items-center gap-3">
+                        <span
+                          aria-hidden
+                          className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-paper-100 font-display text-[13px] font-medium tracking-tight-er text-paper-600 ring-1 ring-paper-200"
+                        >
+                          {initials(c)}
+                        </span>
+                        <div className="min-w-0">
+                          <Link
+                            href={`/app/contacts/profile?id=${c.id}`}
+                            className="font-medium text-ink transition group-hover:text-brand-accent"
+                          >
+                            {contactName(c)}
+                          </Link>
+                          <div className="truncate text-xs text-paper-500">
+                            {c.piiRedacted ? (
+                              <span className="italic">PII redacted</span>
+                            ) : (
+                              c.email ?? <span className="text-paper-400">No email</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-5 py-3.5">
+                      <div className="flex max-w-md flex-wrap gap-1.5">
+                        {c.tags.length
+                          ? c.tags.map((t) => <span key={t} className="badge">{t}</span>)
+                          : <span className="text-paper-400">—</span>}
+                      </div>
+                    </td>
+                    <td className="px-5 py-3.5 tabular-nums text-paper-700">
+                      {c.phone ?? <span className="text-paper-400">—</span>}
+                    </td>
+                    <td className="px-5 py-3.5 text-paper-600">
+                      <Timestamp value={c.updatedAt} />
+                    </td>
+                  </tr>
+                ))}
             </tbody>
           </table>
         </section>
       )}
 
       {meta && meta.pages > 1 ? (
-        <div className="flex items-center justify-between text-sm text-paper-600">
-          <span>{meta.total} contacts</span>
+        <div className="mt-4 flex items-center justify-between text-sm text-paper-600">
+          <span className="tabular-nums">{meta.total} contacts</span>
           <div className="flex items-center gap-2">
-            <button className="btn-secondary" disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>Previous</button>
-            <span>Page {meta.page} of {meta.pages}</span>
-            <button className="btn-secondary" disabled={page >= meta.pages} onClick={() => setPage((p) => p + 1)}>Next</button>
+            <button className="btn-ghost" disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>
+              ← Previous
+            </button>
+            <span className="tabular-nums">Page {meta.page} of {meta.pages}</span>
+            <button className="btn-ghost" disabled={page >= meta.pages} onClick={() => setPage((p) => p + 1)}>
+              Next →
+            </button>
           </div>
         </div>
       ) : null}

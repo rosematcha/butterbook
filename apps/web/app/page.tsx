@@ -68,7 +68,7 @@ function MkHero() {
             <span>·</span>
             <span>Set up in an afternoon</span>
             <span>·</span>
-            <span>Export anytime</span>
+            <span>Open source</span>
           </div>
         </div>
 
@@ -157,15 +157,15 @@ function HeroVisual() {
 /* ---------- Principles band ---------- */
 function MkProof() {
   const principles = [
-    { kicker: 'Principle 01', title: 'Busy slots warn your team', body: 'Your staff still decides who comes in. No algorithm turns a family away at the door.' },
-    { kicker: 'Principle 02', title: 'One price, every guest', body: 'A flat monthly rate that fits a grant line, so you can plan a season without ticket math.' },
-    { kicker: 'Principle 03', title: 'Your data, ready to travel', body: 'Clean CSV and JSON exports on demand. Take your register to the board meeting, the auditor, the next platform.' },
-    { kicker: 'Principle 04', title: 'You can read the code', body: 'Open changelog, open roadmap, open repo. Self-host if you want the keys.' },
+    { kicker: '01', title: 'Soft warnings, not hard gates', body: 'Your staff decides who comes in. Busy slots show a warning, not a stop sign.' },
+    { kicker: '02', title: 'One flat rate', body: 'No per-visitor fees. No per-seat fees. The bill stays the same on a slow Tuesday and a packed Saturday.' },
+    { kicker: '03', title: 'Your data, exportable', body: 'CSV and JSON exports anytime. No support ticket.' },
+    { kicker: '04', title: 'Open source', body: 'Open repo, open roadmap. Self-host if you want.' },
   ];
   return (
     <section className="border-y border-paper-200 bg-paper-100 py-14">
       <div className="mx-auto max-w-[1280px] px-6 pb-5 sm:px-12">
-        <div className="eyebrow">What we stand for</div>
+        <div className="eyebrow">How we built it</div>
       </div>
       <div
         className="mk-proof-scroll flex gap-5 overflow-x-auto px-6 pb-1 sm:px-12"
@@ -206,13 +206,13 @@ function MkTimelineSection() {
           </h2>
           <p className="mt-6 max-w-[38ch] text-[17px] leading-relaxed text-paper-600">
             One page, one day. Who&apos;s arriving, in what size group, with what notes.
-            The information a thoughtful front desk person would want at the start of their shift.
+            What a front-desk person needs at the start of a shift.
           </p>
           <ul className="mt-8 grid list-none gap-3.5 p-0 text-[15px]">
             {[
-              ['Soft caps', 'Busy slots show a warning. No one gets turned away automatically.'],
+              ['Soft caps', 'Busy slots show a warning. The decision stays with your staff.'],
               ['Tags', 'Label visits however your org thinks: school group, member, walk-in.'],
-              ['Undo', 'Every cancellation and no-show is one click from being reversed.'],
+              ['Undo', 'Every cancellation and no-show is one click from reversed.'],
             ].map(([k, v]) => (
               <li
                 key={k}
@@ -378,7 +378,7 @@ function MkKiosk() {
           </h2>
           <p className="mt-6 max-w-[38ch] text-[17px] leading-relaxed text-paper-600">
             The booking page runs on your website, on a tablet by the door, or behind a taped-up
-            QR code. Visitors add their name and go. No accounts, no app installs, no sign-in screens.
+            QR code. Visitors add their name and go. No accounts, no app installs.
           </p>
           <Link
             href="/register"
@@ -522,7 +522,7 @@ function MkPricing() {
       name: 'Growth',
       price: '$18',
       tag: 'Most organizations',
-      blurb: 'Everything a small org actually needs.',
+      blurb: 'Everything a small org needs.',
       features: [
         '1,000 contacts',
         '50 events / month',
@@ -658,7 +658,7 @@ function MkFAQ() {
     },
     {
       q: 'Does Butterbook have any AI features?',
-      a: 'No, by design. Butterbook is a record-keeping and scheduling tool. Nothing in it tries to predict your visitors or optimize your capacity.',
+      a: 'No. It’s a record-keeping and scheduling tool, not a recommender.',
     },
   ];
   return (

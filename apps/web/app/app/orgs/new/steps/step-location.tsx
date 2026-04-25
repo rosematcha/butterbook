@@ -94,7 +94,7 @@ export function StepLocation({ state, patch }: StepProps) {
               {loading
                 ? 'Looking up…'
                 : lastError
-                ? "Couldn't reach the lookup service — fill city and state manually."
+                ? "Couldn't reach the lookup service. Fill city and state manually."
                 : "Enter your ZIP and we'll fill in city and state."}
             </span>
           ) : null}

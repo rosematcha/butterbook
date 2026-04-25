@@ -133,7 +133,7 @@ function KioskInner() {
     return (
       <main className="flex min-h-screen flex-col items-center justify-center bg-emerald-50 p-8 text-center">
         <div className="text-5xl font-semibold text-emerald-700">Welcome!</div>
-        <p className="mt-4 text-lg text-slate-700">Please proceed inside. The next visitor can check in in…</p>
+        <p className="mt-4 text-lg text-slate-700">Please head inside. The kiosk resets in…</p>
         <div className="mt-6 text-6xl font-bold tabular-nums text-emerald-700">{successCountdown}s</div>
         <button onClick={() => setSuccessCountdown(0)} className="btn mt-6">New visitor</button>
       </main>
@@ -143,7 +143,7 @@ function KioskInner() {
   return (
     <main className="mx-auto flex min-h-screen max-w-xl flex-col justify-center p-8">
       <div className="text-sm text-slate-500">{config.orgName}</div>
-      <h1 className="text-3xl font-semibold tracking-tight">Welcome — please check in</h1>
+      <h1 className="text-3xl font-semibold tracking-tight">Welcome. Please check in.</h1>
       <p className="mt-1 text-slate-600">{config.locationName}</p>
       <form onSubmit={onSubmit} className="mt-6 space-y-4">
         {fields.map((f) => (

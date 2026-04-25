@@ -11,7 +11,7 @@ export default function HowItWorksPage() {
     <SubPageShell
       breadcrumb={[{ label: 'Butterbook', href: MARKETING_URL }, { label: 'How it works' }]}
       title="How it works"
-      subtitle="Five steps from signup to your first report. The first three take an afternoon."
+      subtitle="Five steps. The first three take an afternoon."
     >
       <div className="mx-auto max-w-[860px]">
         <ol className="relative pl-14">

@@ -170,8 +170,7 @@ export default function BookingPageEditor() {
           <div className="h-eyebrow">Settings</div>
           <h1 className="h-display mt-1">Booking page</h1>
           <p className="mt-2 max-w-xl text-sm text-paper-600">
-            Customize what visitors see at your public booking page — hero copy, imagery, policy
-            display, and scheduling rules. The form fields themselves are configured under{' '}
+            Hero, imagery, and scheduling rules for your public booking page. Form fields live under{' '}
             <Link href="/app/form" className="link">
               Form fields
             </Link>
@@ -506,7 +505,7 @@ export default function BookingPageEditor() {
             </div>
           </div>
           <p className="mt-2 text-xs text-paper-500">
-            Rough preview — the live page applies these values.
+            Rough preview. The live page applies these values.
           </p>
         </aside>
       </div>

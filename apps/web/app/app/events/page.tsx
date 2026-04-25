@@ -363,8 +363,8 @@ function EventComposer({
           <h2 className="h-display mt-1 text-2xl">{heading}</h2>
           <p className="mt-2 max-w-2xl text-sm text-paper-600">
             {isDuplicate
-              ? 'This keeps hidden settings like description, form fields, and waitlist auto-promote from the source event, while letting you adjust the visible basics here.'
-              : 'Choose a one-off program or generate a weekly series. Recurring occurrences are created as normal draft events so publishing, waitlist, and registration still happen per occurrence.'}
+              ? 'Keeps the source event’s description, form fields, and waitlist settings. Adjust the visible basics here.'
+              : 'Pick a one-off program or generate a weekly series. Recurring occurrences are created as normal draft events. Publish, waitlist, and registration still happen per occurrence.'}
           </p>
         </div>
         <div className="flex items-center gap-2">

@@ -80,7 +80,7 @@ export function StepForm({ state, patch }: StepProps) {
       <div>
         <div className="h-eyebrow">Intake form</div>
         <p className="mt-1 text-xs text-paper-500">
-          What you ask visitors when they book. Start minimal — you can add or edit fields here or anytime from Settings → Form.
+          What you ask visitors when they book. Start minimal. Add or edit fields here, or later from Settings → Form.
         </p>
       </div>
 

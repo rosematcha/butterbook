@@ -45,6 +45,7 @@ export default function MembershipsPage() {
   const [status, setStatus] = useState<MembershipStatus | ''>('');
   const [tierId, setTierId] = useState('');
   const [page, setPage] = useState(1);
+  const [enrollOpen, setEnrollOpen] = useState(false);
   const [draft, setDraft] = useState({ visitorId: '', tierId: '', startsAt: '', expiresAt: '', amount: '', notes: '' });
 
   const listQuery = useMemo(() => {
@@ -67,7 +68,7 @@ export default function MembershipsPage() {
   const contacts = useQuery({
     queryKey: ['contacts', activeOrgId, 'page=1&limit=200'],
     queryFn: () => apiGet<ContactListResponse>(`/api/v1/orgs/${activeOrgId}/contacts?page=1&limit=200`),
-    enabled: !!activeOrgId && canManage,
+    enabled: !!activeOrgId && canManage && enrollOpen,
   });
 
   const create = useMutation({
@@ -82,6 +83,7 @@ export default function MembershipsPage() {
       }),
     onSuccess: (res) => {
       setDraft({ visitorId: '', tierId: '', startsAt: '', expiresAt: '', amount: '', notes: '' });
+      setEnrollOpen(false);
       qc.invalidateQueries({ queryKey: ['memberships', activeOrgId] });
       toast.push({ kind: 'success', message: 'Membership enrolled', description: res.data.visitor.email });
     },
@@ -97,111 +99,282 @@ export default function MembershipsPage() {
   const meta = memberships.data?.meta;
   const tierRows = tiers.data?.data ?? [];
 
+  const counts = useMemo(() => {
+    const map: Record<MembershipStatus, number> = {
+      active: 0,
+      pending: 0,
+      expired: 0,
+      lapsed: 0,
+      cancelled: 0,
+      refunded: 0,
+    };
+    for (const m of rows) map[m.status] += 1;
+    return map;
+  }, [rows]);
+
   if (!perms.loading && !canView) {
-    return <EmptyState title="Permission required." description="Membership records require the memberships.view_all permission." />;
+    return (
+      <EmptyState
+        title="Permission required."
+        description="Membership records require the memberships.view_all permission."
+      />
+    );
   }
 
   return (
-    <div className="space-y-8">
-      <div className="flex flex-wrap items-end justify-between gap-4">
+    <div>
+      <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
         <div>
-          <div className="h-eyebrow">Members & CRM</div>
+          <div className="h-eyebrow">Members &amp; CRM</div>
           <h1 className="h-display mt-1">Memberships</h1>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-paper-600">
-            Track manually enrolled memberships, renewals, cancellations, and expiry state before Stripe self-serve comes online.
+            Track enrollments, renewals, and lapses. Enroll members manually, or open public
+            checkout once Stripe is connected.
           </p>
         </div>
         <div className="flex gap-2">
+          <Link href="/app/memberships/policies" className="btn-ghost">Policies</Link>
           <Link href="/app/memberships/tiers" className="btn-secondary">Tiers</Link>
-          <Link href="/app/memberships/policies" className="btn-secondary">Policies</Link>
+          {canManage ? (
+            <button
+              type="button"
+              onClick={() => setEnrollOpen((v) => !v)}
+              className={enrollOpen ? 'btn-secondary' : 'btn'}
+            >
+              {enrollOpen ? 'Close' : 'Enroll member'}
+            </button>
+          ) : null}
         </div>
       </div>
 
-      <section className="grid gap-4 lg:grid-cols-[1fr_380px]">
-        <div className="panel p-4">
-          <div className="grid gap-3 sm:grid-cols-[180px_1fr_auto]">
-            <select className="input" value={status} onChange={(e) => { setStatus(e.target.value as MembershipStatus | ''); setPage(1); }}>
-              {STATUSES.map((s) => <option key={s.value || 'all'} value={s.value}>{s.label}</option>)}
-            </select>
-            <select className="input" value={tierId} onChange={(e) => { setTierId(e.target.value); setPage(1); }}>
-              <option value="">All tiers</option>
-              {tierRows.map((tier) => <option key={tier.id} value={tier.id}>{tier.name}</option>)}
-            </select>
-            <button className="btn-secondary" onClick={() => { setStatus(''); setTierId(''); setPage(1); }}>Clear</button>
-          </div>
-        </div>
+      <section className="mb-6 grid gap-px overflow-hidden rounded-lg border border-paper-200 bg-paper-200 sm:grid-cols-3 lg:grid-cols-6">
+        <StatCell label="Active" value={counts.active} tone="live" />
+        <StatCell label="Pending" value={counts.pending} tone="warn" />
+        <StatCell label="Expired" value={counts.expired} />
+        <StatCell label="Lapsed" value={counts.lapsed} />
+        <StatCell label="Cancelled" value={counts.cancelled} />
+        <StatCell label="Refunded" value={counts.refunded} />
+      </section>
 
-        {canManage ? (
-          <form onSubmit={onCreate} className="panel p-4">
-            <h2 className="font-display text-base font-medium text-ink">Manual enrollment</h2>
-            <div className="mt-3 space-y-2">
-              <select required className="input" value={draft.visitorId} onChange={(e) => setDraft((d) => ({ ...d, visitorId: e.target.value }))}>
+      {canManage && enrollOpen ? (
+        <form onSubmit={onCreate} className="panel mb-6 p-5">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h2 className="font-display text-lg font-medium tracking-tight-er text-ink">Enroll a member</h2>
+              <p className="mt-1 text-sm text-paper-600">
+                For comped memberships, in-person sales, or backfill from another system.
+              </p>
+            </div>
+            <button type="button" className="btn-ghost" onClick={() => setEnrollOpen(false)}>Cancel</button>
+          </div>
+          <div className="mt-5 grid gap-4 md:grid-cols-2">
+            <label className="block">
+              <span className="h-eyebrow">Contact</span>
+              <select
+                required
+                className="input mt-1"
+                value={draft.visitorId}
+                onChange={(e) => setDraft((d) => ({ ...d, visitorId: e.target.value }))}
+              >
                 <option value="">Choose contact</option>
                 {(contacts.data?.data ?? []).map((c) => (
-                  <option key={c.id} value={c.id}>{[c.firstName, c.lastName].filter(Boolean).join(' ') || c.email}</option>
+                  <option key={c.id} value={c.id}>
+                    {[c.firstName, c.lastName].filter(Boolean).join(' ') || c.email}
+                  </option>
                 ))}
               </select>
-              <select required className="input" value={draft.tierId} onChange={(e) => setDraft((d) => ({ ...d, tierId: e.target.value }))}>
+            </label>
+            <label className="block">
+              <span className="h-eyebrow">Tier</span>
+              <select
+                required
+                className="input mt-1"
+                value={draft.tierId}
+                onChange={(e) => setDraft((d) => ({ ...d, tierId: e.target.value }))}
+              >
                 <option value="">Choose tier</option>
-                {tierRows.filter((t) => t.active).map((tier) => <option key={tier.id} value={tier.id}>{tier.name}</option>)}
+                {tierRows.filter((t) => t.active).map((tier) => (
+                  <option key={tier.id} value={tier.id}>
+                    {tier.name} · {money(tier.priceCents)} / {intervalLabel(tier.billingInterval)}
+                  </option>
+                ))}
               </select>
-              <div className="grid grid-cols-2 gap-2">
-                <input className="input" type="date" value={draft.startsAt} onChange={(e) => setDraft((d) => ({ ...d, startsAt: e.target.value }))} aria-label="Starts at" />
-                <input className="input" type="date" value={draft.expiresAt} onChange={(e) => setDraft((d) => ({ ...d, expiresAt: e.target.value }))} aria-label="Expires at" />
-              </div>
-              <input className="input" inputMode="decimal" value={draft.amount} onChange={(e) => setDraft((d) => ({ ...d, amount: e.target.value }))} placeholder="Payment amount, optional" />
-              <input className="input" value={draft.notes} onChange={(e) => setDraft((d) => ({ ...d, notes: e.target.value }))} placeholder="Payment note, optional" />
-              <button className="btn w-full" disabled={create.isPending || !draft.visitorId || !draft.tierId}>{create.isPending ? 'Enrolling...' : 'Enroll member'}</button>
-            </div>
-          </form>
-        ) : null}
+            </label>
+            <label className="block">
+              <span className="h-eyebrow">Starts</span>
+              <input
+                className="input mt-1"
+                type="date"
+                value={draft.startsAt}
+                onChange={(e) => setDraft((d) => ({ ...d, startsAt: e.target.value }))}
+              />
+            </label>
+            <label className="block">
+              <span className="h-eyebrow">Expires</span>
+              <input
+                className="input mt-1"
+                type="date"
+                value={draft.expiresAt}
+                onChange={(e) => setDraft((d) => ({ ...d, expiresAt: e.target.value }))}
+              />
+            </label>
+            <label className="block">
+              <span className="h-eyebrow">Payment amount (optional)</span>
+              <input
+                className="input mt-1 tabular-nums"
+                inputMode="decimal"
+                value={draft.amount}
+                onChange={(e) => setDraft((d) => ({ ...d, amount: e.target.value }))}
+                placeholder="0.00"
+              />
+            </label>
+            <label className="block">
+              <span className="h-eyebrow">Note (optional)</span>
+              <input
+                className="input mt-1"
+                value={draft.notes}
+                onChange={(e) => setDraft((d) => ({ ...d, notes: e.target.value }))}
+                placeholder="e.g. comped for gala"
+              />
+            </label>
+          </div>
+          <div className="mt-5 flex items-center justify-end gap-2">
+            <button
+              type="submit"
+              className="btn"
+              disabled={create.isPending || !draft.visitorId || !draft.tierId}
+            >
+              {create.isPending ? 'Enrolling…' : 'Enroll member'}
+            </button>
+          </div>
+        </form>
+      ) : null}
+
+      <section className="mb-4 panel p-3">
+        <div className="grid gap-2 sm:grid-cols-[1fr_1fr_auto] sm:items-center">
+          <select
+            className="input"
+            value={status}
+            onChange={(e) => { setStatus(e.target.value as MembershipStatus | ''); setPage(1); }}
+          >
+            {STATUSES.map((s) => <option key={s.value || 'all'} value={s.value}>{s.label}</option>)}
+          </select>
+          <select
+            className="input"
+            value={tierId}
+            onChange={(e) => { setTierId(e.target.value); setPage(1); }}
+          >
+            <option value="">All tiers</option>
+            {tierRows.map((tier) => <option key={tier.id} value={tier.id}>{tier.name}</option>)}
+          </select>
+          <button
+            type="button"
+            className="btn-ghost"
+            onClick={() => { setStatus(''); setTierId(''); setPage(1); }}
+            disabled={!status && !tierId}
+          >
+            Clear filters
+          </button>
+        </div>
       </section>
 
       {memberships.isSuccess && rows.length === 0 ? (
-        <EmptyState title="No memberships match this view." description="Create tiers first, then enroll contacts manually from this page." />
+        <EmptyState
+          title="No memberships match this view."
+          description="Create tiers first, then enroll contacts manually. Or wait for public checkout to flow in."
+        />
       ) : (
         <section className="panel overflow-hidden">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-paper-200 text-left text-[11px] font-semibold uppercase tracking-[0.14em] text-paper-500">
-                <th className="px-4 py-2">Member</th>
-                <th className="px-4 py-2">Tier</th>
-                <th className="px-4 py-2">Status</th>
-                <th className="px-4 py-2">Expires</th>
-                <th className="px-4 py-2">Updated</th>
+                <th className="px-5 py-3">Member</th>
+                <th className="px-5 py-3">Tier</th>
+                <th className="px-5 py-3">Status</th>
+                <th className="px-5 py-3">Expires</th>
+                <th className="px-5 py-3">Updated</th>
               </tr>
             </thead>
             <tbody>
-              {memberships.isPending ? <SkeletonRows cols={5} rows={6} /> : rows.map((member) => (
-                <tr key={member.id} className="border-t border-paper-100 transition hover:bg-paper-50/70">
-                  <td className="px-4 py-3">
-                    <Link href={`/app/memberships/profile?id=${member.id}`} className="font-medium text-ink hover:text-brand-accent">{memberName(member)}</Link>
-                    <div className="text-xs text-paper-500">{member.visitor.email}</div>
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="font-medium">{member.tier.name}</div>
-                    <div className="text-xs text-paper-500">{money(member.tier.priceCents)} / {intervalLabel(member.tier.billingInterval)}</div>
-                  </td>
-                  <td className="px-4 py-3"><span className={statusClass(member.status)}>{member.status}</span></td>
-                  <td className="px-4 py-3 text-paper-700">{member.expiresAt ? <Timestamp value={member.expiresAt} absolute /> : 'Never'}</td>
-                  <td className="px-4 py-3 text-paper-600"><Timestamp value={member.updatedAt} /></td>
-                </tr>
-              ))}
+              {memberships.isPending
+                ? <SkeletonRows cols={5} rows={6} />
+                : rows.map((member) => (
+                  <tr key={member.id} className="group border-t border-paper-100 transition hover:bg-paper-50/70">
+                    <td className="px-5 py-3.5">
+                      <Link
+                        href={`/app/memberships/profile?id=${member.id}`}
+                        className="font-medium text-ink transition group-hover:text-brand-accent"
+                      >
+                        {memberName(member)}
+                      </Link>
+                      <div className="text-xs text-paper-500">{member.visitor.email}</div>
+                    </td>
+                    <td className="px-5 py-3.5">
+                      <div className="font-medium text-ink">{member.tier.name}</div>
+                      <div className="text-xs text-paper-500 tabular-nums">
+                        {money(member.tier.priceCents)} / {intervalLabel(member.tier.billingInterval)}
+                      </div>
+                    </td>
+                    <td className="px-5 py-3.5">
+                      <span className={statusClass(member.status)}>{member.status}</span>
+                    </td>
+                    <td className="px-5 py-3.5 text-paper-700 tabular-nums">
+                      {member.expiresAt ? <Timestamp value={member.expiresAt} absolute /> : <span className="text-paper-400">Never</span>}
+                    </td>
+                    <td className="px-5 py-3.5 text-paper-600">
+                      <Timestamp value={member.updatedAt} />
+                    </td>
+                  </tr>
+                ))}
             </tbody>
           </table>
         </section>
       )}
 
       {meta && meta.pages > 1 ? (
-        <div className="flex items-center justify-between text-sm text-paper-600">
-          <span>{meta.total} memberships</span>
+        <div className="mt-4 flex items-center justify-between text-sm text-paper-600">
+          <span className="tabular-nums">{meta.total} memberships</span>
           <div className="flex items-center gap-2">
-            <button className="btn-secondary" disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>Previous</button>
-            <span>Page {meta.page} of {meta.pages}</span>
-            <button className="btn-secondary" disabled={page >= meta.pages} onClick={() => setPage((p) => p + 1)}>Next</button>
+            <button
+              className="btn-ghost"
+              disabled={page <= 1}
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+            >
+              ← Previous
+            </button>
+            <span className="tabular-nums">
+              Page {meta.page} of {meta.pages}
+            </span>
+            <button
+              className="btn-ghost"
+              disabled={page >= meta.pages}
+              onClick={() => setPage((p) => p + 1)}
+            >
+              Next →
+            </button>
           </div>
         </div>
       ) : null}
+    </div>
+  );
+}
+
+function StatCell({ label, value, tone }: { label: string; value: number; tone?: 'live' | 'warn' }) {
+  return (
+    <div className="bg-white px-5 py-4">
+      <div className="flex items-center gap-2">
+        {tone ? (
+          <span
+            className={`inline-block h-1.5 w-1.5 rounded-full ${
+              tone === 'live' ? 'bg-emerald-500' : 'bg-amber-500'
+            }`}
+          />
+        ) : null}
+        <div className="h-eyebrow">{label}</div>
+      </div>
+      <div className="mt-1.5 font-display text-2xl font-medium tabular-nums tracking-tight-er text-ink">
+        {value}
+      </div>
     </div>
   );
 }

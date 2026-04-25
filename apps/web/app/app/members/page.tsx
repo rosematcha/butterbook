@@ -175,7 +175,7 @@ export default function MembersPage() {
       <section>
         <h2 className="h-eyebrow">Current members</h2>
         {members.isSuccess && memberRows.length === 0 ? (
-          <EmptyState title="Just you for now." description="Invite a colleague above to share the workload." />
+          <EmptyState title="Just you so far." description="Invite a colleague above." />
         ) : (
           <div className="panel mt-3 overflow-hidden">
             <table className="w-full text-sm">

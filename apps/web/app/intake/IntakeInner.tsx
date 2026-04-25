@@ -191,7 +191,7 @@ export function IntakeInner({ embed = false }: InnerProps) {
   return (
     <main className={containerClass}>
       <div className="text-sm text-slate-500">{config.orgName}</div>
-      <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Welcome — please check in</h1>
+      <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Welcome. Please check in.</h1>
       <p className="mt-1 text-slate-600">{config.locationName}</p>
       <form onSubmit={onSubmit} className="mt-6 space-y-4">
         {fields.map((f) => (

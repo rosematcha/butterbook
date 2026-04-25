@@ -113,12 +113,12 @@ export function LibraryModal({
     >
       <div className="mb-4 space-y-3">
         <p className="text-xs text-paper-500">
-          Presets are just a starting point — after adding, edit the label, type, options, or anything else however you like.
+          Presets are a starting point. After adding, edit the label, type, options, or anything else.
         </p>
         <input
           autoFocus
           className="input"
-          placeholder="Search — e.g. “email”, “waiver”, “dietary”…"
+          placeholder="Search e.g. “email”, “waiver”, “dietary”…"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />

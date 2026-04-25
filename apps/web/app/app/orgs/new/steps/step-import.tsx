@@ -21,7 +21,7 @@ export function StepImport({ state, patch }: StepProps) {
       <div>
         <div className="h-eyebrow">Import past data</div>
         <p className="mt-1 text-xs text-paper-500">
-          Bringing history over? Tell us which system you&apos;re coming from and we&apos;ll follow up when the importer is ready.
+          Coming from another system? Pick it and we&apos;ll email you when the importer is ready.
         </p>
       </div>
 
@@ -62,7 +62,7 @@ export function StepImport({ state, patch }: StepProps) {
       </div>
 
       <p className="text-xs text-paper-500">
-        Starting fresh? Skip this step — you can import later from Settings.
+        Starting fresh? Skip this step. You can import later from Settings.
       </p>
     </div>
   );

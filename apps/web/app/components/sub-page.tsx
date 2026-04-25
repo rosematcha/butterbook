@@ -157,7 +157,7 @@ export function SubPageFooter({ maxWidth = 1080 }: { maxWidth?: number }) {
         <div>
           <Wordmark size={20} />
           <p className="mt-4 max-w-[32ch] text-[13px] leading-relaxed text-paper-600">
-            Reservation software for places that know their guests by name.
+            Reservation software for small organizations.
           </p>
         </div>
         <FooterColumn

@@ -27,13 +27,13 @@ export const STEPS: Step[] = [
   {
     num: '03',
     title: 'Check visitors in',
-    body: 'The kiosk runs in any browser. Staff scan a QR code or search by name. Walk-ins book on the spot. Waitlisted visitors see their position and move up when a slot opens.',
+    body: 'The kiosk runs in any browser. Staff scan a QR code or search by name. Walk-ins book on the spot.',
     Visual: KioskVisual,
   },
   {
     num: '04',
-    title: 'Let changes manage themselves',
-    body: 'Someone cancels. The next person on the waitlist moves up and gets a confirmation email. You handle edge cases. The rest runs without you.',
+    title: 'Cancellations promote the next person',
+    body: 'Someone cancels. The next person on the waitlist moves up and gets a confirmation email. You handle the edge cases.',
     Visual: ManageVisual,
   },
   {

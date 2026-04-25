@@ -253,9 +253,9 @@ function AuthSidePanel() {
         </p>
         <div className="mt-7 grid max-w-[340px] gap-2.5 text-[13px] text-paper-600">
           {[
-            ['01', 'Flat-rate pricing. No per-visitor fees, ever.'],
-            ['02', 'Soft signals, not hard gates.'],
-            ['03', 'Your data exports as CSV anytime, without a support ticket.'],
+            ['01', 'One flat rate. No per-visitor or per-seat fees.'],
+            ['02', 'Soft warnings, not hard gates.'],
+            ['03', 'CSV and JSON exports anytime.'],
           ].map(([n, t]) => (
             <div key={n} className="flex gap-2.5">
               <span className="tabular min-w-[22px] font-display text-paper-500">{n}</span>

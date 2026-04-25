@@ -12,7 +12,7 @@ export function StepReview({ state, goTo }: NavStepProps) {
       <div>
         <div className="h-eyebrow">Review</div>
         <p className="mt-1 text-xs text-paper-500">
-          Everything can be changed later from Settings. Double-check the basics and hit Create.
+          Anything here can be edited later. Check the basics and create.
         </p>
       </div>
 
@@ -75,7 +75,7 @@ export function StepReview({ state, goTo }: NavStepProps) {
         <Row label="Data import" onEdit={() => goTo(6)}>
           <div className="text-sm text-ink">
             {state.importIntent === 'acuity'
-              ? 'Acuity — we\'ll email when ready'
+              ? 'Acuity. We\'ll email when ready.'
               : <em className="text-paper-400">Skipped</em>}
           </div>
         </Row>
