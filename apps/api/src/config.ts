@@ -54,6 +54,16 @@ const ConfigSchema = z.object({
   STRIPE_CONNECT_CLIENT_ID: z.string().min(5).optional(),
   STRIPE_WEBHOOK_SIGNING_SECRET: z.string().min(10).optional(),
 
+  // Optional. If set, 5xx errors are reported to Sentry. 4xx are not.
+  // If unset, Sentry is not initialized and all error handling is unchanged.
+  SENTRY_DSN: z.string().url().optional(),
+
+  // Audit log archival. The archive script exports rows older than
+  // AUDIT_RETENTION_DAYS to AUDIT_ARCHIVE_DIR as JSONL, then deletes them.
+  // If AUDIT_ARCHIVE_DIR is unset, the script logs and exits 0.
+  AUDIT_RETENTION_DAYS: z.coerce.number().int().positive().default(730),
+  AUDIT_ARCHIVE_DIR: z.string().min(1).optional(),
+
   // Demo deployment flags.
   // DEMO_MODE=true turns on: the /demo/session provisioning route, the
   // X-Robots-Tag: noindex response header, and the requireNotDemo() guard on

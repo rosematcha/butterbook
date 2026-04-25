@@ -1,6 +1,7 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { ZodError } from 'zod';
 import { AppError, InternalError, RateLimitError, ValidationError } from '../errors/index.js';
+import { captureError } from '../utils/sentry.js';
 
 export function registerErrorHandler(app: FastifyInstance): void {
   app.setErrorHandler((err: unknown, req: FastifyRequest, reply: FastifyReply) => {
@@ -61,6 +62,12 @@ export function registerErrorHandler(app: FastifyInstance): void {
     }
 
     req.log.error({ err }, 'unhandled error');
+    captureError(err, {
+      requestId: req.id,
+      route: req.routeOptions?.url ?? req.url,
+      method: req.method,
+      orgId: (req as { orgId?: string }).orgId,
+    });
     const internal = new InternalError('An unexpected error occurred.');
     reply.status(500).type('application/problem+json').send(internal.toProblem(instance));
   });

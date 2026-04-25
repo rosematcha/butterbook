@@ -2,9 +2,11 @@ import { loadConfig, getConfig } from './config.js';
 import { buildApp } from './app.js';
 import { closeDb } from './db/index.js';
 import { startWorker, type WorkerHandle } from './worker/run.js';
+import { initSentry } from './utils/sentry.js';
 
 async function main(): Promise<void> {
   loadConfig();
+  initSentry();
   const cfg = getConfig();
   const app = await buildApp();
   try {
