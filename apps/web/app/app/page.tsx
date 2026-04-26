@@ -5,11 +5,13 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tansta
 import type { FormField } from '@butterbook/shared';
 import { apiGet, apiPatch, apiPost } from '../../lib/api';
 import { useSession } from '../../lib/session';
+import { useTerminology } from '../../lib/use-terminology';
 import { useActiveDays, useDayWindow } from '../../lib/active-days';
 import { useToast } from '../../lib/toast';
 import { Timeline, type TimelineVisit } from '../components/timeline';
 import { AddVisitorModal } from '../components/add-visitor-modal';
 import { EditVisitorModal } from '../components/edit-visitor-modal';
+import { LocationFilter } from '../components/location-filter';
 import { MonthPicker } from '../components/month-picker';
 import { ScaleControl } from '../components/scale-control';
 import { SkeletonBlock } from '../components/skeleton-rows';
@@ -55,6 +57,7 @@ export default function TodayPage() {
 
 function TodayPageInner() {
   const { activeOrgId } = useSession();
+  const term = useTerminology();
   const qc = useQueryClient();
   const toast = useToast();
   const router = useRouter();
@@ -64,6 +67,7 @@ function TodayPageInner() {
   const [addOpen, setAddOpen] = useState(false);
   const [editing, setEditing] = useState<TimelineVisit | null>(null);
   const [zoom, setZoom] = useTodayZoom();
+  const [locationId, setLocationId] = useState('');
 
   // Honor `?add=1` from the command palette so "Add visitor on Today" deep-links here.
   useEffect(() => {
@@ -104,9 +108,10 @@ function TodayPageInner() {
   const from = useMemo(() => startOfDay(date).toISOString(), [date]);
   const to = useMemo(() => endOfDay(date).toISOString(), [date]);
 
+  const visitsQs = `from=${from}&to=${to}&limit=200${locationId ? `&location_id=${locationId}` : ''}`;
   const visits = useQuery({
-    queryKey: ['visits', activeOrgId, dateKey],
-    queryFn: () => apiGet<{ data: TimelineVisit[] }>(`/api/v1/orgs/${activeOrgId}/visits?from=${from}&to=${to}&limit=200`),
+    queryKey: ['visits', activeOrgId, dateKey, locationId],
+    queryFn: () => apiGet<{ data: TimelineVisit[] }>(`/api/v1/orgs/${activeOrgId}/visits?${visitsQs}`),
     enabled: !!activeOrgId && dayIsActive,
     refetchInterval: 30_000,
     staleTime: 30_000,
@@ -300,8 +305,8 @@ function TodayPageInner() {
 
   if (isNewOrg) {
     const steps = [
-      { done: hasLocations, label: 'Create a location', href: '/app/locations', desc: 'Add at least one location to start accepting visitors.' },
-      { done: false, label: 'Set your hours', href: '/app/locations', desc: 'Configure weekly opening hours so visitors can book.' },
+      { done: hasLocations, label: 'Create a location', href: '/app/locations', desc: `Add at least one location to start accepting ${term.nounPlural}.` },
+      { done: false, label: 'Set your hours', href: '/app/locations', desc: `Configure weekly opening hours so ${term.nounPlural} can be ${term.verb === 'book' ? 'booked' : 'added'}.` },
       { done: hasMembers, label: 'Invite a teammate', href: '/app/members', desc: 'Add staff so you can share the workload.' },
     ];
     return (
@@ -310,7 +315,7 @@ function TodayPageInner() {
           <div className="h-eyebrow">Get started</div>
           <h1 className="h-display mt-1">Set up your organization</h1>
           <p className="mt-2 max-w-xl text-sm text-paper-600">
-            Complete these steps to start accepting visitors. Each one takes about a minute.
+            Complete these steps to start accepting {term.nounPlural}. Each one takes about a minute.
           </p>
         </div>
         <div className="max-w-lg space-y-3">
@@ -363,10 +368,11 @@ function TodayPageInner() {
             <button onClick={() => setDate(new Date())} className="border-x border-paper-200 px-3 py-1.5 text-sm text-paper-700 hover:text-ink">Today</button>
             <button onClick={() => shiftToActive(1)} className="px-2.5 py-1.5 text-sm text-paper-600 hover:text-ink" aria-label="Next open day">›</button>
           </div>
+          <LocationFilter value={locationId} onChange={setLocationId} />
           <MonthPicker value={date} onChange={setDate} />
           <ScaleControl value={zoom} onChange={setZoom} />
           <button className="btn" onClick={() => setAddOpen(true)} disabled={!dayIsActive && !active.isLoading}>
-            + Add visitor
+            + Add {term.noun}
           </button>
         </div>
       </div>
@@ -390,8 +396,8 @@ function TodayPageInner() {
       ) : list.length === 0 ? (
         <div className="mt-16 max-w-md">
           <h2 className="font-display text-2xl font-medium tracking-tight-er text-ink">A quiet day.</h2>
-          <p className="mt-2 text-paper-600">No visitors scheduled. When someone checks in at the kiosk or you add them here, they appear on the timeline.</p>
-          <button className="btn mt-5" onClick={() => setAddOpen(true)}>+ Add visitor</button>
+          <p className="mt-2 text-paper-600">No {term.nounPlural} scheduled. When someone checks in at the kiosk or you add them here, they appear on the timeline.</p>
+          <button className="btn mt-5" onClick={() => setAddOpen(true)}>+ Add {term.noun}</button>
         </div>
       ) : (
         <Timeline

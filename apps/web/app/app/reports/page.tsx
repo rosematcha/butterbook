@@ -16,6 +16,7 @@ import {
 import { apiGet, getToken } from '../../../lib/api';
 import { API_BASE_URL } from '../../../lib/env';
 import { useSession } from '../../../lib/session';
+import { LocationFilter } from '../../components/location-filter';
 import { SkeletonRows } from '../../components/skeleton-rows';
 
 type HeadcountBucket = 'day' | 'week' | 'month';
@@ -43,21 +44,22 @@ export default function ReportsPage() {
   const [from, setFrom] = useState(firstOfMonth.toISOString().slice(0, 10));
   const [to, setTo] = useState(today.toISOString().slice(0, 10));
   const [groupBy, setGroupBy] = useState<HeadcountBucket>('day');
+  const [locationId, setLocationId] = useState('');
 
-  const baseQs = `from=${new Date(from).toISOString()}&to=${new Date(to).toISOString()}`;
+  const baseQs = `from=${new Date(from).toISOString()}&to=${new Date(to).toISOString()}${locationId ? `&location_id=${locationId}` : ''}`;
 
   const headcount = useQuery({
-    queryKey: ['report-headcount', activeOrgId, from, to, groupBy],
+    queryKey: ['report-headcount', activeOrgId, from, to, groupBy, locationId],
     queryFn: () => apiGet<{ data: HeadcountRow[] }>(`/api/v1/orgs/${activeOrgId}/reports/headcount?${baseQs}&group_by=${groupBy}`),
     enabled: !!activeOrgId,
   });
   const sources = useQuery({
-    queryKey: ['report-sources', activeOrgId, from, to],
+    queryKey: ['report-sources', activeOrgId, from, to, locationId],
     queryFn: () => apiGet<{ data: BookingSourceRow[] }>(`/api/v1/orgs/${activeOrgId}/reports/booking-sources?${baseQs}`),
     enabled: !!activeOrgId,
   });
   const events = useQuery({
-    queryKey: ['report-events', activeOrgId, from, to],
+    queryKey: ['report-events', activeOrgId, from, to, locationId],
     queryFn: () => apiGet<{ data: EventReportRow[] }>(`/api/v1/orgs/${activeOrgId}/reports/events?${baseQs}`),
     enabled: !!activeOrgId,
   });
@@ -111,6 +113,12 @@ export default function ReportsPage() {
             <option value="month">Month</option>
           </select>
         </label>
+        <div className="block">
+          <span className="text-xs text-slate-500">Location</span>
+          <div className="mt-1">
+            <LocationFilter value={locationId} onChange={setLocationId} />
+          </div>
+        </div>
       </div>
 
       {/* Headcount */}
