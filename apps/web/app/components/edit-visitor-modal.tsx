@@ -13,6 +13,7 @@ import type { FormField } from '@butterbook/shared';
 import { apiGet, apiPatch, ApiError } from '../../lib/api';
 import { useSession } from '../../lib/session';
 import { useToast } from '../../lib/toast';
+import { useTerminology } from '../../lib/use-terminology';
 import { Modal } from './modal';
 import { FormRenderer } from './form-renderer';
 import type { TimelineVisit } from './timeline';
@@ -31,6 +32,7 @@ export function EditVisitorModal({
   onClose: () => void;
 }) {
   const { activeOrgId } = useSession();
+  const term = useTerminology();
   const qc = useQueryClient();
   const toast = useToast();
   const open = !!visit;
@@ -80,7 +82,7 @@ export function EditVisitorModal({
       open={open}
       onClose={onClose}
       eyebrow={visit ? new Date(visit.scheduledAt).toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' }) : 'Edit'}
-      title="Edit visit"
+      title={`Edit ${term.noun}`}
       footer={
         <>
           <button onClick={onClose} className="btn-secondary">Cancel</button>

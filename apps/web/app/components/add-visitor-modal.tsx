@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { FormField } from '@butterbook/shared';
 import { apiGet, apiPost, ApiError } from '../../lib/api';
 import { useSession } from '../../lib/session';
+import { useTerminology } from '../../lib/use-terminology';
 import { Modal } from './modal';
 import { FormRenderer } from './form-renderer';
 
@@ -32,6 +33,7 @@ export function AddVisitorModal({
   defaultDate?: Date;
 }) {
   const { activeOrgId } = useSession();
+  const term = useTerminology();
   const qc = useQueryClient();
 
   const locations = useQuery({
@@ -89,8 +91,8 @@ export function AddVisitorModal({
     <Modal
       open={open}
       onClose={onClose}
-      eyebrow="New visit"
-      title="Add a visitor"
+      eyebrow={`New ${term.noun}`}
+      title={`Add a ${term.noun}`}
       footer={
         <>
           <button onClick={onClose} className="btn-secondary">Cancel</button>
@@ -99,7 +101,7 @@ export function AddVisitorModal({
             onClick={() => { setErr(null); create.mutate(); }}
             className="btn"
           >
-            {create.isPending ? 'Saving…' : 'Add visitor'}
+            {create.isPending ? 'Saving…' : `Add ${term.noun}`}
           </button>
         </>
       }
