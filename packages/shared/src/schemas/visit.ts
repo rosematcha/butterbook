@@ -55,6 +55,12 @@ export const listVisitsQuerySchema = z.object({
   limit: z.coerce.number().int().positive().max(200).default(50),
 });
 
+export const bulkVisitIdsSchema = z
+  .object({
+    visitIds: z.array(uuidSchema).min(1).max(500),
+  })
+  .strict();
+
 export const kioskCheckinSchema = z
   .object({
     formResponse: z.record(z.unknown()),

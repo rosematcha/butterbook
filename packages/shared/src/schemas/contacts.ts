@@ -46,6 +46,17 @@ export const mergeContactsSchema = z
     path: ['mergeIds'],
   });
 
+export const bulkTagContactsSchema = z
+  .object({
+    contactIds: z.array(uuidSchema).min(1).max(1000),
+    add: z.array(z.string().trim().min(1).max(32)).max(20).optional(),
+    remove: z.array(z.string().trim().min(1).max(32)).max(20).optional(),
+  })
+  .strict()
+  .refine((v) => (v.add?.length ?? 0) + (v.remove?.length ?? 0) > 0, {
+    message: 'At least one of add or remove must be provided.',
+  });
+
 export const segmentFilterSchema: z.ZodType<unknown> = z.lazy(() =>
   z.union([
     z.object({ and: z.array(segmentFilterSchema).min(1).max(20) }).strict(),

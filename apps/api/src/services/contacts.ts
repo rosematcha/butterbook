@@ -73,6 +73,32 @@ export async function upsertVisitorFromFormResponse(
   return row?.id ?? null;
 }
 
+export async function redactVisitorInTx(
+  tx: Tx,
+  orgId: string,
+  visitorId: string,
+): Promise<boolean> {
+  const row = await tx
+    .updateTable('visitors')
+    .set({
+      email: `redacted-${visitorId}@redacted.invalid`,
+      first_name: null,
+      last_name: null,
+      phone: null,
+      address: null,
+      notes: null,
+      tags: [],
+      stripe_customer_id: null,
+      pii_redacted: true,
+      updated_at: new Date(),
+    })
+    .where('org_id', '=', orgId)
+    .where('id', '=', visitorId)
+    .returning(['id'])
+    .executeTakeFirst();
+  return !!row;
+}
+
 export function publicContact(row: {
   id: string;
   org_id: string;

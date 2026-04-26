@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import {
+  bulkTagContactsSchema,
   contactIdParamSchema,
   createContactSchema,
   createSegmentSchema,
@@ -13,7 +14,7 @@ import {
 import { sql, withOrgContext, withOrgRead } from '../db/index.js';
 import { ConflictError, NotFoundError } from '../errors/index.js';
 import { allowIncludeDeleted } from '../utils/soft-delete.js';
-import { publicContact } from '../services/contacts.js';
+import { publicContact, redactVisitorInTx } from '../services/contacts.js';
 import { countSegmentVisitors, segmentPredicate } from '../services/segments.js';
 
 const orgParam = z.object({ orgId: z.string().uuid() });
@@ -168,6 +169,29 @@ export function registerContactRoutes(app: FastifyInstance): void {
     });
   });
 
+  app.post('/api/v1/orgs/:orgId/contacts/bulk-tag', async (req) => {
+    const { orgId } = orgParam.parse(req.params);
+    const body = bulkTagContactsSchema.parse(req.body);
+    await req.requirePermission(orgId, 'contacts.manage');
+    const m = await req.loadMembershipFor(orgId);
+    return withOrgContext(orgId, req.actorForOrg(orgId, m), async ({ tx, audit }) => {
+      const contacts = await tx.selectFrom('visitors').selectAll().where('org_id', '=', orgId).where('id', 'in', body.contactIds).where('deleted_at', 'is', null).execute();
+      const results: Record<string, { ok: boolean; error?: string }> = {};
+      for (const id of body.contactIds) {
+        const contact = contacts.find((c) => c.id === id);
+        if (!contact) { results[id] = { ok: false, error: 'not_found' }; continue; }
+        const currentTags = new Set(contact.tags ?? []);
+        for (const tag of body.add ?? []) currentTags.add(tag);
+        for (const tag of body.remove ?? []) currentTags.delete(tag);
+        const newTags = Array.from(currentTags);
+        await tx.updateTable('visitors').set({ tags: newTags, updated_at: new Date() }).where('id', '=', id).execute();
+        await audit({ action: 'contact.updated', targetType: 'visitor', targetId: id, diff: { after: { tags: newTags } } });
+        results[id] = { ok: true };
+      }
+      return { data: results };
+    });
+  });
+
   app.post('/api/v1/orgs/:orgId/contacts/merge', async (req) => {
     const { orgId } = orgParam.parse(req.params);
     const body = mergeContactsSchema.parse(req.body);
@@ -208,25 +232,8 @@ export function registerContactRoutes(app: FastifyInstance): void {
     await req.requireSuperadmin(orgId);
     const m = await req.loadMembershipFor(orgId);
     return withOrgContext(orgId, req.actorForOrg(orgId, m), async ({ tx, audit }) => {
-      const row = await tx
-        .updateTable('visitors')
-        .set({
-          email: `redacted-${id}@redacted.invalid`,
-          first_name: null,
-          last_name: null,
-          phone: null,
-          address: null,
-          notes: null,
-          tags: [],
-          stripe_customer_id: null,
-          pii_redacted: true,
-          updated_at: new Date(),
-        })
-        .where('org_id', '=', orgId)
-        .where('id', '=', id)
-        .returning(['id'])
-        .executeTakeFirst();
-      if (!row) throw new NotFoundError();
+      const ok = await redactVisitorInTx(tx, orgId, id);
+      if (!ok) throw new NotFoundError();
       await audit({ action: 'contact.pii_redacted', targetType: 'visitor', targetId: id });
       return { data: { ok: true } };
     });

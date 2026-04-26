@@ -3,6 +3,7 @@ import { z } from 'zod';
 import {
   adminCreateVisitSchema,
   buildFormResponseSchema,
+  bulkVisitIdsSchema,
   DEFAULT_FORM_FIELDS,
   isoDateSchema,
   listVisitsQuerySchema,
@@ -192,6 +193,46 @@ export function registerVisitRoutes(app: FastifyInstance): void {
       if (!res) throw new NotFoundError();
       await audit({ action: 'visit.no_show', targetType: 'visit', targetId: visitId });
       return { data: { ok: true } };
+    });
+  });
+
+  app.post('/api/v1/orgs/:orgId/visits/bulk-cancel', async (req) => {
+    const { orgId } = orgParam.parse(req.params);
+    const { visitIds } = bulkVisitIdsSchema.parse(req.body);
+    await req.requirePermission(orgId, 'visits.cancel');
+    const m = await req.loadMembershipFor(orgId);
+    const actor = req.actorForOrg(orgId, m);
+    return withOrgContext(orgId, actor, async ({ tx, audit, emit }) => {
+      const visits = await tx.selectFrom('visits').selectAll().where('org_id', '=', orgId).where('id', 'in', visitIds).execute();
+      const results: Record<string, { ok: boolean; error?: string }> = {};
+      for (const id of visitIds) {
+        const visit = visits.find((v) => v.id === id);
+        if (!visit) { results[id] = { ok: false, error: 'not_found' }; continue; }
+        if (visit.status === 'cancelled') { results[id] = { ok: true }; continue; }
+        await cancelVisitInTx(tx, visit, audit, emit, { actor, reason: 'admin' });
+        results[id] = { ok: true };
+      }
+      return { data: results };
+    });
+  });
+
+  app.post('/api/v1/orgs/:orgId/visits/bulk-no-show', async (req) => {
+    const { orgId } = orgParam.parse(req.params);
+    const { visitIds } = bulkVisitIdsSchema.parse(req.body);
+    await req.requirePermission(orgId, 'visits.edit');
+    const m = await req.loadMembershipFor(orgId);
+    return withOrgContext(orgId, req.actorForOrg(orgId, m), async ({ tx, audit }) => {
+      const visits = await tx.selectFrom('visits').selectAll().where('org_id', '=', orgId).where('id', 'in', visitIds).execute();
+      const results: Record<string, { ok: boolean; error?: string }> = {};
+      for (const id of visitIds) {
+        const visit = visits.find((v) => v.id === id);
+        if (!visit) { results[id] = { ok: false, error: 'not_found' }; continue; }
+        if (visit.status === 'no_show') { results[id] = { ok: true }; continue; }
+        await tx.updateTable('visits').set({ status: 'no_show' }).where('id', '=', id).execute();
+        await audit({ action: 'visit.no_show', targetType: 'visit', targetId: id });
+        results[id] = { ok: true };
+      }
+      return { data: results };
     });
   });
 
