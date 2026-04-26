@@ -10,6 +10,7 @@ import { EmptyState } from '../../components/empty-state';
 import { SkeletonRows } from '../../components/skeleton-rows';
 import { Timestamp } from '../../components/timestamp';
 import type { ContactListResponse } from '../contacts/types';
+import { MembershipsTabs } from './_components/tabs';
 import {
   intervalLabel,
   memberName,
@@ -123,7 +124,7 @@ export default function MembershipsPage() {
 
   return (
     <div>
-      <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
+      <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
         <div>
           <div className="h-eyebrow">Members &amp; CRM</div>
           <h1 className="h-display mt-1">Memberships</h1>
@@ -133,8 +134,6 @@ export default function MembershipsPage() {
           </p>
         </div>
         <div className="flex gap-2">
-          <Link href="/app/memberships/policies" className="btn-ghost">Policies</Link>
-          <Link href="/app/memberships/tiers" className="btn-secondary">Tiers</Link>
           {canManage ? (
             <button
               type="button"
@@ -148,6 +147,8 @@ export default function MembershipsPage() {
           ) : null}
         </div>
       </div>
+
+      <MembershipsTabs />
 
       <section className="mb-6 grid gap-px overflow-hidden rounded-lg border border-paper-200 bg-paper-200 sm:grid-cols-3 lg:grid-cols-6">
         <StatCell label="Active" value={counts.active} tone="live" />

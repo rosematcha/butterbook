@@ -8,6 +8,7 @@ import { useToast } from '../../../../lib/toast';
 import { EmptyState } from '../../../components/empty-state';
 import { SkeletonRows } from '../../../components/skeleton-rows';
 import { Timestamp } from '../../../components/timestamp';
+import { MembershipsTabs } from '../_components/tabs';
 
 interface GuestPass {
   id: string;
@@ -68,15 +69,17 @@ export default function GuestPassesPage() {
 
   return (
     <div>
-      <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
+      <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
         <div>
-          <div className="h-eyebrow">Memberships</div>
+          <div className="h-eyebrow">Members &amp; CRM</div>
           <h1 className="h-display mt-1">Guest passes</h1>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-paper-600">
             Passes issued to members for their guests. Redeemed at the kiosk via code entry.
           </p>
         </div>
       </div>
+
+      <MembershipsTabs />
 
       <div className="mb-4 flex items-center gap-2">
         {(['all', 'unused', 'redeemed'] as const).map((f) => (

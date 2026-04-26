@@ -7,6 +7,7 @@ import { usePermissions } from '../../../../lib/permissions';
 import { useSession } from '../../../../lib/session';
 import { useToast } from '../../../../lib/toast';
 import { EmptyState } from '../../../components/empty-state';
+import { MembershipsTabs } from '../_components/tabs';
 import { money, type MembershipTier, type PromoCode, type PromoCodeDiscountType } from '../types';
 
 interface Draft {
@@ -140,7 +141,7 @@ export default function PromoCodesPage() {
 
   return (
     <div>
-      <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
+      <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
         <div>
           <div className="h-eyebrow">Members &amp; CRM</div>
           <h1 className="h-display mt-1">Promo codes</h1>
@@ -152,6 +153,8 @@ export default function PromoCodesPage() {
           New promo code
         </button>
       </div>
+
+      <MembershipsTabs />
 
       {editorOpen ? (
         <form onSubmit={onSubmit} className="panel mb-6 p-6">

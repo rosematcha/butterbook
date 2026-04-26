@@ -6,6 +6,7 @@ import { apiGet, apiPatch, ApiError } from '../../../../lib/api';
 import { usePermissions } from '../../../../lib/permissions';
 import { useSession } from '../../../../lib/session';
 import { EmptyState } from '../../../components/empty-state';
+import { MembershipsTabs } from '../_components/tabs';
 import type { MembershipPolicy } from '../types';
 
 type ProgramTone = 'live' | 'internal' | 'off';
@@ -105,7 +106,7 @@ export default function MembershipPoliciesPage() {
 
   return (
     <form onSubmit={onSubmit}>
-      <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
+      <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
         <div>
           <div className="h-eyebrow">Members &amp; CRM</div>
           <h1 className="h-display mt-1">Membership policies</h1>
@@ -122,6 +123,8 @@ export default function MembershipPoliciesPage() {
           </button>
         </div>
       </div>
+
+      <MembershipsTabs />
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
         <div className="space-y-6">
