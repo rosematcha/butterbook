@@ -21,16 +21,37 @@ export function registerAuditRoutes(app: FastifyInstance): void {
 
     return withOrgRead(orgId, async (tx) => {
       let query = tx.selectFrom('audit_log').selectAll().where('org_id', '=', orgId);
-      if (q.from) query = query.where('created_at', '>=', new Date(q.from));
-      if (q.to) query = query.where('created_at', '<=', new Date(q.to));
-      if (q.actor_id) query = query.where('actor_id', '=', q.actor_id);
-      if (q.action) query = query.where('action', '=', q.action);
-      if (q.target_type) query = query.where('target_type', '=', q.target_type);
-      const totalRow = await tx.selectFrom('audit_log').select((eb) => eb.fn.countAll<number>().as('c')).where('org_id', '=', orgId).executeTakeFirst();
-      const rows = await query.orderBy('created_at', 'desc').limit(q.limit).offset((q.page - 1) * q.limit).execute();
+      let countQuery = tx.selectFrom('audit_log').select((eb) => eb.fn.countAll<number>().as('c')).where('org_id', '=', orgId);
+      if (q.from) {
+        const d = new Date(q.from);
+        query = query.where('created_at', '>=', d);
+        countQuery = countQuery.where('created_at', '>=', d);
+      }
+      if (q.to) {
+        const d = new Date(q.to);
+        query = query.where('created_at', '<=', d);
+        countQuery = countQuery.where('created_at', '<=', d);
+      }
+      if (q.actor_id) {
+        query = query.where('actor_id', '=', q.actor_id);
+        countQuery = countQuery.where('actor_id', '=', q.actor_id);
+      }
+      if (q.action) {
+        query = query.where('action', '=', q.action);
+        countQuery = countQuery.where('action', '=', q.action);
+      }
+      if (q.target_type) {
+        query = query.where('target_type', '=', q.target_type);
+        countQuery = countQuery.where('target_type', '=', q.target_type);
+      }
+      const [rows, totalRow] = await Promise.all([
+        query.orderBy('created_at', 'desc').limit(q.limit).offset((q.page - 1) * q.limit).execute(),
+        countQuery.executeTakeFirst(),
+      ]);
+      const total = Number(totalRow?.c ?? 0);
       return {
         data: rows,
-        meta: { page: q.page, limit: q.limit, total: Number(totalRow?.c ?? 0), pages: Math.ceil(Number(totalRow?.c ?? 0) / q.limit) },
+        meta: { page: q.page, limit: q.limit, total, pages: Math.ceil(total / q.limit) },
       };
     });
   });
