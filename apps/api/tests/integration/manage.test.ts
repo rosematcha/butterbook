@@ -322,4 +322,64 @@ describe('visitor manage links', () => {
     });
     expect(res.statusCode).toBe(404);
   });
+
+  it('self-serve redact happy path sets pii_redacted=true', async () => {
+    const { orgId, locationId } = await setupOrgWithHours(app, 'gdpr1@example.com');
+    const scheduledAt = new Date(Date.now() + 48 * 60 * 60 * 1000);
+    const { visitId, visitorId } = await seedVisitorVisitAndMembership(orgId, locationId, scheduledAt);
+    const token = makeManageToken(visitId, defaultManageExpiry(scheduledAt));
+
+    const res = await app.inject({ method: 'POST', url: `/api/v1/manage/${token}/redact` });
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body);
+    expect(body.data.ok).toBe(true);
+
+    const visitor = await getDb().selectFrom('visitors').selectAll().where('id', '=', visitorId).executeTakeFirst();
+    expect(visitor?.pii_redacted).toBe(true);
+    expect(visitor?.first_name).toBeNull();
+    expect(visitor?.phone).toBeNull();
+    expect(visitor?.email).toContain('redacted');
+  });
+
+  it('self-serve redact is idempotent', async () => {
+    const { orgId, locationId } = await setupOrgWithHours(app, 'gdpr2@example.com');
+    const scheduledAt = new Date(Date.now() + 48 * 60 * 60 * 1000);
+    const { visitId } = await seedVisitorVisitAndMembership(orgId, locationId, scheduledAt);
+    const token = makeManageToken(visitId, defaultManageExpiry(scheduledAt));
+
+    await app.inject({ method: 'POST', url: `/api/v1/manage/${token}/redact` });
+    const res2 = await app.inject({ method: 'POST', url: `/api/v1/manage/${token}/redact` });
+    expect(res2.statusCode).toBe(200);
+    const body = JSON.parse(res2.body);
+    expect(body.data.alreadyRedacted).toBe(true);
+  });
+
+  it('self-serve redact 404 when visit has no visitor_id', async () => {
+    const { orgId, locationId } = await setupOrgWithHours(app, 'gdpr3@example.com');
+    const scheduledAt = new Date(Date.now() + 48 * 60 * 60 * 1000);
+    const visitId = await seedVisit(orgId, locationId, scheduledAt);
+    const token = makeManageToken(visitId, defaultManageExpiry(scheduledAt));
+
+    const res = await app.inject({ method: 'POST', url: `/api/v1/manage/${token}/redact` });
+    expect(res.statusCode).toBe(404);
+  });
+
+  it('self-serve redact writes audit entry', async () => {
+    const { orgId, locationId } = await setupOrgWithHours(app, 'gdpr4@example.com');
+    const scheduledAt = new Date(Date.now() + 48 * 60 * 60 * 1000);
+    const { visitId, visitorId } = await seedVisitorVisitAndMembership(orgId, locationId, scheduledAt);
+    const token = makeManageToken(visitId, defaultManageExpiry(scheduledAt));
+
+    await app.inject({ method: 'POST', url: `/api/v1/manage/${token}/redact` });
+
+    const audit = await getDb()
+      .selectFrom('audit_log')
+      .selectAll()
+      .where('org_id', '=', orgId)
+      .where('action', '=', 'contact.pii_redacted')
+      .where('target_id', '=', visitorId)
+      .executeTakeFirst();
+    expect(audit).toBeDefined();
+    expect(audit?.actor_type).toBe('guest');
+  });
 });
