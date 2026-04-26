@@ -5,6 +5,24 @@ on:
   pull_request:
 
 jobs:
+  migration-guard:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Fail if a merged migration was modified
+        run: |
+          BASE=${{ github.event.pull_request.base.sha }}
+          # List migration files that were Modified (not Added) in the PR diff
+          MODIFIED=$(git diff --diff-filter=M --name-only "$BASE"...HEAD -- 'apps/api/src/db/migrations/')
+          if [ -n "$MODIFIED" ]; then
+            echo "::error::Merged migrations must not be modified. Only add new ones."
+            echo "$MODIFIED"
+            exit 1
+          fi
+
   build:
     runs-on: ubuntu-latest
     services:
