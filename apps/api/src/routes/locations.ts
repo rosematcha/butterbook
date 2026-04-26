@@ -107,6 +107,25 @@ export function registerLocationRoutes(app: FastifyInstance): void {
     });
   });
 
+  app.post('/api/v1/orgs/:orgId/locations/:locId/restore', async (req) => {
+    const { orgId, locId } = locParam.parse(req.params);
+    await req.requireSuperadmin(orgId);
+    const m = await req.loadMembershipFor(orgId);
+    return withOrgContext(orgId, req.actorForOrg(orgId, m), async ({ tx, audit }) => {
+      const row = await tx
+        .updateTable('locations')
+        .set({ deleted_at: null })
+        .where('id', '=', locId)
+        .where('org_id', '=', orgId)
+        .where('deleted_at', 'is not', null)
+        .returning(['id'])
+        .executeTakeFirst();
+      if (!row) throw new NotFoundError();
+      await audit({ action: 'location.restored', targetType: 'location', targetId: locId });
+      return { data: { ok: true } };
+    });
+  });
+
   app.post('/api/v1/orgs/:orgId/locations/:locId/set-primary', async (req) => {
     const { orgId, locId } = locParam.parse(req.params);
     await req.requirePermission(orgId, 'admin.manage_locations');

@@ -295,6 +295,35 @@ export function registerEventRoutes(app: FastifyInstance): void {
     });
   });
 
+  app.post('/api/v1/orgs/:orgId/events/:eventId/restore', async (req) => {
+    const { orgId, eventId } = eventParam.parse(req.params);
+    await req.requireSuperadmin(orgId);
+    const m = await req.loadMembershipFor(orgId);
+    return withOrgContext(orgId, req.actorForOrg(orgId, m), async ({ tx, audit }) => {
+      const ev = await tx
+        .selectFrom('events')
+        .select(['id', 'slug'])
+        .where('id', '=', eventId)
+        .where('org_id', '=', orgId)
+        .where('deleted_at', 'is not', null)
+        .executeTakeFirst();
+      if (!ev) throw new NotFoundError();
+      if (ev.slug) {
+        const conflict = await tx
+          .selectFrom('events')
+          .select(['id'])
+          .where('org_id', '=', orgId)
+          .where('slug', '=', ev.slug)
+          .where('deleted_at', 'is', null)
+          .executeTakeFirst();
+        if (conflict) throw new ConflictError(`An active event with slug "${ev.slug}" already exists.`);
+      }
+      await tx.updateTable('events').set({ deleted_at: null }).where('id', '=', eventId).execute();
+      await audit({ action: 'event.restored', targetType: 'event', targetId: eventId });
+      return { data: { ok: true } };
+    });
+  });
+
   app.post('/api/v1/orgs/:orgId/events/:eventId/duplicate', async (req) => {
     const { orgId, eventId } = eventParam.parse(req.params);
     const body = duplicateEventSchema.parse(req.body ?? {});

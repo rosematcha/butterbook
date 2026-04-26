@@ -76,6 +76,25 @@ export function registerMemberRoutes(app: FastifyInstance): void {
     });
   });
 
+  app.post('/api/v1/orgs/:orgId/members/:memberId/restore', async (req) => {
+    const { orgId, memberId } = memberParam.parse(req.params);
+    await req.requireSuperadmin(orgId);
+    const m = await req.loadMembershipFor(orgId);
+    return withOrgContext(orgId, req.actorForOrg(orgId, m), async ({ tx, audit }) => {
+      const row = await tx
+        .updateTable('org_members')
+        .set({ deleted_at: null })
+        .where('id', '=', memberId)
+        .where('org_id', '=', orgId)
+        .where('deleted_at', 'is not', null)
+        .returning(['id'])
+        .executeTakeFirst();
+      if (!row) throw new NotFoundError();
+      await audit({ action: 'member.restored', targetType: 'member', targetId: memberId });
+      return { data: { ok: true } };
+    });
+  });
+
   app.patch('/api/v1/orgs/:orgId/members/:memberId/superadmin', async (req) => {
     const { orgId, memberId } = memberParam.parse(req.params);
     const body = setSuperadminSchema.parse(req.body);
