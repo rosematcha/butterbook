@@ -20,6 +20,8 @@ export async function truncateAll(): Promise<void> {
   await db.deleteFrom('event_outbox').execute();
   await db.deleteFrom('stripe_events').execute();
   await db.deleteFrom('org_stripe_accounts').execute();
+  await db.deleteFrom('org_api_keys').execute();
+  await db.deleteFrom('org_sso_providers').execute();
   await db.deleteFrom('guest_passes').execute();
   await db.deleteFrom('membership_payments').execute();
   await db.deleteFrom('memberships').execute();

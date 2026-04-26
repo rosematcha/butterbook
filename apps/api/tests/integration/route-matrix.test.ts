@@ -9,6 +9,8 @@ import {
   truncateAll,
 } from '../helpers/factories.js';
 import { getDb } from '../../src/db/index.js';
+import crypto from 'node:crypto';
+import { encryptSecret } from '../../src/utils/crypto.js';
 
 // SPEC §12.1 mandates, for every API route, tests covering:
 //   1. happy path
@@ -42,7 +44,15 @@ interface Ctx {
   membershipTierId: string;
   membershipId: string;
   promoCodeId: string;
+  guestPassId: string;
+  visitId2: string;
+  deletedLocationId: string;
+  deletedEventId: string;
+  deletedMemberId: string;
+  deletedMembershipTierId: string;
   broadcastId: string;
+  apiKeyId: string;
+  ssoProviderId: string;
   // Send is a one-shot state transition; reuse a separate row so the rest of
   // the broadcast matrix can keep operating on a draft.
   sendableBroadcastId: string;
@@ -99,6 +109,7 @@ const ROUTES: RouteCase[] = [
   { name: 'GET single contact', method: 'GET', url: (c) => `/api/v1/orgs/${c.orgId}/contacts/${c.contactId}`, notFoundUrl: (c) => `/api/v1/orgs/${c.orgId}/contacts/00000000-0000-0000-0000-000000000000` },
   { name: 'PATCH contact', method: 'PATCH', url: (c) => `/api/v1/orgs/${c.orgId}/contacts/${c.contactId}`, body: () => ({ tags: ['member'] }), invalidBody: () => ({ tags: [''] }) },
   { name: 'GET contact timeline', method: 'GET', url: (c) => `/api/v1/orgs/${c.orgId}/contacts/${c.contactId}/timeline`, notFoundUrl: (c) => `/api/v1/orgs/${c.orgId}/contacts/00000000-0000-0000-0000-000000000000/timeline` },
+  { name: 'POST bulk-tag (contacts.manage)', method: 'POST', url: (c) => `/api/v1/orgs/${c.orgId}/contacts/bulk-tag`, body: (c) => ({ contactIds: [c.contactId], add: ['vip'] }), invalidBody: (c) => ({ contactIds: [c.contactId] }) },
   { name: 'POST contact merge', method: 'POST', url: (c) => `/api/v1/orgs/${c.orgId}/contacts/merge`, body: (c) => ({ keepId: c.contactId, mergeIds: [c.mergeContactId] }), invalidBody: (c) => ({ keepId: c.contactId, mergeIds: [c.contactId] }) },
   { name: 'POST contact redact', method: 'POST', url: (c) => `/api/v1/orgs/${c.orgId}/contacts/${c.contactId}/redact`, notFoundUrl: (c) => `/api/v1/orgs/${c.orgId}/contacts/00000000-0000-0000-0000-000000000000/redact` },
   { name: 'GET segments (contacts.view_all)', method: 'GET', url: (c) => `/api/v1/orgs/${c.orgId}/segments` },
@@ -115,6 +126,7 @@ const ROUTES: RouteCase[] = [
   { name: 'POST membership tier', method: 'POST', url: (c) => `/api/v1/orgs/${c.orgId}/membership-tiers`, body: () => ({ slug: `supporter-${Math.random().toString(36).slice(2, 8)}`, name: 'Supporter', priceCents: 5000, billingInterval: 'year' }), invalidBody: () => ({ slug: 'Bad Slug', name: '', priceCents: -1, billingInterval: 'week' }) },
   { name: 'GET single membership tier', method: 'GET', url: (c) => `/api/v1/orgs/${c.orgId}/membership-tiers/${c.membershipTierId}`, notFoundUrl: (c) => `/api/v1/orgs/${c.orgId}/membership-tiers/00000000-0000-0000-0000-000000000000` },
   { name: 'PATCH membership tier', method: 'PATCH', url: (c) => `/api/v1/orgs/${c.orgId}/membership-tiers/${c.membershipTierId}`, body: () => ({ name: 'Household' }), invalidBody: () => ({ priceCents: -1 }) },
+  { name: 'POST membership tier restore', method: 'POST', url: (c) => `/api/v1/orgs/${c.orgId}/membership-tiers/${c.deletedMembershipTierId}/restore`, notFoundUrl: (c) => `/api/v1/orgs/${c.orgId}/membership-tiers/00000000-0000-0000-0000-000000000000/restore` },
   { name: 'GET memberships', method: 'GET', url: (c) => `/api/v1/orgs/${c.orgId}/memberships` },
   { name: 'POST membership', method: 'POST', url: (c) => `/api/v1/orgs/${c.orgId}/memberships`, body: (c) => ({ visitorId: c.contactId, tierId: c.membershipTierId }), invalidBody: (c) => ({ visitorId: c.contactId, tierId: 'nope' }) },
   { name: 'GET single membership', method: 'GET', url: (c) => `/api/v1/orgs/${c.orgId}/memberships/${c.membershipId}`, notFoundUrl: (c) => `/api/v1/orgs/${c.orgId}/memberships/00000000-0000-0000-0000-000000000000` },
@@ -122,6 +134,10 @@ const ROUTES: RouteCase[] = [
   { name: 'POST membership cancel', method: 'POST', url: (c) => `/api/v1/orgs/${c.orgId}/memberships/${c.membershipId}/cancel`, body: () => ({ reason: 'requested' }), notFoundUrl: (c) => `/api/v1/orgs/${c.orgId}/memberships/00000000-0000-0000-0000-000000000000/cancel` },
   { name: 'POST membership renew', method: 'POST', url: (c) => `/api/v1/orgs/${c.orgId}/memberships/${c.membershipId}/renew`, body: () => ({ amountCents: 5000 }), invalidBody: () => ({ amountCents: -1 }), notFoundUrl: (c) => `/api/v1/orgs/${c.orgId}/memberships/00000000-0000-0000-0000-000000000000/renew` },
   { name: 'POST membership refund', method: 'POST', url: (c) => `/api/v1/orgs/${c.orgId}/memberships/${c.membershipId}/refund`, body: () => ({ amountCents: 5000 }), invalidBody: () => ({ amountCents: -1 }), notFoundUrl: (c) => `/api/v1/orgs/${c.orgId}/memberships/00000000-0000-0000-0000-000000000000/refund` },
+  // --- guest passes ---
+  { name: 'GET guest-passes', method: 'GET', url: (c) => `/api/v1/orgs/${c.orgId}/guest-passes` },
+  { name: 'POST issue guest-passes', method: 'POST', url: (c) => `/api/v1/orgs/${c.orgId}/memberships/${c.membershipId}/guest-passes`, notFoundUrl: (c) => `/api/v1/orgs/${c.orgId}/memberships/00000000-0000-0000-0000-000000000000/guest-passes` },
+  { name: 'DELETE guest-pass', method: 'DELETE', url: (c) => `/api/v1/orgs/${c.orgId}/guest-passes/${c.guestPassId}`, notFoundUrl: (c) => `/api/v1/orgs/${c.orgId}/guest-passes/00000000-0000-0000-0000-000000000000` },
   { name: 'GET promo codes', method: 'GET', url: (c) => `/api/v1/orgs/${c.orgId}/promo-codes` },
   { name: 'POST promo code', method: 'POST', url: (c) => `/api/v1/orgs/${c.orgId}/promo-codes`, body: (c) => ({ code: `SAVE${Math.random().toString(36).slice(2, 8)}`, discountType: 'percent', discountPercent: 10, membershipTierId: c.membershipTierId }), invalidBody: () => ({ code: '', discountType: 'percent' }) },
   { name: 'GET single promo code', method: 'GET', url: (c) => `/api/v1/orgs/${c.orgId}/promo-codes/${c.promoCodeId}`, notFoundUrl: (c) => `/api/v1/orgs/${c.orgId}/promo-codes/00000000-0000-0000-0000-000000000000` },
@@ -146,9 +162,21 @@ const ROUTES: RouteCase[] = [
   { name: 'DELETE Stripe account', method: 'DELETE', url: (c) => `/api/v1/orgs/${c.orgId}/stripe` },
   { name: 'GET public membership tiers', method: 'GET', url: (c) => `/api/v1/public/orgs/${c.orgSlug}/membership-tiers`, public: true, skip401: true },
 
+  // --- api keys ---
+  { name: 'GET api-keys (api_keys.manage)', method: 'GET', url: (c) => `/api/v1/orgs/${c.orgId}/api-keys` },
+  { name: 'POST api-key (api_keys.manage)', method: 'POST', url: (c) => `/api/v1/orgs/${c.orgId}/api-keys`, body: () => ({ name: 'CI Key', permissions: ['visits.view_all'] }), invalidBody: () => ({ name: '', permissions: [] }) },
+  { name: 'DELETE api-key (api_keys.manage)', method: 'DELETE', url: (c) => `/api/v1/orgs/${c.orgId}/api-keys/${c.apiKeyId}`, notFoundUrl: (c) => `/api/v1/orgs/${c.orgId}/api-keys/00000000-0000-0000-0000-000000000000` },
+
+  // --- SSO providers ---
+  { name: 'GET sso-providers (admin.manage_org)', method: 'GET', url: (c) => `/api/v1/orgs/${c.orgId}/sso-providers` },
+  { name: 'POST sso-provider (admin.manage_org)', method: 'POST', url: (c) => `/api/v1/orgs/${c.orgId}/sso-providers`, body: () => ({ provider: 'microsoft', clientId: 'cid', clientSecret: 'csec', allowedDomains: [] }), invalidBody: () => ({ provider: 'saml', clientId: '' }) },
+  { name: 'PATCH sso-provider', method: 'PATCH', url: (c) => `/api/v1/orgs/${c.orgId}/sso-providers/${c.ssoProviderId}`, body: () => ({ enabled: true }), notFoundUrl: (c) => `/api/v1/orgs/${c.orgId}/sso-providers/00000000-0000-0000-0000-000000000000` },
+  { name: 'DELETE sso-provider', method: 'DELETE', url: (c) => `/api/v1/orgs/${c.orgId}/sso-providers/${c.ssoProviderId}`, notFoundUrl: (c) => `/api/v1/orgs/${c.orgId}/sso-providers/00000000-0000-0000-0000-000000000000` },
+
   // --- members ---
   { name: 'GET members (admin.manage_users)', method: 'GET', url: (c) => `/api/v1/orgs/${c.orgId}/members` },
   // Superadmin invariant is exercised in a dedicated test; skip a success-path delete here.
+  { name: 'POST member restore', method: 'POST', url: (c) => `/api/v1/orgs/${c.orgId}/members/${c.deletedMemberId}/restore`, notFoundUrl: (c) => `/api/v1/orgs/${c.orgId}/members/00000000-0000-0000-0000-000000000000/restore` },
 
   // --- roles ---
   { name: 'GET roles (admin.manage_roles)', method: 'GET', url: (c) => `/api/v1/orgs/${c.orgId}/roles` },
@@ -167,6 +195,7 @@ const ROUTES: RouteCase[] = [
   { name: 'GET single location', method: 'GET', url: (c) => `/api/v1/orgs/${c.orgId}/locations/${c.locationId}`, skip403: true, notFoundUrl: (c) => `/api/v1/orgs/${c.orgId}/locations/00000000-0000-0000-0000-000000000000` },
   { name: 'PATCH location', method: 'PATCH', url: (c) => `/api/v1/orgs/${c.orgId}/locations/${c.locationId}`, body: () => ({ zip: '10002' }) },
   { name: 'POST location set-primary', method: 'POST', url: (c) => `/api/v1/orgs/${c.orgId}/locations/${c.locationId}/set-primary` },
+  { name: 'POST location restore', method: 'POST', url: (c) => `/api/v1/orgs/${c.orgId}/locations/${c.deletedLocationId}/restore`, notFoundUrl: (c) => `/api/v1/orgs/${c.orgId}/locations/00000000-0000-0000-0000-000000000000/restore` },
 
   // --- hours ---
   { name: 'GET location hours', method: 'GET', url: (c) => `/api/v1/orgs/${c.orgId}/locations/${c.locationId}/hours`, skip403: true },
@@ -182,6 +211,8 @@ const ROUTES: RouteCase[] = [
   { name: 'GET visits (visits.view_all)', method: 'GET', url: (c) => `/api/v1/orgs/${c.orgId}/visits` },
   { name: 'GET single visit', method: 'GET', url: (c) => `/api/v1/orgs/${c.orgId}/visits/${c.visitId}`, notFoundUrl: (c) => `/api/v1/orgs/${c.orgId}/visits/00000000-0000-0000-0000-000000000000` },
   { name: 'POST no-show', method: 'POST', url: (c) => `/api/v1/orgs/${c.orgId}/visits/${c.visitId}/no-show` },
+  { name: 'POST bulk-cancel (visits.cancel)', method: 'POST', url: (c) => `/api/v1/orgs/${c.orgId}/visits/bulk-cancel`, body: (c) => ({ visitIds: [c.visitId, c.visitId2] }), invalidBody: () => ({ visitIds: [] }) },
+  { name: 'POST bulk-no-show (visits.edit)', method: 'POST', url: (c) => `/api/v1/orgs/${c.orgId}/visits/bulk-no-show`, body: (c) => ({ visitIds: [c.visitId2] }), invalidBody: () => ({ visitIds: [] }) },
 
   // --- events ---
   { name: 'GET events', method: 'GET', url: (c) => `/api/v1/orgs/${c.orgId}/events` },
@@ -226,6 +257,7 @@ const ROUTES: RouteCase[] = [
     }),
     notFoundUrl: (c) => `/api/v1/orgs/${c.orgId}/events/00000000-0000-0000-0000-000000000000/duplicate`,
   },
+  { name: 'POST event restore', method: 'POST', url: (c) => `/api/v1/orgs/${c.orgId}/events/${c.deletedEventId}/restore`, notFoundUrl: (c) => `/api/v1/orgs/${c.orgId}/events/00000000-0000-0000-0000-000000000000/restore` },
 
   // --- waitlist ---
   { name: 'GET waitlist', method: 'GET', url: (c) => `/api/v1/orgs/${c.orgId}/events/${c.eventId}/waitlist` },
@@ -323,6 +355,17 @@ describe('route matrix: happy + 401 + 403 + 422 + 404', () => {
       })
       .returning(['id'])
       .executeTakeFirstOrThrow();
+    const visit2 = await getDb()
+      .insertInto('visits')
+      .values({
+        org_id: owner.orgId,
+        location_id: owner.locationId,
+        booking_method: 'admin',
+        scheduled_at: new Date('2026-04-13T15:00:00-04:00'),
+        form_response: { name: 'Seed2', zip: '10002', party_size: 2 } as never,
+      })
+      .returning(['id'])
+      .executeTakeFirstOrThrow();
     const contact = await getDb()
       .insertInto('visitors')
       .values({
@@ -375,6 +418,16 @@ describe('route matrix: happy + 401 + 403 + 422 + 404', () => {
         started_at: new Date('2026-01-01T00:00:00Z'),
         expires_at: new Date('2027-01-01T00:00:00Z'),
         metadata: JSON.stringify({}),
+      })
+      .returning(['id'])
+      .executeTakeFirstOrThrow();
+    const guestPass = await getDb()
+      .insertInto('guest_passes')
+      .values({
+        membership_id: membership.id,
+        org_id: owner.orgId,
+        code: 'GP-SEED01',
+        expires_at: new Date('2027-01-01T00:00:00Z'),
       })
       .returning(['id'])
       .executeTakeFirstOrThrow();
@@ -441,6 +494,59 @@ describe('route matrix: happy + 401 + 403 + 422 + 404', () => {
       .where('id', '=', owner.orgId)
       .executeTakeFirstOrThrow();
 
+    // Soft-deleted fixtures for restore tests
+    const deletedLocation = await getDb()
+      .insertInto('locations')
+      .values({ org_id: owner.orgId, name: 'Deleted Location', address: '1 Main St', deleted_at: new Date() })
+      .returning(['id'])
+      .executeTakeFirstOrThrow();
+    const deletedEvent = await getDb()
+      .insertInto('events')
+      .values({ org_id: owner.orgId, title: 'Deleted Event', starts_at: new Date('2026-06-01T10:00:00Z'), ends_at: new Date('2026-06-01T12:00:00Z'), location_id: owner.locationId, created_by: owner.userId, public_id: 'p_del_' + Math.random().toString(36).slice(2, 10), capacity: 50, deleted_at: new Date() })
+      .returning(['id'])
+      .executeTakeFirstOrThrow();
+    // Create a third user, add as member, then soft-delete the member row
+    const delMemberUser = await getDb()
+      .insertInto('users')
+      .values({ email: 'delmember@example.com', password_hash: '$argon2id$v=19$m=65536,t=3,p=4$AAAAAAAAAAAAAAAA$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA' })
+      .returning(['id'])
+      .executeTakeFirstOrThrow();
+    const deletedMember = await getDb()
+      .insertInto('org_members')
+      .values({ org_id: owner.orgId, user_id: delMemberUser.id, deleted_at: new Date() })
+      .returning(['id'])
+      .executeTakeFirstOrThrow();
+    const deletedTier = await getDb()
+      .insertInto('membership_tiers')
+      .values({ org_id: owner.orgId, slug: 'deleted-tier', name: 'Deleted Tier', price_cents: 1000, billing_interval: 'year', duration_days: 365, deleted_at: new Date(), active: false })
+      .returning(['id'])
+      .executeTakeFirstOrThrow();
+    const apiKeyHash = crypto.createHash('sha256').update('bb_live_test_key_for_matrix').digest('hex');
+    const apiKey = await getDb()
+      .insertInto('org_api_keys')
+      .values({
+        org_id: owner.orgId,
+        prefix: 'bb_live_test',
+        key_hash: apiKeyHash,
+        name: 'Test key',
+        permissions: ['visits.view_all'],
+        created_by: owner.userId,
+      })
+      .returning(['id'])
+      .executeTakeFirstOrThrow();
+    const ssoProvider = await getDb()
+      .insertInto('org_sso_providers')
+      .values({
+        org_id: owner.orgId,
+        provider: 'google',
+        client_id: 'test-client-id',
+        client_secret: encryptSecret('test-client-secret'),
+        allowed_domains: ['example.com'],
+        enabled: false,
+      })
+      .returning(['id'])
+      .executeTakeFirstOrThrow();
+
     ctx = {
       orgId: owner.orgId,
       orgSlug: orgRow.public_slug,
@@ -462,6 +568,14 @@ describe('route matrix: happy + 401 + 403 + 422 + 404', () => {
       membershipTierId: membershipTier.id,
       membershipId: membership.id,
       promoCodeId: promoCode.id,
+      guestPassId: guestPass.id,
+      visitId2: visit2.id,
+      deletedLocationId: deletedLocation.id,
+      deletedEventId: deletedEvent.id,
+      deletedMemberId: deletedMember.id,
+      deletedMembershipTierId: deletedTier.id,
+      apiKeyId: apiKey.id,
+      ssoProviderId: ssoProvider.id,
       broadcastId: broadcast.id,
       sendableBroadcastId: sendableBroadcast.id,
     };

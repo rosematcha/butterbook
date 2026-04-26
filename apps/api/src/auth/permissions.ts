@@ -6,11 +6,9 @@ export interface LoadedMembership {
   orgId: string;
   isSuperadmin: boolean;
   permissions: Set<Permission>;
+  locationPermissions: Map<string, Set<Permission>>;
 }
 
-// Runs inside withOrgRead so RLS enforces org isolation on the membership + permission
-// lookup, not just our WHERE clauses. If the caller is not a member of `orgId`, RLS
-// returns zero rows and we return null.
 export async function loadMembership(userId: string, orgId: string): Promise<LoadedMembership | null> {
   return withOrgRead(orgId, async (tx) => {
     const member = await tx
@@ -22,20 +20,38 @@ export async function loadMembership(userId: string, orgId: string): Promise<Loa
       .executeTakeFirst();
     if (!member) return null;
 
-    const perms = await tx
+    const rows = await tx
       .selectFrom('member_roles')
       .innerJoin('roles', 'roles.id', 'member_roles.role_id')
       .innerJoin('role_permissions', 'role_permissions.role_id', 'roles.id')
-      .select(['role_permissions.permission'])
+      .select(['role_permissions.permission', 'member_roles.scope_location_id'])
       .where('member_roles.org_member_id', '=', member.id)
       .where('roles.deleted_at', 'is', null)
       .execute();
+
+    const orgWide = new Set<Permission>();
+    const locationPerms = new Map<string, Set<Permission>>();
+
+    for (const row of rows) {
+      const perm = row.permission as Permission;
+      if (!row.scope_location_id) {
+        orgWide.add(perm);
+      } else {
+        let set = locationPerms.get(row.scope_location_id);
+        if (!set) {
+          set = new Set();
+          locationPerms.set(row.scope_location_id, set);
+        }
+        set.add(perm);
+      }
+    }
 
     return {
       memberId: member.id,
       orgId,
       isSuperadmin: member.is_superadmin,
-      permissions: new Set(perms.map((p) => p.permission as Permission)),
+      permissions: orgWide,
+      locationPermissions: locationPerms,
     };
   });
 }
@@ -45,4 +61,11 @@ export function hasPerm(m: LoadedMembership, perm: Permission): boolean {
     { userId: '', orgId: m.orgId, isSuperadmin: m.isSuperadmin, permissions: m.permissions },
     perm,
   );
+}
+
+export function hasPermAtLocation(m: LoadedMembership, perm: Permission, locationId: string): boolean {
+  if (m.isSuperadmin) return true;
+  if (m.permissions.has(perm)) return true;
+  const locPerms = m.locationPermissions.get(locationId);
+  return locPerms?.has(perm) ?? false;
 }
