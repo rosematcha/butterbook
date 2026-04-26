@@ -4,3 +4,4 @@
 /app/events/:id/waitlist     /app/events/waitlist?id=:id   301
 /app/locations/:id/hours     /app/locations/hours?id=:id   301
 /app/locations/:id/qr        /app/locations/qr?id=:id      301
+/app/events/:id/print        /app/events/print?id=:id      301

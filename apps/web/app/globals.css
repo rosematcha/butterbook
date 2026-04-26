@@ -18,6 +18,10 @@
   --brand-accent: 176 87 61;         /* accent-500 #b0573d */
   --brand-on-primary: 251 250 247;   /* paper-50 */
   --brand-on-accent: 255 255 255;
+  --brand-font: ui-sans-serif, system-ui, sans-serif;
+  --brand-btn-radius: 8px;
+  --brand-card-radius: 8px;
+  --brand-card-shadow: 0 1px 0 rgb(0 0 0 / 0.02);
 }
 
 @layer base {
@@ -116,6 +120,45 @@
 }
 .mk-pulse {
   animation: mk-pulse 2s cubic-bezier(0.22, 0.61, 0.36, 1) infinite;
+}
+
+/* Brand-scoped overrides — these CSS variables are set by useApplyBranding /
+   applyThemeVars from the org's branding payload. The defaults in :root mean
+   these rules are always safe even when no org theme is active. */
+.branded {
+  font-family: var(--brand-font);
+}
+.branded .btn,
+.branded .btn-accent,
+.branded .btn-secondary,
+.branded .btn-danger {
+  border-radius: var(--brand-btn-radius);
+}
+.branded .panel,
+.branded .card {
+  border-radius: var(--brand-card-radius);
+  box-shadow: var(--brand-card-shadow);
+}
+.branded .input {
+  border-radius: var(--brand-card-radius);
+}
+
+/* Print — hide app chrome, show only .print-page content. */
+@media print {
+  nav, aside, header:not(.print-page header), footer,
+  [data-sidebar], [data-topbar], .no-print {
+    display: none !important;
+  }
+  body {
+    background: white !important;
+  }
+  .print-page {
+    max-width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+  .print-page table { page-break-inside: auto; }
+  .print-page tr { page-break-inside: avoid; }
 }
 
 /* Global background — warm paper with a faint accent wash up top so the
