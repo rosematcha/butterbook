@@ -6,6 +6,8 @@ import { AuthenticationError, ConflictError, NotFoundError, PermissionError } fr
 import { verifyManageToken } from '../utils/manage-token.js';
 import { slotsForDate, type SlotRounding } from '../services/availability.js';
 import { cancelMembershipInTx, publicMembership, selectMembership } from '../services/memberships.js';
+import { cancelStripeSubscription } from '../services/stripe.js';
+import { redactVisitorInTx } from '../services/contacts.js';
 import { cancelVisitInTx, rescheduleVisitInTx } from '../services/visits.js';
 import { buildCalendar } from '../services/ical.js';
 
@@ -293,7 +295,7 @@ export function registerManageRoutes(app: FastifyInstance): void {
       }
       const current = await tx
         .selectFrom('memberships')
-        .select(['id'])
+        .select(['id', 'stripe_subscription_id', 'auto_renew'])
         .where('org_id', '=', visit.org_id)
         .where('visitor_id', '=', visit.visitor_id)
         .where('id', '=', membershipId)
@@ -301,6 +303,17 @@ export function registerManageRoutes(app: FastifyInstance): void {
         .executeTakeFirst();
       if (!current) throw new NotFoundError('Membership not found.');
 
+      if (current.stripe_subscription_id && current.auto_renew) {
+        const stripeAccount = await tx
+          .selectFrom('org_stripe_accounts')
+          .select(['stripe_account_id'])
+          .where('org_id', '=', visit.org_id)
+          .where('disconnected_at', 'is', null)
+          .executeTakeFirst();
+        if (stripeAccount) {
+          await cancelStripeSubscription(stripeAccount.stripe_account_id, current.stripe_subscription_id);
+        }
+      }
       await cancelMembershipInTx(tx, visit.org_id, membershipId, body.reason ?? 'self_cancel');
       const row = await selectMembership(tx, visit.org_id, membershipId);
       await audit({
@@ -376,6 +389,34 @@ export function registerManageRoutes(app: FastifyInstance): void {
         audit,
         emit,
       );
+      return { data: { ok: true } };
+    });
+  });
+
+  app.post('/api/v1/manage/:token/redact', rl, async (req) => {
+    const { token } = tokenParam.parse(req.params);
+    const { visit } = await resolveToken(token);
+    if (!visit.visitor_id) throw new NotFoundError('No visitor linked to this visit.');
+    const visitor = await getDb()
+      .selectFrom('visitors')
+      .select(['pii_redacted'])
+      .where('id', '=', visit.visitor_id)
+      .executeTakeFirst();
+    if (visitor?.pii_redacted) return { data: { ok: true, alreadyRedacted: true } };
+    const actor = selfServeActor(
+      visit.org_id,
+      req.ip ?? null,
+      (req.headers['user-agent'] as string | undefined) ?? null,
+    );
+    return withOrgContext(visit.org_id, actor, async ({ tx, audit }) => {
+      const ok = await redactVisitorInTx(tx, visit.org_id, visit.visitor_id!);
+      if (!ok) throw new NotFoundError('Visitor not found.');
+      await audit({
+        action: 'contact.pii_redacted',
+        targetType: 'visitor',
+        targetId: visit.visitor_id!,
+        diff: { after: { source: 'self_serve_manage' } },
+      });
       return { data: { ok: true } };
     });
   });

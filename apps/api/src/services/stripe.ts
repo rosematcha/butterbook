@@ -239,6 +239,31 @@ export async function createStripeRefund(input: StripeRefundInput): Promise<Stri
   return { id };
 }
 
+export async function cancelStripeSubscription(
+  stripeAccountId: string,
+  subscriptionId: string,
+): Promise<void> {
+  const cfg = getConfig();
+  if (!cfg.STRIPE_SECRET_KEY) throw new ConflictError('Stripe secret key is not configured');
+  const res = await fetch(`https://api.stripe.com/v1/subscriptions/${subscriptionId}`, {
+    method: 'POST',
+    headers: {
+      authorization: `Bearer ${cfg.STRIPE_SECRET_KEY}`,
+      'content-type': 'application/x-www-form-urlencoded',
+      'stripe-account': stripeAccountId,
+    },
+    body: new URLSearchParams({ cancel_at_period_end: 'true' }),
+  });
+  if (!res.ok) {
+    const json = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    const message =
+      typeof json.error === 'object' && json.error && 'message' in json.error && typeof json.error.message === 'string'
+        ? json.error.message
+        : 'Stripe subscription cancellation failed';
+    throw new ConflictError(message);
+  }
+}
+
 export interface StripeWebhookEvent {
   id: string;
   type: string;

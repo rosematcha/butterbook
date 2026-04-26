@@ -146,6 +146,126 @@ describe('Stripe webhooks', () => {
     }
   });
 
+  it('invoice.paid renews an active subscription membership', async () => {
+    const app = await makeApp();
+    try {
+      const org = await createTestOrg('stripe-invoice@example.com');
+      await getDb().insertInto('org_stripe_accounts').values({ org_id: org.orgId, stripe_account_id: 'acct_inv', charges_enabled: true, payouts_enabled: true, default_currency: 'usd' }).execute();
+      const visitor = await getDb().insertInto('visitors').values({ org_id: org.orgId, email: 'renew@example.com' }).returning(['id']).executeTakeFirstOrThrow();
+      const tier = await getDb().insertInto('membership_tiers').values({ org_id: org.orgId, slug: 'annual', name: 'Annual', price_cents: 5000, billing_interval: 'year', duration_days: 365, active: true }).returning(['id']).executeTakeFirstOrThrow();
+      const now = new Date();
+      const expiresAt = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+      const membership = await getDb().insertInto('memberships').values({
+        org_id: org.orgId, visitor_id: visitor.id, tier_id: tier.id, status: 'active',
+        started_at: new Date(now.getTime() - 335 * 24 * 60 * 60 * 1000),
+        expires_at: expiresAt,
+        auto_renew: true, stripe_subscription_id: 'sub_renew_123',
+        metadata: JSON.stringify({}),
+      }).returning(['id']).executeTakeFirstOrThrow();
+
+      const payload = JSON.stringify({
+        id: 'evt_invoice_paid',
+        type: 'invoice.paid',
+        data: {
+          object: {
+            id: 'in_test_123',
+            subscription: 'sub_renew_123',
+            customer: 'cus_test_123',
+            payment_intent: 'pi_renew_123',
+            amount_paid: 5000,
+            currency: 'usd',
+            metadata: { membershipId: membership.id },
+          },
+        },
+      });
+      const res = await app.inject({
+        method: 'POST', url: `/api/v1/stripe/webhook/${org.orgId}`,
+        headers: { 'content-type': 'application/json', 'stripe-signature': sign(payload) },
+        payload,
+      });
+      expect(res.statusCode).toBe(200);
+      const updated = await getDb().selectFrom('memberships').select(['expires_at', 'auto_renew']).where('id', '=', membership.id).executeTakeFirstOrThrow();
+      expect(updated.auto_renew).toBe(true);
+      expect(updated.expires_at!.getTime()).toBeGreaterThan(expiresAt.getTime());
+    } finally { await app.close(); }
+  });
+
+  it('customer.subscription.updated syncs membership status', async () => {
+    const app = await makeApp();
+    try {
+      const org = await createTestOrg('stripe-sub-update@example.com');
+      await getDb().insertInto('org_stripe_accounts').values({ org_id: org.orgId, stripe_account_id: 'acct_sub_upd', charges_enabled: true, payouts_enabled: true, default_currency: 'usd' }).execute();
+      const visitor = await getDb().insertInto('visitors').values({ org_id: org.orgId, email: 'sub-update@example.com' }).returning(['id']).executeTakeFirstOrThrow();
+      const tier = await getDb().insertInto('membership_tiers').values({ org_id: org.orgId, slug: 'monthly', name: 'Monthly', price_cents: 1000, billing_interval: 'month', duration_days: 30, active: true }).returning(['id']).executeTakeFirstOrThrow();
+      const membership = await getDb().insertInto('memberships').values({
+        org_id: org.orgId, visitor_id: visitor.id, tier_id: tier.id, status: 'active',
+        started_at: new Date(), expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+        auto_renew: true, stripe_subscription_id: 'sub_upd_123',
+        metadata: JSON.stringify({}),
+      }).returning(['id']).executeTakeFirstOrThrow();
+
+      const periodEnd = Math.floor(Date.now() / 1000) + 60 * 24 * 60 * 60;
+      const payload = JSON.stringify({
+        id: 'evt_sub_updated',
+        type: 'customer.subscription.updated',
+        data: {
+          object: {
+            id: 'sub_upd_123',
+            status: 'active',
+            current_period_end: periodEnd,
+            metadata: { membershipId: membership.id },
+          },
+        },
+      });
+      const res = await app.inject({
+        method: 'POST', url: `/api/v1/stripe/webhook/${org.orgId}`,
+        headers: { 'content-type': 'application/json', 'stripe-signature': sign(payload) },
+        payload,
+      });
+      expect(res.statusCode).toBe(200);
+      const updated = await getDb().selectFrom('memberships').select(['auto_renew', 'expires_at']).where('id', '=', membership.id).executeTakeFirstOrThrow();
+      expect(updated.auto_renew).toBe(true);
+      expect(updated.expires_at!.getTime()).toBeCloseTo(periodEnd * 1000, -3);
+    } finally { await app.close(); }
+  });
+
+  it('customer.subscription.deleted cancels membership', async () => {
+    const app = await makeApp();
+    try {
+      const org = await createTestOrg('stripe-sub-del@example.com');
+      await getDb().insertInto('org_stripe_accounts').values({ org_id: org.orgId, stripe_account_id: 'acct_sub_del', charges_enabled: true, payouts_enabled: true, default_currency: 'usd' }).execute();
+      const visitor = await getDb().insertInto('visitors').values({ org_id: org.orgId, email: 'sub-del@example.com' }).returning(['id']).executeTakeFirstOrThrow();
+      const tier = await getDb().insertInto('membership_tiers').values({ org_id: org.orgId, slug: 'yearly', name: 'Yearly', price_cents: 5000, billing_interval: 'year', duration_days: 365, active: true }).returning(['id']).executeTakeFirstOrThrow();
+      const membership = await getDb().insertInto('memberships').values({
+        org_id: org.orgId, visitor_id: visitor.id, tier_id: tier.id, status: 'active',
+        started_at: new Date(), expires_at: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
+        auto_renew: true, stripe_subscription_id: 'sub_del_123',
+        metadata: JSON.stringify({}),
+      }).returning(['id']).executeTakeFirstOrThrow();
+
+      const payload = JSON.stringify({
+        id: 'evt_sub_deleted',
+        type: 'customer.subscription.deleted',
+        data: {
+          object: {
+            id: 'sub_del_123',
+            status: 'canceled',
+            metadata: { membershipId: membership.id },
+          },
+        },
+      });
+      const res = await app.inject({
+        method: 'POST', url: `/api/v1/stripe/webhook/${org.orgId}`,
+        headers: { 'content-type': 'application/json', 'stripe-signature': sign(payload) },
+        payload,
+      });
+      expect(res.statusCode).toBe(200);
+      const updated = await getDb().selectFrom('memberships').select(['status', 'auto_renew']).where('id', '=', membership.id).executeTakeFirstOrThrow();
+      expect(updated.status).toBe('cancelled');
+      expect(updated.auto_renew).toBe(false);
+    } finally { await app.close(); }
+  });
+
   it('rejects webhook payloads with an invalid signature', async () => {
     const app = await makeApp();
     try {

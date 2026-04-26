@@ -4,6 +4,8 @@ import {
   cancelMembershipSchema,
   createMembershipSchema,
   createMembershipTierSchema,
+  guestPassIdParamSchema,
+  listGuestPassesQuerySchema,
   listMembershipsQuerySchema,
   listMembershipTiersQuerySchema,
   membershipIdParamSchema,
@@ -17,10 +19,11 @@ import {
 import { withOrgContext, withOrgRead } from '../db/index.js';
 import { ConflictError, NotFoundError } from '../errors/index.js';
 import { allowIncludeDeleted } from '../utils/soft-delete.js';
-import { createStripeRefund } from '../services/stripe.js';
+import { cancelStripeSubscription, createStripeRefund } from '../services/stripe.js';
 import {
   cancelMembershipInTx,
   createMembershipInTx,
+  issueGuestPassesForMembershipInTx,
   publicMembership,
   publicTier,
   renewMembershipInTx,
@@ -33,6 +36,7 @@ export function registerMembershipRoutes(app: FastifyInstance): void {
   registerPolicyRoutes(app);
   registerTierRoutes(app);
   registerMembershipRecordRoutes(app);
+  registerGuestPassRoutes(app);
 }
 
 function registerPolicyRoutes(app: FastifyInstance): void {
@@ -165,6 +169,25 @@ function registerTierRoutes(app: FastifyInstance): void {
       const row = await tx.updateTable('membership_tiers').set({ deleted_at: new Date(), active: false }).where('org_id', '=', orgId).where('id', '=', tierId).where('deleted_at', 'is', null).returning(['id']).executeTakeFirst();
       if (!row) throw new NotFoundError();
       await audit({ action: 'membership_tier.deleted', targetType: 'membership_tier', targetId: tierId });
+      return { data: { ok: true } };
+    });
+  });
+
+  app.post('/api/v1/orgs/:orgId/membership-tiers/:tierId/restore', async (req) => {
+    const { orgId, tierId } = membershipTierIdParamSchema.parse(req.params);
+    await req.requireSuperadmin(orgId);
+    const m = await req.loadMembershipFor(orgId);
+    return withOrgContext(orgId, req.actorForOrg(orgId, m), async ({ tx, audit }) => {
+      const row = await tx
+        .updateTable('membership_tiers')
+        .set({ deleted_at: null })
+        .where('org_id', '=', orgId)
+        .where('id', '=', tierId)
+        .where('deleted_at', 'is not', null)
+        .returning(['id'])
+        .executeTakeFirst();
+      if (!row) throw new NotFoundError();
+      await audit({ action: 'membership_tier.restored', targetType: 'membership_tier', targetId: tierId });
       return { data: { ok: true } };
     });
   });
@@ -305,6 +328,24 @@ function registerMembershipRecordRoutes(app: FastifyInstance): void {
     await req.requirePermission(orgId, 'memberships.manage');
     const m = await req.loadMembershipFor(orgId);
     return withOrgContext(orgId, req.actorForOrg(orgId, m), async ({ tx, audit, emit }) => {
+      const membership = await tx
+        .selectFrom('memberships')
+        .select(['stripe_subscription_id', 'auto_renew'])
+        .where('org_id', '=', orgId)
+        .where('id', '=', membershipId)
+        .where('status', 'in', ['pending', 'active', 'expired', 'lapsed'])
+        .executeTakeFirst();
+      if (membership?.stripe_subscription_id && membership.auto_renew) {
+        const stripeAccount = await tx
+          .selectFrom('org_stripe_accounts')
+          .select(['stripe_account_id'])
+          .where('org_id', '=', orgId)
+          .where('disconnected_at', 'is', null)
+          .executeTakeFirst();
+        if (stripeAccount) {
+          await cancelStripeSubscription(stripeAccount.stripe_account_id, membership.stripe_subscription_id);
+        }
+      }
       await cancelMembershipInTx(tx, orgId, membershipId, body.reason);
       const row = await selectMembership(tx, orgId, membershipId);
       await audit({ action: 'membership.cancelled', targetType: 'membership', targetId: membershipId, diff: { after: body } });
@@ -402,6 +443,101 @@ function registerMembershipRecordRoutes(app: FastifyInstance): void {
       await audit({ action: 'membership.refunded', targetType: 'membership', targetId: membershipId, diff: { after: body } });
       const row = await selectMembership(tx, orgId, membershipId);
       return { data: publicMembership(row!) };
+    });
+  });
+}
+
+function publicGuestPass(row: {
+  id: string;
+  membership_id: string;
+  org_id: string;
+  code: string;
+  issued_at: Date;
+  expires_at: Date | null;
+  redeemed_at: Date | null;
+  redeemed_by_visit_id: string | null;
+}) {
+  return {
+    id: row.id,
+    membershipId: row.membership_id,
+    code: row.code,
+    issuedAt: row.issued_at.toISOString(),
+    expiresAt: row.expires_at?.toISOString() ?? null,
+    redeemedAt: row.redeemed_at?.toISOString() ?? null,
+    redeemedByVisitId: row.redeemed_by_visit_id,
+  };
+}
+
+function registerGuestPassRoutes(app: FastifyInstance): void {
+  app.get('/api/v1/orgs/:orgId/guest-passes', async (req) => {
+    const { orgId } = orgParam.parse(req.params);
+    const q = listGuestPassesQuerySchema.parse(req.query);
+    await req.requirePermission(orgId, 'memberships.view_all');
+    return withOrgRead(orgId, async (tx) => {
+      let rowsQuery = tx.selectFrom('guest_passes').selectAll().where('org_id', '=', orgId);
+      let countQuery = tx.selectFrom('guest_passes').select((eb) => eb.fn.countAll<number>().as('c')).where('org_id', '=', orgId);
+      if (q.redeemed === 'true') {
+        rowsQuery = rowsQuery.where('redeemed_at', 'is not', null);
+        countQuery = countQuery.where('redeemed_at', 'is not', null);
+      } else if (q.redeemed === 'false') {
+        rowsQuery = rowsQuery.where('redeemed_at', 'is', null);
+        countQuery = countQuery.where('redeemed_at', 'is', null);
+      }
+      if (q.membership_id) {
+        rowsQuery = rowsQuery.where('membership_id', '=', q.membership_id);
+        countQuery = countQuery.where('membership_id', '=', q.membership_id);
+      }
+      if (q.expires_before) {
+        rowsQuery = rowsQuery.where('expires_at', '<=', new Date(q.expires_before));
+        countQuery = countQuery.where('expires_at', '<=', new Date(q.expires_before));
+      }
+      const [rows, count] = await Promise.all([
+        rowsQuery.orderBy('issued_at', 'desc').limit(q.limit).offset((q.page - 1) * q.limit).execute(),
+        countQuery.executeTakeFirst(),
+      ]);
+      const total = Number(count?.c ?? 0);
+      return { data: rows.map(publicGuestPass), meta: { page: q.page, limit: q.limit, total, pages: Math.ceil(total / q.limit) } };
+    });
+  });
+
+  app.post('/api/v1/orgs/:orgId/memberships/:membershipId/guest-passes', async (req) => {
+    const { orgId, membershipId } = membershipIdParamSchema.parse(req.params);
+    await req.requirePermission(orgId, 'memberships.manage');
+    const m = await req.loadMembershipFor(orgId);
+    return withOrgContext(orgId, req.actorForOrg(orgId, m), async ({ tx, audit }) => {
+      const membership = await tx
+        .selectFrom('memberships')
+        .select(['id', 'expires_at'])
+        .where('org_id', '=', orgId)
+        .where('id', '=', membershipId)
+        .executeTakeFirst();
+      if (!membership) throw new NotFoundError();
+      const count = await issueGuestPassesForMembershipInTx(tx, orgId, membershipId);
+      await audit({ action: 'guest_pass.issued', targetType: 'membership', targetId: membershipId, diff: { after: { issued: count } } });
+      return { data: { issued: count } };
+    });
+  });
+
+  app.delete('/api/v1/orgs/:orgId/guest-passes/:passId', async (req) => {
+    const { orgId, passId } = guestPassIdParamSchema.parse(req.params);
+    await req.requirePermission(orgId, 'memberships.manage');
+    const m = await req.loadMembershipFor(orgId);
+    return withOrgContext(orgId, req.actorForOrg(orgId, m), async ({ tx, audit }) => {
+      const pass = await tx
+        .selectFrom('guest_passes')
+        .select(['id', 'redeemed_at'])
+        .where('org_id', '=', orgId)
+        .where('id', '=', passId)
+        .executeTakeFirst();
+      if (!pass) throw new NotFoundError();
+      if (pass.redeemed_at) throw new ConflictError('Cannot revoke a pass that has already been redeemed.');
+      await tx
+        .updateTable('guest_passes')
+        .set({ expires_at: new Date() })
+        .where('id', '=', passId)
+        .execute();
+      await audit({ action: 'guest_pass.revoked', targetType: 'guest_pass', targetId: passId });
+      return { data: { ok: true } };
     });
   });
 }
