@@ -23,7 +23,7 @@ export function registerVisitRoutes(app: FastifyInstance): void {
   app.get('/api/v1/orgs/:orgId/visits', async (req) => {
     const { orgId } = orgParam.parse(req.params);
     const q = listVisitsQuerySchema.parse(req.query);
-    await req.requirePermission(orgId, 'visits.view_all');
+    await req.requirePermission(orgId, 'visits.view_all', q.location_id);
 
     return withOrgRead(orgId, async (tx) => {
       // Build data and count queries side-by-side so the count respects the

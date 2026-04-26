@@ -61,9 +61,8 @@ describe('scoped location-specific permissions', () => {
       form_response: { name: 'Bob', zip: '10002', party_size: 1 } as never,
     }).execute();
 
-    // Staff can list visits (org-wide) — the requirePermission on the visits
-    // list route does NOT pass a locationId, so it checks org-wide first.
-    // Without org-wide permission, this should 403.
+    // Staff listing visits org-wide (no location_id filter) should 403 because
+    // they only have the permission scoped to location A, not org-wide.
     const orgWideRes = await app.inject({
       method: 'GET',
       url: `/api/v1/orgs/${orgId}/visits`,
@@ -71,18 +70,23 @@ describe('scoped location-specific permissions', () => {
     });
     expect(orgWideRes.statusCode).toBe(403);
 
-    // Staff can list visits filtered by location A — if the route passes
-    // locationId to requirePermission, the scoped grant would allow it.
-    // Currently the visits list route does NOT do this, so this also 403s.
-    // This test documents the current behavior: scoped permissions only work
-    // when the route explicitly passes locationId to requirePermission.
+    // Staff listing visits filtered by location A should succeed because the
+    // visits list route passes location_id to requirePermission.
     const locARes = await app.inject({
       method: 'GET',
       url: `/api/v1/orgs/${orgId}/visits?location_id=${locA}`,
       headers: { authorization: `Bearer ${staffToken}` },
     });
-    // Without route-level opt-in, scoped members cannot use the visits endpoint
-    expect(locARes.statusCode).toBe(403);
+    expect(locARes.statusCode).toBe(200);
+
+    // Staff listing visits filtered by location B should 403 because their
+    // scoped grant is only for location A.
+    const locBRes = await app.inject({
+      method: 'GET',
+      url: `/api/v1/orgs/${orgId}/visits?location_id=${locB}`,
+      headers: { authorization: `Bearer ${staffToken}` },
+    });
+    expect(locBRes.statusCode).toBe(403);
   });
 
   it('member with org-wide visits.view_all can see visits at any location', async () => {
@@ -118,6 +122,74 @@ describe('scoped location-specific permissions', () => {
       headers: { authorization: `Bearer ${staffToken}` },
     });
     expect(res.statusCode).toBe(200);
+  });
+
+  it('assign role with scopeLocationId persists the scope', async () => {
+    const { orgId, locationId: locA, userId: ownerId } = await createTestOrg('scope-assign@example.com');
+    const ownerToken = await loginToken(app, 'scope-assign@example.com');
+
+    // Create a role
+    const role = await getDb()
+      .insertInto('roles')
+      .values({ org_id: orgId, name: 'scoped-role', description: 'test' })
+      .returning(['id'])
+      .executeTakeFirstOrThrow();
+
+    // Create staff member
+    const staffId = await createUser('scope-assign-staff@example.com');
+    const staffMember = await getDb()
+      .insertInto('org_members')
+      .values({ org_id: orgId, user_id: staffId, is_superadmin: false })
+      .returning(['id'])
+      .executeTakeFirstOrThrow();
+
+    // Assign role scoped to location A via API
+    const assignRes = await app.inject({
+      method: 'POST',
+      url: `/api/v1/orgs/${orgId}/members/${staffMember.id}/roles`,
+      headers: { authorization: `Bearer ${ownerToken}` },
+      payload: { roleId: role.id, scopeLocationId: locA },
+    });
+    expect(assignRes.statusCode).toBe(200);
+
+    // Verify the scope was persisted
+    const row = await getDb()
+      .selectFrom('member_roles')
+      .selectAll()
+      .where('org_member_id', '=', staffMember.id)
+      .where('role_id', '=', role.id)
+      .executeTakeFirst();
+    expect(row).toBeDefined();
+    expect(row!.scope_location_id).toBe(locA);
+
+    // Members list should return the scope info
+    const listRes = await app.inject({
+      method: 'GET',
+      url: `/api/v1/orgs/${orgId}/members`,
+      headers: { authorization: `Bearer ${ownerToken}` },
+    });
+    expect(listRes.statusCode).toBe(200);
+    const members = JSON.parse(listRes.body).data;
+    const staff = members.find((m: { memberId: string }) => m.memberId === staffMember.id);
+    expect(staff).toBeDefined();
+    expect(staff.roles[0].scopeLocationId).toBe(locA);
+
+    // Remove the scoped role via API
+    const removeRes = await app.inject({
+      method: 'DELETE',
+      url: `/api/v1/orgs/${orgId}/members/${staffMember.id}/roles/${role.id}?scope_location_id=${locA}`,
+      headers: { authorization: `Bearer ${ownerToken}` },
+    });
+    expect(removeRes.statusCode).toBe(200);
+
+    // Verify removed
+    const afterRemove = await getDb()
+      .selectFrom('member_roles')
+      .selectAll()
+      .where('org_member_id', '=', staffMember.id)
+      .where('role_id', '=', role.id)
+      .executeTakeFirst();
+    expect(afterRemove).toBeUndefined();
   });
 
   it('loadMembership returns both org-wide and location-scoped permissions', async () => {

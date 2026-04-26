@@ -25,7 +25,7 @@ export const putPermissionsSchema = z
   })
   .strict();
 
-export const assignRoleSchema = z.object({ roleId: uuidSchema }).strict();
+export const assignRoleSchema = z.object({ roleId: uuidSchema, scopeLocationId: uuidSchema.nullable().optional() }).strict();
 
 export const setSuperadminSchema = z.object({ isSuperadmin: z.boolean() }).strict();
 

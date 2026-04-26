@@ -38,14 +38,15 @@ export function registerMemberRoutes(app: FastifyInstance): void {
           'member_roles.org_member_id as memberId',
           'roles.id as roleId',
           'roles.name',
+          'member_roles.scope_location_id as scopeLocationId',
         ])
         .where('roles.org_id', '=', orgId)
         .where('roles.deleted_at', 'is', null)
         .execute();
-      const byMember = new Map<string, Array<{ id: string; name: string }>>();
+      const byMember = new Map<string, Array<{ id: string; name: string; scopeLocationId: string | null }>>();
       for (const r of roles) {
         const arr = byMember.get(r.memberId) ?? [];
-        arr.push({ id: r.roleId, name: r.name });
+        arr.push({ id: r.roleId, name: r.name, scopeLocationId: r.scopeLocationId });
         byMember.set(r.memberId, arr);
       }
       return {
@@ -148,23 +149,39 @@ export function registerMemberRoutes(app: FastifyInstance): void {
         .where('deleted_at', 'is', null)
         .executeTakeFirst();
       if (!member) throw new NotFoundError('Member not found.');
+      const scopeLocationId = body.scopeLocationId ?? null;
+      if (scopeLocationId) {
+        const loc = await tx
+          .selectFrom('locations')
+          .select(['id'])
+          .where('id', '=', scopeLocationId)
+          .where('org_id', '=', orgId)
+          .where('deleted_at', 'is', null)
+          .executeTakeFirst();
+        if (!loc) throw new NotFoundError('Location not found.');
+      }
       await tx
         .insertInto('member_roles')
-        .values({ org_member_id: memberId, role_id: body.roleId })
+        .values({ org_member_id: memberId, role_id: body.roleId, scope_location_id: scopeLocationId })
         .onConflict((oc) => oc.doNothing())
         .execute();
-      await audit({ action: 'member.role_assigned', targetType: 'member', targetId: memberId, diff: { after: { roleId: body.roleId } } });
+      await audit({ action: 'member.role_assigned', targetType: 'member', targetId: memberId, diff: { after: { roleId: body.roleId, scopeLocationId } } });
       return { data: { ok: true } };
     });
   });
 
   app.delete('/api/v1/orgs/:orgId/members/:memberId/roles/:roleId', async (req) => {
     const { orgId, memberId, roleId } = roleIdParam.parse(req.params);
+    const q = z.object({ scope_location_id: z.string().uuid().optional() }).parse(req.query);
     await req.requirePermission(orgId, 'admin.manage_users');
     const m = await req.loadMembershipFor(orgId);
     return withOrgContext(orgId, req.actorForOrg(orgId, m), async ({ tx, audit }) => {
-      await tx.deleteFrom('member_roles').where('org_member_id', '=', memberId).where('role_id', '=', roleId).execute();
-      await audit({ action: 'member.role_removed', targetType: 'member', targetId: memberId, diff: { after: { roleId } } });
+      let del = tx.deleteFrom('member_roles').where('org_member_id', '=', memberId).where('role_id', '=', roleId);
+      if (q.scope_location_id !== undefined) {
+        del = del.where('scope_location_id', '=', q.scope_location_id);
+      }
+      await del.execute();
+      await audit({ action: 'member.role_removed', targetType: 'member', targetId: memberId, diff: { after: { roleId, scopeLocationId: q.scope_location_id ?? null } } });
       return { data: { ok: true } };
     });
   });
