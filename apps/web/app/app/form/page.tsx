@@ -9,6 +9,7 @@ import { SkeletonBlock } from '../../components/skeleton-rows';
 import { uniqueFieldKey } from '../../../lib/unique-field-key';
 import { LibraryModal } from '../../components/field-library-modal';
 import { EmptyState } from '../../components/empty-state';
+import { SettingsBackLink } from '../settings/_components/back-link';
 
 type Draft = FormField & { _id: string };
 
@@ -216,6 +217,7 @@ export default function FormFieldsPage() {
 
   return (
     <div>
+      <SettingsBackLink />
       <div className="mb-6 flex items-end justify-between gap-4">
         <div>
           <div className="h-eyebrow">Settings</div>

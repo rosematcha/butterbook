@@ -7,6 +7,7 @@ import { useToast } from '../../../../lib/toast';
 import { useConfirm } from '../../../../lib/confirm';
 import { SkeletonRows } from '../../../components/skeleton-rows';
 import { EmptyState } from '../../../components/empty-state';
+import { SettingsBackLink } from '../_components/back-link';
 
 interface SsoProvider {
   id: string;
@@ -85,6 +86,7 @@ export default function SsoSettingsPage() {
 
   return (
     <div className="space-y-6">
+      <SettingsBackLink />
       <div className="flex items-center justify-between">
         <h1 className="text-lg font-semibold">Single Sign-On</h1>
         {!creating && (

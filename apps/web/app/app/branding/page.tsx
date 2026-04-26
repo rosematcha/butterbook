@@ -8,6 +8,7 @@ import { useSession } from '../../../lib/session';
 import { PALETTES, type Palette } from '../../../lib/palettes';
 import { useBrandingQuery, type BrandingFont, type BrandingRadius, type BrandingCardRadius, type BrandingCardShadow } from '../../../lib/branding';
 import { EmptyState } from '../../components/empty-state';
+import { SettingsBackLink } from '../settings/_components/back-link';
 
 type FontFamily = BrandingFont;
 type ButtonRadius = BrandingRadius;
@@ -181,6 +182,7 @@ export default function BrandingPage() {
 
   return (
     <form onSubmit={onSubmit}>
+      <SettingsBackLink />
       <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
         <div>
           <div className="h-eyebrow">Settings</div>

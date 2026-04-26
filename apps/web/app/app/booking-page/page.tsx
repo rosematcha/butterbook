@@ -7,6 +7,7 @@ import { usePermissions } from '../../../lib/permissions';
 import { useSession } from '../../../lib/session';
 import { API_BASE_URL } from '../../../lib/env';
 import { EmptyState } from '../../components/empty-state';
+import { SettingsBackLink } from '../settings/_components/back-link';
 
 interface BookingPageContent {
   heroTitle: string | null;
@@ -165,6 +166,7 @@ export default function BookingPageEditor() {
 
   return (
     <form onSubmit={onSubmit}>
+      <SettingsBackLink />
       <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
         <div>
           <div className="h-eyebrow">Settings</div>

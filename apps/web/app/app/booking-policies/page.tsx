@@ -6,6 +6,7 @@ import { apiGet, apiPatch, ApiError } from '../../../lib/api';
 import { usePermissions } from '../../../lib/permissions';
 import { useSession } from '../../../lib/session';
 import { EmptyState } from '../../components/empty-state';
+import { SettingsBackLink } from '../settings/_components/back-link';
 
 interface Policy {
   cancelCutoffHours: number;
@@ -95,6 +96,7 @@ export default function BookingPoliciesPage() {
 
   return (
     <form onSubmit={onSubmit}>
+      <SettingsBackLink />
       <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
         <div>
           <div className="h-eyebrow">Settings</div>

@@ -23,17 +23,7 @@ interface NavItem { href: string; label: string; prefetch?: PrefetchKey; require
 // both require admin.manage_users, so hiding the nav item when the user can't
 // pass that check avoids a doomed query and the "permission denied" flash.
 const SETTINGS_NAV: NavItem[] = [
-  { href: '/app/locations', label: 'Locations', prefetch: 'locations', requires: 'admin.manage_locations' },
-  { href: '/app/form', label: 'Form fields', prefetch: 'form', requires: 'admin.manage_forms' },
-  { href: '/app/members', label: 'Members', prefetch: 'members', requires: 'admin.manage_users' },
-  { href: '/app/roles', label: 'Roles', prefetch: 'roles', requires: 'admin.manage_roles' },
-  { href: '/app/branding', label: 'Branding', prefetch: 'branding', requires: 'admin.manage_org' },
-  { href: '/app/booking-page', label: 'Booking page', requires: 'admin.manage_org' },
-  { href: '/app/booking-policies', label: 'Booking policies', requires: 'admin.manage_org' },
-  { href: '/app/memberships/policies', label: 'Membership policies', requires: 'memberships.manage' },
-  { href: '/app/settings/stripe', label: 'Stripe', prefetch: 'stripe', requires: 'stripe.manage' },
-  { href: '/app/notifications', label: 'Notifications', requires: 'notifications.manage' },
-  { href: '/app/audit', label: 'Audit log', prefetch: 'audit', requires: 'superadmin' },
+  { href: '/app/settings', label: 'Settings' },
 ];
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
@@ -50,9 +40,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     { href: '/app/events', label: 'Events', prefetch: 'events', requires: 'events.view_registrations' },
     { href: '/app/contacts', label: 'Contacts', prefetch: 'contacts', requires: 'contacts.view_all' },
     { href: '/app/memberships', label: 'Memberships', prefetch: 'memberships', requires: 'memberships.view_all' },
-    { href: '/app/memberships/tiers', label: 'Tiers', prefetch: 'membershipTiers', requires: 'memberships.view_all' },
-    { href: '/app/memberships/guest-passes', label: 'Guest passes', requires: 'memberships.view_all' },
-    { href: '/app/memberships/promo-codes', label: 'Promo codes', requires: 'promo_codes.manage' },
+    { href: '/app/reports', label: 'Reports', requires: 'reports.view' },
     { href: '/app/broadcasts', label: 'Broadcasts', requires: 'broadcasts.send' },
   ];
 
@@ -213,9 +201,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           <div className="px-2.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-paper-400">
             {IS_DEMO ? 'Signed in · demo' : 'Signed in'}
           </div>
-          <div className="truncate px-2.5 text-sm">
+          <PrefetchLink
+            href="/app/profile"
+            className="block truncate px-2.5 text-sm text-ink transition hover:text-brand-accent"
+          >
             {user?.email ?? <SkeletonBlock className="h-3 w-32" />}
-          </div>
+          </PrefetchLink>
           <button onClick={handleLogout} className="btn-ghost mt-2 w-full justify-start px-2.5">
             {IS_DEMO ? 'Exit demo' : 'Sign out'}
           </button>

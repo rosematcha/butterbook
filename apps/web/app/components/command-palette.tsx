@@ -9,6 +9,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import { useSession } from '../../lib/session';
+import { useTerminology } from '../../lib/use-terminology';
 import { getToken, setToken } from '../../lib/api';
 
 interface Command {
@@ -38,6 +39,7 @@ function matches(q: string, text: string): boolean {
 export function CommandPalette() {
   const router = useRouter();
   const { clear } = useSession();
+  const term = useTerminology();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [cursor, setCursor] = useState(0);
@@ -84,21 +86,30 @@ export function CommandPalette() {
   const commands = useMemo<Command[]>(() => {
     const nav: Array<{ href: string; label: string; keywords?: string }> = [
       { href: '/app', label: 'Today', keywords: 'home dashboard calendar timeline' },
-      { href: '/app/visits', label: 'All visits', keywords: 'visitors bookings' },
+      { href: '/app/visits', label: `All ${term.nounPlural}`, keywords: 'visitors bookings' },
       { href: '/app/events', label: 'Events', keywords: 'programs tours' },
       { href: '/app/contacts', label: 'Contacts', keywords: 'crm visitors people profiles' },
       { href: '/app/contacts/segments', label: 'Segments', keywords: 'crm filters audiences tags' },
       { href: '/app/memberships', label: 'Memberships', keywords: 'crm members renewals enrollments' },
       { href: '/app/memberships/tiers', label: 'Membership tiers', keywords: 'pricing levels passes' },
+      { href: '/app/memberships/guest-passes', label: 'Guest passes', keywords: 'comp admission free codes' },
+      { href: '/app/memberships/promo-codes', label: 'Promo codes', keywords: 'discount coupon checkout' },
       { href: '/app/memberships/policies', label: 'Membership policies', keywords: 'grace reminders self serve' },
-      { href: '/app/settings/stripe', label: 'Stripe settings', keywords: 'payments connect checkout billing' },
-      { href: '/app/locations', label: 'Locations', keywords: 'place site' },
-      { href: '/app/form', label: 'Form fields', keywords: 'questions intake' },
-      { href: '/app/members', label: 'Members', keywords: 'staff team invite' },
-      { href: '/app/roles', label: 'Roles', keywords: 'permissions access' },
-      { href: '/app/branding', label: 'Branding', keywords: 'theme color logo palette' },
       { href: '/app/reports', label: 'Reports', keywords: 'analytics csv headcount' },
-      { href: '/app/audit', label: 'Audit log', keywords: 'history trail log' },
+      { href: '/app/settings', label: 'Settings', keywords: 'configuration admin preferences' },
+      { href: '/app/locations', label: 'Locations', keywords: 'place site settings' },
+      { href: '/app/form', label: 'Form fields', keywords: 'questions intake settings' },
+      { href: '/app/members', label: 'Members', keywords: 'staff team invite settings' },
+      { href: '/app/roles', label: 'Roles', keywords: 'permissions access settings' },
+      { href: '/app/branding', label: 'Branding', keywords: 'theme color logo palette settings' },
+      { href: '/app/booking-page', label: 'Booking page', keywords: 'public widget embed settings' },
+      { href: '/app/booking-policies', label: 'Booking policies', keywords: 'cancel reschedule refund settings' },
+      { href: '/app/settings/stripe', label: 'Stripe', keywords: 'payments connect checkout billing settings' },
+      { href: '/app/notifications', label: 'Notifications', keywords: 'email templates outbox settings' },
+      { href: '/app/settings/sso', label: 'SSO', keywords: 'single sign on google microsoft oidc settings' },
+      { href: '/app/settings/api-keys', label: 'API keys', keywords: 'integration token secret settings' },
+      { href: '/app/audit', label: 'Audit log', keywords: 'history trail log settings' },
+      { href: '/app/profile', label: 'Profile', keywords: 'account password totp 2fa sessions security' },
     ];
     const list: Command[] = nav.map((n) => ({
       id: `nav:${n.href}`,
@@ -111,8 +122,8 @@ export function CommandPalette() {
     list.push({
       id: 'action:new-visitor',
       group: 'Actions',
-      label: 'Add visitor on Today',
-      keywords: 'new visit booking add',
+      label: `Add ${term.noun} on Today`,
+      keywords: `new ${term.noun} booking add`,
       onSelect: () => router.push('/app?add=1'),
     });
     list.push({

@@ -9,6 +9,7 @@ import { CopyButton } from '../../../components/copy-button';
 import { Timestamp } from '../../../components/timestamp';
 import { SkeletonRows } from '../../../components/skeleton-rows';
 import { EmptyState } from '../../../components/empty-state';
+import { SettingsBackLink } from '../_components/back-link';
 
 interface ApiKey {
   id: string;
@@ -92,6 +93,7 @@ export default function ApiKeysPage() {
 
   return (
     <div className="space-y-6">
+      <SettingsBackLink />
       <div className="flex items-center justify-between">
         <h1 className="text-lg font-semibold">API Keys</h1>
         {!creating && (
