@@ -2,6 +2,7 @@
 import { Suspense, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { API_BASE_URL } from '../../lib/env';
+import { applyThemeVars, type ThemeTokens } from '../../lib/branding';
 
 interface ManageData {
   visit: {
@@ -12,7 +13,7 @@ interface ManageData {
     eventId: string | null;
     formResponse: Record<string, unknown> | null;
   };
-  org: { id: string; name: string; timezone: string; logoUrl: string | null };
+  org: { id: string; name: string; timezone: string; logoUrl: string | null; theme?: ThemeTokens };
   location: { name: string; address: string | null; city: string | null; state: string | null; zip: string | null } | null;
   event: { id: string; title: string; startsAt: string; endsAt: string } | null;
   policy: {
@@ -59,6 +60,8 @@ function ManageInner() {
   const [memberships, setMemberships] = useState<ManagedMembership[]>([]);
   const [showReschedule, setShowReschedule] = useState(false);
   const [rescheduleDate, setRescheduleDate] = useState('');
+  const [showRedact, setShowRedact] = useState(false);
+  const [redactConfirmed, setRedactConfirmed] = useState(false);
   const [slots, setSlots] = useState<Slot[] | null>(null);
   const [slotsLoading, setSlotsLoading] = useState(false);
 
@@ -94,6 +97,14 @@ function ManageInner() {
       setLoading(false);
     }
   }
+
+  useEffect(() => {
+    if (data?.org.theme) {
+      applyThemeVars(data.org.theme);
+      document.documentElement.classList.add('branded');
+    }
+    return () => { document.documentElement.classList.remove('branded'); };
+  }, [data]);
 
   async function onCancel() {
     if (!data) return;
@@ -133,6 +144,28 @@ function ManageInner() {
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Membership cancellation failed.');
+    } finally {
+      setWorking(false);
+    }
+  }
+
+  async function onRedact() {
+    setWorking(true);
+    setNotice(null);
+    try {
+      const res = await apiFetch(`/api/v1/manage/${encodeURIComponent(token)}/redact`, {
+        method: 'POST',
+      });
+      if (!res.ok) {
+        const p = (await res.json().catch(() => null)) as { detail?: string; title?: string } | null;
+        throw new Error(p?.detail ?? p?.title ?? 'Data deletion failed.');
+      }
+      setNotice('Your personal data has been deleted.');
+      setShowRedact(false);
+      setRedactConfirmed(false);
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Data deletion failed.');
     } finally {
       setWorking(false);
     }
@@ -347,6 +380,50 @@ function ManageInner() {
           </div>
         </div>
       ) : null}
+
+      {/* GDPR self-serve data deletion */}
+      <div className="mt-8 border-t border-paper-200 pt-6">
+        {!showRedact ? (
+          <button
+            className="text-sm text-paper-500 underline underline-offset-4 hover:text-red-700"
+            onClick={() => setShowRedact(true)}
+          >
+            Delete my personal data
+          </button>
+        ) : (
+          <div className="rounded-md border border-red-200 bg-red-50 p-4">
+            <h3 className="text-sm font-semibold text-red-800">Delete your personal data</h3>
+            <p className="mt-1 text-sm text-red-700">
+              This will permanently erase your name, email, phone number, and other personal information
+              from our records. Visit history will be retained in anonymized form. This action cannot be undone.
+            </p>
+            <label className="mt-3 flex items-start gap-2">
+              <input
+                type="checkbox"
+                checked={redactConfirmed}
+                onChange={(e) => setRedactConfirmed(e.target.checked)}
+                className="mt-0.5"
+              />
+              <span className="text-sm text-red-700">I understand this is permanent and want to proceed.</span>
+            </label>
+            <div className="mt-3 flex gap-2">
+              <button
+                className="btn-danger text-sm"
+                disabled={!redactConfirmed || working}
+                onClick={onRedact}
+              >
+                Delete my data
+              </button>
+              <button
+                className="btn-secondary text-sm"
+                onClick={() => { setShowRedact(false); setRedactConfirmed(false); }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
     </main>
   );
 }

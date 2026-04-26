@@ -6,7 +6,7 @@ import { useOptimisticMutation } from '../../../lib/mutations';
 import { usePermissions } from '../../../lib/permissions';
 import { useSession } from '../../../lib/session';
 import { PALETTES, type Palette } from '../../../lib/palettes';
-import { useBrandingQuery, type BrandingFont, type BrandingRadius } from '../../../lib/branding';
+import { useBrandingQuery, type BrandingFont, type BrandingRadius, type BrandingCardRadius, type BrandingCardShadow } from '../../../lib/branding';
 import { EmptyState } from '../../components/empty-state';
 
 type FontFamily = BrandingFont;
@@ -91,6 +91,8 @@ export default function BrandingPage() {
   const [accent, setAccent] = useState('');
   const [fontFamily, setFontFamily] = useState<FontFamily>('system');
   const [radius, setRadius] = useState<ButtonRadius>('medium');
+  const [cardRadius, setCardRadius] = useState<BrandingCardRadius>('medium');
+  const [cardShadow, setCardShadow] = useState<BrandingCardShadow>('medium');
   const [customOpen, setCustomOpen] = useState(false);
 
   useEffect(() => {
@@ -102,6 +104,8 @@ export default function BrandingPage() {
     setAccent(b.data.theme.accentColor ?? '');
     setFontFamily(b.data.theme.fontFamily ?? 'system');
     setRadius(b.data.theme.buttonRadius ?? 'medium');
+    setCardRadius(b.data.theme.cardRadius ?? 'medium');
+    setCardShadow(b.data.theme.cardShadow ?? 'medium');
   }, [branding.data]);
 
   const selectedPalette = useMemo(() => {
@@ -121,6 +125,8 @@ export default function BrandingPage() {
     theme: {
       fontFamily: FontFamily;
       buttonRadius: ButtonRadius;
+      cardRadius: BrandingCardRadius;
+      cardShadow: BrandingCardShadow;
       primaryColor?: string;
       secondaryColor?: string;
       accentColor?: string;
@@ -152,7 +158,7 @@ export default function BrandingPage() {
   function onSubmit(e: FormEvent) {
     e.preventDefault();
     if (save.isPending) return;
-    const theme: BrandingFormPayload['theme'] = { fontFamily, buttonRadius: radius };
+    const theme: BrandingFormPayload['theme'] = { fontFamily, buttonRadius: radius, cardRadius, cardShadow };
     if (primary) theme.primaryColor = primary;
     if (secondary) theme.secondaryColor = secondary;
     if (accent) theme.accentColor = accent;
@@ -275,6 +281,32 @@ export default function BrandingPage() {
                   <option value="medium">Medium</option>
                   <option value="large">Large</option>
                   <option value="full">Full</option>
+                </select>
+              </div>
+              <div>
+                <h2 className="h-eyebrow">Card radius</h2>
+                <select
+                  className="input mt-2"
+                  value={cardRadius}
+                  onChange={(e) => setCardRadius(e.target.value as BrandingCardRadius)}
+                >
+                  <option value="none">None</option>
+                  <option value="small">Small</option>
+                  <option value="medium">Medium</option>
+                  <option value="large">Large</option>
+                </select>
+              </div>
+              <div>
+                <h2 className="h-eyebrow">Card shadow</h2>
+                <select
+                  className="input mt-2"
+                  value={cardShadow}
+                  onChange={(e) => setCardShadow(e.target.value as BrandingCardShadow)}
+                >
+                  <option value="none">None</option>
+                  <option value="small">Subtle</option>
+                  <option value="medium">Medium</option>
+                  <option value="large">Prominent</option>
                 </select>
               </div>
             </div>

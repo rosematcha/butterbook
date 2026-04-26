@@ -2,6 +2,7 @@
 import { Suspense, useEffect, useMemo, useState, type FormEvent } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { API_BASE_URL, IS_DEMO, MARKETING_URL } from '../../lib/env';
+import { applyThemeVars, type ThemeTokens } from '../../lib/branding';
 import { intervalLabel, money, type MembershipTier } from '../app/memberships/types';
 
 interface JoinData {
@@ -10,7 +11,7 @@ interface JoinData {
     slug: string;
     name: string;
     logoUrl: string | null;
-    theme: unknown;
+    theme: ThemeTokens;
   };
   tiers: MembershipTier[];
 }
@@ -66,6 +67,14 @@ function JoinInner() {
       .catch((err) => setError(err instanceof Error ? err.message : 'Memberships are not available.'))
       .finally(() => setLoading(false));
   }, [orgSlug]);
+
+  useEffect(() => {
+    if (data?.org.theme) {
+      applyThemeVars(data.org.theme);
+      document.documentElement.classList.add('branded');
+    }
+    return () => { document.documentElement.classList.remove('branded'); };
+  }, [data]);
 
   const selectedTier = useMemo(
     () => data?.tiers.find((tier) => tier.id === selectedTierId) ?? null,

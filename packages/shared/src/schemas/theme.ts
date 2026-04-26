@@ -8,6 +8,8 @@ export const themeSchema = z
     accentColor: hexColorSchema.optional(),
     fontFamily: z.enum(['system', 'serif', 'sans', 'mono']).optional(),
     buttonRadius: z.enum(['none', 'small', 'medium', 'large', 'full']).optional(),
+    cardRadius: z.enum(['none', 'small', 'medium', 'large']).optional(),
+    cardShadow: z.enum(['none', 'small', 'medium', 'large']).optional(),
   })
   .strict();
 
