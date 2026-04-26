@@ -1,5 +1,5 @@
 'use client';
-import { Suspense, useEffect, useState, type FormEvent } from 'react';
+import { Suspense, useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { API_BASE_URL } from '../../lib/env';
 
@@ -43,8 +43,10 @@ function KioskInner() {
   const [submitting, setSubmitting] = useState(false);
   const [successCountdown, setSuccessCountdown] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const formRef = useRef<HTMLFormElement>(null);
+  const successRef = useRef<HTMLDivElement>(null);
 
-  async function loadConfig() {
+  const loadConfig = useCallback(async () => {
     setError(null);
     try {
       const [c, f] = await Promise.all([
@@ -58,7 +60,7 @@ function KioskInner() {
     } catch {
       setError('Kiosk configuration unavailable. Check the QR token.');
     }
-  }
+  }, [qrToken]);
 
   useEffect(() => {
     if (!qrToken) {
@@ -66,22 +68,32 @@ function KioskInner() {
       return;
     }
     void loadConfig();
-    // Refresh the nonce every 8 minutes (TTL is 10).
     const t = setInterval(loadConfig, 8 * 60 * 1000);
     return () => clearInterval(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [qrToken]);
+  }, [qrToken, loadConfig]);
 
   useEffect(() => {
     if (successCountdown === null) return;
     if (successCountdown === 0) {
       setSuccessCountdown(null);
       setValues({});
+      // Move focus to first form field after reset
+      requestAnimationFrame(() => {
+        const first = formRef.current?.querySelector<HTMLElement>('input, select');
+        first?.focus();
+      });
       return;
     }
     const t = setTimeout(() => setSuccessCountdown((n) => (n === null ? null : n - 1)), 1000);
     return () => clearTimeout(t);
   }, [successCountdown]);
+
+  // Focus the success heading when it appears
+  useEffect(() => {
+    if (successCountdown !== null && successRef.current) {
+      successRef.current.focus();
+    }
+  }, [successCountdown !== null]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -122,20 +134,49 @@ function KioskInner() {
   }
 
   if (error && !config) {
-    return <main className="flex min-h-screen items-center justify-center p-8 text-center text-lg text-red-700">{error}</main>;
+    return (
+      <main className="flex min-h-screen items-center justify-center p-8 text-center text-lg text-red-700" role="alert">
+        {error}
+      </main>
+    );
   }
 
   if (!config) {
-    return <main className="flex min-h-screen items-center justify-center p-8 text-lg text-slate-500">Loading kiosk…</main>;
+    return (
+      <main className="flex min-h-screen items-center justify-center p-8 text-lg text-slate-500" role="status" aria-label="Loading kiosk">
+        Loading kiosk…
+      </main>
+    );
   }
 
   if (successCountdown !== null) {
     return (
       <main className="flex min-h-screen flex-col items-center justify-center bg-emerald-50 p-8 text-center">
-        <div className="text-5xl font-semibold text-emerald-700">Welcome!</div>
+        <div
+          ref={successRef}
+          tabIndex={-1}
+          className="text-5xl font-semibold text-emerald-700 outline-none"
+          role="status"
+          aria-live="polite"
+        >
+          Welcome!
+        </div>
         <p className="mt-4 text-lg text-slate-700">Please head inside. The kiosk resets in…</p>
-        <div className="mt-6 text-6xl font-bold tabular-nums text-emerald-700">{successCountdown}s</div>
-        <button onClick={() => setSuccessCountdown(0)} className="btn mt-6">New visitor</button>
+        <div
+          className="mt-6 text-6xl font-bold tabular-nums text-emerald-700"
+          aria-live="polite"
+          aria-atomic="true"
+          aria-label={`${successCountdown} seconds remaining`}
+        >
+          {successCountdown}s
+        </div>
+        <button
+          type="button"
+          onClick={() => setSuccessCountdown(0)}
+          className="btn mt-6 min-h-[48px] min-w-[200px] px-8 py-3 text-lg"
+        >
+          New visitor
+        </button>
       </main>
     );
   }
@@ -145,51 +186,71 @@ function KioskInner() {
       <div className="text-sm text-slate-500">{config.orgName}</div>
       <h1 className="text-3xl font-semibold tracking-tight">Welcome. Please check in.</h1>
       <p className="mt-1 text-slate-600">{config.locationName}</p>
-      <form onSubmit={onSubmit} className="mt-6 space-y-4">
+      <form ref={formRef} onSubmit={onSubmit} className="mt-6 space-y-4" noValidate>
         {fields.map((f) => (
-          <label key={f.fieldKey} className="block">
-            <span className="text-sm font-medium">{f.label}{f.required ? ' *' : ''}</span>
-            {f.fieldType === 'text' ? (
-              <input
-                type="text"
-                required={f.required}
-                className="input mt-1"
-                value={(values[f.fieldKey] as string) ?? ''}
-                onChange={(e) => setValues((v) => ({ ...v, [f.fieldKey]: e.target.value }))}
-                maxLength={f.validation?.maxLength}
-              />
-            ) : f.fieldType === 'number' ? (
-              <input
-                type="number"
-                required={f.required}
-                className="input mt-1"
-                value={(values[f.fieldKey] as number) ?? ''}
-                min={f.validation?.min}
-                max={f.validation?.max}
-                onChange={(e) => setValues((v) => ({ ...v, [f.fieldKey]: e.target.value === '' ? undefined : Number(e.target.value) }))}
-              />
-            ) : f.fieldType === 'select' ? (
-              <select
-                required={f.required}
-                className="input mt-1"
-                value={(values[f.fieldKey] as string) ?? ''}
-                onChange={(e) => setValues((v) => ({ ...v, [f.fieldKey]: e.target.value }))}
-              >
-                <option value="">—</option>
-                {(f.options ?? []).map((o) => <option key={o}>{o}</option>)}
-              </select>
-            ) : f.fieldType === 'checkbox' ? (
-              <input
-                type="checkbox"
-                className="mt-2"
-                checked={Boolean(values[f.fieldKey])}
-                onChange={(e) => setValues((v) => ({ ...v, [f.fieldKey]: e.target.checked }))}
-              />
-            ) : null}
-          </label>
+          <div key={f.fieldKey}>
+            {f.fieldType === 'checkbox' ? (
+              <label className="flex min-h-[48px] items-center gap-3">
+                <input
+                  type="checkbox"
+                  className="h-5 w-5 rounded border-slate-300"
+                  checked={Boolean(values[f.fieldKey])}
+                  onChange={(e) => setValues((v) => ({ ...v, [f.fieldKey]: e.target.checked }))}
+                  aria-required={f.required || undefined}
+                />
+                <span className="text-sm font-medium">{f.label}{f.required ? ' *' : ''}</span>
+              </label>
+            ) : (
+              <label className="block">
+                <span className="text-sm font-medium">{f.label}{f.required ? ' *' : ''}</span>
+                {f.fieldType === 'text' ? (
+                  <input
+                    type="text"
+                    required={f.required}
+                    aria-required={f.required || undefined}
+                    className="input mt-1 min-h-[48px]"
+                    value={(values[f.fieldKey] as string) ?? ''}
+                    onChange={(e) => setValues((v) => ({ ...v, [f.fieldKey]: e.target.value }))}
+                    maxLength={f.validation?.maxLength}
+                    autoComplete={f.fieldKey === 'email' ? 'email' : f.fieldKey === 'name' ? 'name' : f.fieldKey === 'phone' ? 'tel' : undefined}
+                  />
+                ) : f.fieldType === 'number' ? (
+                  <input
+                    type="number"
+                    required={f.required}
+                    aria-required={f.required || undefined}
+                    className="input mt-1 min-h-[48px]"
+                    value={(values[f.fieldKey] as number) ?? ''}
+                    min={f.validation?.min}
+                    max={f.validation?.max}
+                    onChange={(e) => setValues((v) => ({ ...v, [f.fieldKey]: e.target.value === '' ? undefined : Number(e.target.value) }))}
+                    inputMode="numeric"
+                  />
+                ) : f.fieldType === 'select' ? (
+                  <select
+                    required={f.required}
+                    aria-required={f.required || undefined}
+                    className="input mt-1 min-h-[48px]"
+                    value={(values[f.fieldKey] as string) ?? ''}
+                    onChange={(e) => setValues((v) => ({ ...v, [f.fieldKey]: e.target.value }))}
+                  >
+                    <option value="">Select…</option>
+                    {(f.options ?? []).map((o) => <option key={o}>{o}</option>)}
+                  </select>
+                ) : null}
+              </label>
+            )}
+          </div>
         ))}
-        {error ? <p className="text-sm text-red-600">{error}</p> : null}
-        <button className="btn w-full py-3 text-lg" disabled={submitting}>
+        {error ? (
+          <p className="text-sm text-red-600" role="alert" aria-live="assertive">{error}</p>
+        ) : null}
+        <button
+          type="submit"
+          className="btn w-full min-h-[56px] py-3 text-lg"
+          disabled={submitting}
+          aria-busy={submitting || undefined}
+        >
           {submitting ? 'Checking in…' : 'Check in'}
         </button>
       </form>
@@ -199,7 +260,11 @@ function KioskInner() {
 
 export default function KioskPage() {
   return (
-    <Suspense fallback={<main className="flex min-h-screen items-center justify-center p-8 text-lg text-slate-500">Loading kiosk…</main>}>
+    <Suspense fallback={
+      <main className="flex min-h-screen items-center justify-center p-8 text-lg text-slate-500" role="status" aria-label="Loading kiosk">
+        Loading kiosk…
+      </main>
+    }>
       <KioskInner />
     </Suspense>
   );
