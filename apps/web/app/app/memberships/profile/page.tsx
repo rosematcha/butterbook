@@ -8,9 +8,24 @@ import { useConfirm } from '../../../../lib/confirm';
 import { usePermissions } from '../../../../lib/permissions';
 import { useSession } from '../../../../lib/session';
 import { useToast } from '../../../../lib/toast';
+import { CopyButton } from '../../../components/copy-button';
 import { EmptyState } from '../../../components/empty-state';
 import { Timestamp } from '../../../components/timestamp';
 import { intervalLabel, memberName, money, statusClass, type Membership, type MembershipStatus } from '../types';
+
+interface GuestPass {
+  id: string;
+  membershipId: string;
+  code: string;
+  issuedAt: string;
+  expiresAt: string | null;
+  redeemedAt: string | null;
+  redeemedByVisitId: string | null;
+}
+interface GuestPassListResponse {
+  data: GuestPass[];
+  meta: { page: number; limit: number; total: number; pages: number };
+}
 
 function apiErrMsg(e: unknown, fallback: string): string {
   return e instanceof ApiError ? e.problem.detail ?? e.problem.title : fallback;
@@ -43,6 +58,12 @@ function MembershipProfileInner() {
   const query = useQuery({
     queryKey: ['membership', activeOrgId, id],
     queryFn: () => apiGet<{ data: Membership }>(`/api/v1/orgs/${activeOrgId}/memberships/${id}`),
+    enabled: !!activeOrgId && !!id && canView,
+  });
+
+  const guestPasses = useQuery({
+    queryKey: ['guest-passes', activeOrgId, id],
+    queryFn: () => apiGet<GuestPassListResponse>(`/api/v1/orgs/${activeOrgId}/guest-passes?membership_id=${id}&limit=200`),
     enabled: !!activeOrgId && !!id && canView,
   });
 
@@ -104,6 +125,15 @@ function MembershipProfileInner() {
       toast.push({ kind: 'success', message: 'Membership refunded' });
     },
     onError: (e) => toast.push({ kind: 'error', message: apiErrMsg(e, 'Membership could not be refunded') }),
+  });
+
+  const billingPortal = useMutation({
+    mutationFn: () =>
+      apiPost<{ data: { url: string } }>(`/api/v1/orgs/${activeOrgId}/memberships/${id}/billing-portal-session`),
+    onSuccess: (res) => {
+      window.open(res.data.url, '_blank');
+    },
+    onError: (e) => toast.push({ kind: 'error', message: apiErrMsg(e, 'Could not open billing portal') }),
   });
 
   async function onCancel() {
@@ -219,12 +249,99 @@ function MembershipProfileInner() {
 
           <div className="panel space-y-3 p-4">
             <h2 className="font-display text-base font-medium text-ink">Actions</h2>
+            {canManage ? (
+              <button
+                className="btn-secondary w-full justify-center"
+                disabled={billingPortal.isPending}
+                onClick={() => billingPortal.mutate()}
+              >
+                {billingPortal.isPending ? 'Loading...' : 'Manage billing'}
+              </button>
+            ) : null}
             {canManage ? <button className="btn-secondary w-full justify-center" disabled={cancel.isPending} onClick={onCancel}>Cancel membership</button> : null}
             {canRefund ? <button className="btn-secondary w-full justify-center text-red-700" disabled={refund.isPending} onClick={onRefund}>Refund membership</button> : null}
             {!canManage && !canRefund ? <p className="text-sm text-paper-600">No management actions are available for your role.</p> : null}
           </div>
         </div>
       </section>
+
+      <GuestPassesPanel
+        passes={guestPasses.data?.data ?? []}
+        total={guestPasses.data?.meta.total ?? 0}
+        isLoading={guestPasses.isPending}
+        membershipId={id!}
+      />
     </div>
+  );
+}
+
+function GuestPassesPanel({
+  passes,
+  total,
+  isLoading,
+  membershipId,
+}: {
+  passes: GuestPass[];
+  total: number;
+  isLoading: boolean;
+  membershipId: string;
+}) {
+  const redeemed = passes.filter((p) => p.redeemedAt !== null).length;
+  const unredeemed = passes.filter((p) => p.redeemedAt === null);
+
+  if (isLoading) return <div className="panel h-32 animate-pulse" />;
+  if (total === 0) return null;
+
+  return (
+    <section className="panel p-5">
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="font-display text-base font-medium text-ink">Guest passes</h2>
+        {unredeemed.length > 0 ? (
+          <Link
+            href={`/app/memberships/profile/print?id=${membershipId}`}
+            target="_blank"
+            className="btn-secondary text-xs"
+          >
+            Print codes
+          </Link>
+        ) : null}
+      </div>
+
+      <div className="mt-3 grid grid-cols-3 gap-4 text-center">
+        <div>
+          <div className="text-2xl font-medium tabular-nums text-ink">{total}</div>
+          <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-paper-500">Issued</div>
+        </div>
+        <div>
+          <div className="text-2xl font-medium tabular-nums text-ink">{redeemed}</div>
+          <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-paper-500">Redeemed</div>
+        </div>
+        <div>
+          <div className="text-2xl font-medium tabular-nums text-emerald-700">{unredeemed.length}</div>
+          <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-paper-500">Remaining</div>
+        </div>
+      </div>
+
+      {unredeemed.length > 0 ? (
+        <div className="mt-4">
+          <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-paper-500">Unredeemed codes</div>
+          <ul className="mt-2 divide-y divide-paper-100">
+            {unredeemed.map((p) => (
+              <li key={p.id} className="flex items-center justify-between gap-2 py-2">
+                <code className="font-mono text-sm text-ink">{p.code}</code>
+                <div className="flex items-center gap-2">
+                  {p.expiresAt ? (
+                    <span className="text-xs text-paper-500">
+                      Exp <Timestamp value={p.expiresAt} />
+                    </span>
+                  ) : null}
+                  <CopyButton value={p.code} label="Copy" className="btn-ghost text-xs" />
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+    </section>
   );
 }
