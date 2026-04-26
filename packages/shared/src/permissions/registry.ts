@@ -32,6 +32,7 @@ export const PERMISSIONS = [
   'promo_codes.manage',
   'broadcasts.send',
   'stripe.manage',
+  'api_keys.manage',
 
   'kiosk.access',
 ] as const;

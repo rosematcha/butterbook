@@ -41,6 +41,8 @@ import { registerPromoCodeRoutes } from './routes/promo-codes.js';
 import { registerBroadcastRoutes } from './routes/broadcasts.js';
 import { registerStripeRoutes } from './routes/stripe.js';
 import { registerPublicMembershipRoutes } from './routes/public-memberships.js';
+import { registerApiKeyRoutes } from './routes/api-keys.js';
+import { registerSsoRoutes } from './routes/sso.js';
 import { registerMetricsRoutes } from './plugins/metrics.js';
 
 declare module 'fastify' {
@@ -169,6 +171,8 @@ export async function buildApp(): Promise<FastifyInstance> {
   registerBroadcastRoutes(app);
   registerStripeRoutes(app);
   registerPublicMembershipRoutes(app);
+  registerApiKeyRoutes(app);
+  registerSsoRoutes(app);
   registerMetricsRoutes(app);
 
   return app;

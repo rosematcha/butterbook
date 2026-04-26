@@ -40,6 +40,8 @@ export interface DB {
   broadcasts: BroadcastsTable;
   org_stripe_accounts: OrgStripeAccountsTable;
   stripe_events: StripeEventsTable;
+  org_api_keys: OrgApiKeysTable;
+  org_sso_providers: OrgSsoProvidersTable;
 }
 
 export interface BroadcastsTable {
@@ -375,6 +377,7 @@ export interface MemberRolesTable {
   id: Generated<string>;
   org_member_id: string;
   role_id: string;
+  scope_location_id: string | null;
   created_at: Generated<Timestamp>;
 }
 
@@ -467,7 +470,7 @@ export interface AuditLogTable {
   id: Generated<string>;
   org_id: string | null;
   actor_id: string | null;
-  actor_type: 'user' | 'guest' | 'kiosk' | 'system';
+  actor_type: 'user' | 'guest' | 'kiosk' | 'system' | 'api_key';
   action: string;
   target_type: string;
   target_id: string;
@@ -533,4 +536,31 @@ export interface NotificationSuppressionsTable {
   address: string;
   reason: string;
   created_at: Generated<Timestamp>;
+}
+
+export interface OrgApiKeysTable {
+  id: Generated<string>;
+  org_id: string;
+  prefix: string;
+  key_hash: string;
+  name: string;
+  permissions: string[];
+  created_by: string | null;
+  created_at: Generated<Timestamp>;
+  last_used_at: Timestamp | null;
+  revoked_at: Timestamp | null;
+}
+
+export interface OrgSsoProvidersTable {
+  id: Generated<string>;
+  org_id: string;
+  provider: 'google' | 'microsoft';
+  client_id: string;
+  client_secret: Buffer;
+  allowed_domains: string[];
+  default_role_id: string | null;
+  sso_required: Generated<boolean>;
+  enabled: Generated<boolean>;
+  created_at: Generated<Timestamp>;
+  updated_at: Generated<Timestamp>;
 }

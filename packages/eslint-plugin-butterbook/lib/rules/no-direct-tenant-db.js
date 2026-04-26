@@ -50,6 +50,8 @@ const TENANT_TABLES = new Set([
   'broadcasts',
   'org_stripe_accounts',
   'stripe_events',
+  'org_api_keys',
+  'org_sso_providers',
 ]);
 
 const MUTATING_METHODS = new Set(['selectFrom', 'insertInto', 'updateTable', 'deleteFrom']);
@@ -64,6 +66,14 @@ const ALLOWED_FILES = [
   'src/routes/kiosk.ts',
   'src/routes/intake.ts',
   'src/routes/org-export.ts',
+  // API key resolution needs cross-tenant access (same bootstrap pattern
+  // as session resolution).
+  'src/plugins/auth-context.ts',
+  // SSO routes resolve org slug → SSO provider directly (same bootstrap
+  // pattern as kiosk/manage). Downstream work uses withOrgContext.
+  'src/routes/sso.ts',
+  // SSO service fetches encrypted client_secret by provider ID.
+  'src/services/sso.ts',
   // Manage routes resolve a signed manage_token → visit row directly
   // (same bootstrap pattern as kiosk's qr_token lookup); downstream work
   // switches into withOrgContext / withOrgRead.

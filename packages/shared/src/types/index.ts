@@ -5,7 +5,7 @@ export interface ActorContext {
   orgId: string | null;
   isSuperadmin: boolean;
   permissions: Set<Permission>;
-  actorType: 'user' | 'guest' | 'kiosk' | 'system';
+  actorType: 'user' | 'guest' | 'kiosk' | 'system' | 'api_key';
   ip: string | null;
   userAgent: string | null;
 }
