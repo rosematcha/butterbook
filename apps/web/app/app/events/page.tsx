@@ -1,5 +1,5 @@
 'use client';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { Suspense, useEffect, useState, type FormEvent } from 'react';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
@@ -37,6 +37,7 @@ interface EventRow {
   waitlistEnabled: boolean;
   membershipRequiredTierId: string | null;
   series: EventSeriesMeta | null;
+  deletedAt?: string | null;
 }
 
 interface Location {
@@ -67,7 +68,8 @@ export default function EventsPage() {
 }
 
 function EventsPageInner() {
-  const { activeOrgId } = useSession();
+  const { activeOrgId, membership } = useSession();
+  const isSuperadmin = membership?.isSuperadmin ?? false;
   const qc = useQueryClient();
   const confirm = useConfirm();
   const toast = useToast();
@@ -75,6 +77,19 @@ function EventsPageInner() {
   const pathname = usePathname();
   const params = useSearchParams();
   const [composer, setComposer] = useState<ComposerState | null>(null);
+
+  const showDeleted = isSuperadmin && params.get('include_deleted') === '1';
+
+  function toggleShowDeleted() {
+    const sp = new URLSearchParams(params.toString());
+    if (showDeleted) {
+      sp.delete('include_deleted');
+    } else {
+      sp.set('include_deleted', '1');
+    }
+    const qs = sp.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname);
+  }
 
   useEffect(() => {
     if (params.get('new') === '1') {
@@ -87,9 +102,14 @@ function EventsPageInner() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params]);
 
+  const listKey = ['events', activeOrgId, showDeleted ? 'with-deleted' : 'active'] as const;
+
   const events = useQuery({
-    queryKey: ['events', activeOrgId],
-    queryFn: () => apiGet<{ data: EventRow[] }>(`/api/v1/orgs/${activeOrgId}/events`),
+    queryKey: listKey,
+    queryFn: () =>
+      apiGet<{ data: EventRow[] }>(
+        `/api/v1/orgs/${activeOrgId}/events${showDeleted ? '?include_deleted=true' : ''}`,
+      ),
     enabled: !!activeOrgId,
     staleTime: 2 * 60_000,
   });
@@ -105,8 +125,6 @@ function EventsPageInner() {
     enabled: !!activeOrgId,
     staleTime: 5 * 60_000,
   });
-
-  const listKey = ['events', activeOrgId] as const;
 
   const publish = useOptimisticMutation<{ id: string; next: boolean }>({
     mutationFn: (value) =>
@@ -133,6 +151,15 @@ function EventsPageInner() {
     errorMessage: 'Delete failed',
   });
 
+  const restoreEvent = useMutation({
+    mutationFn: (id: string) => apiPost(`/api/v1/orgs/${activeOrgId}/events/${id}/restore`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: listKey });
+      toast.push({ kind: 'success', message: 'Event restored' });
+    },
+    onError: () => toast.push({ kind: 'error', message: 'Could not restore event' }),
+  });
+
   async function onDelete(id: string, title: string) {
     const ok = await confirm({
       title: `Delete "${title}"?`,
@@ -154,9 +181,17 @@ function EventsPageInner() {
           <div className="h-eyebrow">Programs</div>
           <h1 className="h-display mt-1">Events</h1>
         </div>
-        <button className="btn" onClick={() => setComposer((current) => (current?.kind === 'create' ? null : { kind: 'create' }))}>
-          {composer ? 'Close composer' : 'New event'}
-        </button>
+        <div className="flex items-center gap-3">
+          {isSuperadmin ? (
+            <label className="flex items-center gap-2 text-xs text-paper-600">
+              <input type="checkbox" checked={showDeleted} onChange={toggleShowDeleted} />
+              Show deleted
+            </label>
+          ) : null}
+          <button className="btn" onClick={() => setComposer((current) => (current?.kind === 'create' ? null : { kind: 'create' }))}>
+            {composer ? 'Close composer' : 'New event'}
+          </button>
+        </div>
       </div>
 
       {composer ? (
@@ -198,10 +233,18 @@ function EventsPageInner() {
               ) : (
                 rows.map((event) => {
                   const publicUrl = `${origin}/events/${event.slug ?? event.publicId}`;
+                  const isDeleted = !!event.deletedAt;
                   return (
-                    <tr key={event.id} className="border-t border-paper-100 align-top">
+                    <tr key={event.id} className={`border-t border-paper-100 align-top ${isDeleted ? 'opacity-50' : ''}`}>
                       <td className="px-4 py-3">
-                        <div className="font-medium text-ink">{event.title}</div>
+                        <div className="font-medium text-ink">
+                          {event.title}
+                          {isDeleted ? (
+                            <span className="ml-2 inline-block rounded bg-red-100 px-1.5 py-0.5 text-[10px] font-medium text-red-700">
+                              Deleted <Timestamp value={event.deletedAt!} />
+                            </span>
+                          ) : null}
+                        </div>
                         <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-paper-500">
                           {event.series ? <span className="badge-accent">Series</span> : null}
                           {event.membershipRequiredTierId ? <span className="badge">Members only</span> : null}
@@ -213,38 +256,58 @@ function EventsPageInner() {
                           ) : null}
                           {event.series ? <span>{weekdayLabel(event.series.weekday)} weekly</span> : null}
                         </div>
-                        <div className="mt-1 flex items-center gap-2 text-xs text-paper-500">
-                          <span className="truncate">/{event.slug ?? event.publicId}</span>
-                          {event.isPublished ? <CopyButton value={publicUrl} label="Copy link" /> : null}
-                        </div>
+                        {!isDeleted ? (
+                          <div className="mt-1 flex items-center gap-2 text-xs text-paper-500">
+                            <span className="truncate">/{event.slug ?? event.publicId}</span>
+                            {event.isPublished ? <CopyButton value={publicUrl} label="Copy link" /> : null}
+                          </div>
+                        ) : null}
                       </td>
                       <td className="px-4 py-3 tabular-nums text-paper-700">
                         <Timestamp value={event.startsAt} absolute />
                       </td>
                       <td className="px-4 py-3 tabular-nums">{event.capacity ?? '—'}</td>
                       <td className="px-4 py-3">
-                        {event.isPublished ? <span className="badge-accent">Live</span> : <span className="badge">Draft</span>}
+                        {isDeleted ? (
+                          '—'
+                        ) : event.isPublished ? (
+                          <span className="badge-accent">Live</span>
+                        ) : (
+                          <span className="badge">Draft</span>
+                        )}
                       </td>
                       <td className="space-x-2 px-4 py-3 text-right">
-                        <button
-                          onClick={() => publish.mutate({ id: event.id, next: !event.isPublished })}
-                          disabled={publish.isPending}
-                          className="btn-ghost text-xs disabled:opacity-50"
-                        >
-                          {event.isPublished ? 'Unpublish' : 'Publish'}
-                        </button>
-                        <button onClick={() => setComposer({ kind: 'duplicate', source: event })} className="btn-ghost text-xs">
-                          Duplicate
-                        </button>
-                        <Link href={`/app/events/waitlist?id=${event.id}`} className="btn-ghost text-xs">
-                          Waitlist
-                        </Link>
-                        <button
-                          onClick={() => onDelete(event.id, event.title)}
-                          className="btn-ghost text-xs text-red-700 hover:bg-red-50"
-                        >
-                          Delete
-                        </button>
+                        {isDeleted ? (
+                          <button
+                            onClick={() => restoreEvent.mutate(event.id)}
+                            disabled={restoreEvent.isPending}
+                            className="btn-ghost text-xs font-medium text-emerald-700"
+                          >
+                            Restore
+                          </button>
+                        ) : (
+                          <>
+                            <button
+                              onClick={() => publish.mutate({ id: event.id, next: !event.isPublished })}
+                              disabled={publish.isPending}
+                              className="btn-ghost text-xs disabled:opacity-50"
+                            >
+                              {event.isPublished ? 'Unpublish' : 'Publish'}
+                            </button>
+                            <button onClick={() => setComposer({ kind: 'duplicate', source: event })} className="btn-ghost text-xs">
+                              Duplicate
+                            </button>
+                            <Link href={`/app/events/waitlist?id=${event.id}`} className="btn-ghost text-xs">
+                              Waitlist
+                            </Link>
+                            <button
+                              onClick={() => onDelete(event.id, event.title)}
+                              className="btn-ghost text-xs text-red-700 hover:bg-red-50"
+                            >
+                              Delete
+                            </button>
+                          </>
+                        )}
                       </td>
                     </tr>
                   );
