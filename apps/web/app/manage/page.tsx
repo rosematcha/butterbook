@@ -149,6 +149,25 @@ function ManageInner() {
     }
   }
 
+  async function onManageBilling(membership: ManagedMembership) {
+    setWorking(true);
+    try {
+      const res = await apiFetch(`/api/v1/manage/${encodeURIComponent(token)}/memberships/${membership.id}/billing-portal-session`, {
+        method: 'POST',
+      });
+      if (!res.ok) {
+        const p = (await res.json().catch(() => null)) as { detail?: string; title?: string } | null;
+        throw new Error(p?.detail ?? p?.title ?? 'Could not open billing portal.');
+      }
+      const body = (await res.json()) as { data: { url: string } };
+      window.open(body.data.url, '_blank');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not open billing portal.');
+    } finally {
+      setWorking(false);
+    }
+  }
+
   async function onRedact() {
     setWorking(true);
     setNotice(null);
@@ -366,15 +385,24 @@ function ManageInner() {
                     <div className="text-xs text-paper-500">No expiry</div>
                   )}
                 </div>
-                {canCancelMembership(membership) ? (
+                <div className="mt-4 flex flex-col gap-2">
                   <button
-                    className="btn-ghost mt-4 w-full text-red-700"
+                    className="btn-ghost w-full"
                     disabled={working}
-                    onClick={() => onCancelMembership(membership)}
+                    onClick={() => onManageBilling(membership)}
                   >
-                    Cancel membership
+                    Manage billing
                   </button>
-                ) : null}
+                  {canCancelMembership(membership) ? (
+                    <button
+                      className="btn-ghost w-full text-red-700"
+                      disabled={working}
+                      onClick={() => onCancelMembership(membership)}
+                    >
+                      Cancel membership
+                    </button>
+                  ) : null}
+                </div>
               </div>
             ))}
           </div>

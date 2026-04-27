@@ -104,6 +104,7 @@ export interface StripeCheckoutSessionInput {
   promoCode?: string | undefined;
   originalAmountCents?: number | undefined;
   discountCents?: number | undefined;
+  trialPeriodDays?: number | undefined;
   successUrl?: string | undefined;
   cancelUrl?: string | undefined;
 }
@@ -152,6 +153,9 @@ export async function createStripeCheckoutSession(input: StripeCheckoutSessionIn
     body.set('subscription_data[metadata][membershipId]', input.membershipId);
     body.set('subscription_data[metadata][visitorId]', input.visitorId);
     body.set('subscription_data[metadata][tierId]', input.tierId);
+    if (input.trialPeriodDays && input.trialPeriodDays > 0) {
+      body.set('subscription_data[trial_period_days]', String(input.trialPeriodDays));
+    }
     if (input.promoCodeId && input.promoCode && input.originalAmountCents !== undefined && input.discountCents !== undefined) {
       body.set('subscription_data[metadata][promoCodeId]', input.promoCodeId);
       body.set('subscription_data[metadata][promoCode]', input.promoCode);
@@ -262,6 +266,45 @@ export async function cancelStripeSubscription(
         : 'Stripe subscription cancellation failed';
     throw new ConflictError(message);
   }
+}
+
+export interface BillingPortalSession {
+  url: string;
+}
+
+export async function createBillingPortalSession(
+  stripeAccountId: string,
+  customerId: string,
+  returnUrl: string,
+): Promise<BillingPortalSession> {
+  const cfg = getConfig();
+  if (!cfg.STRIPE_SECRET_KEY) throw new ConflictError('Stripe secret key is not configured');
+
+  const body = new URLSearchParams({
+    customer: customerId,
+    return_url: returnUrl,
+  });
+
+  const res = await fetch('https://api.stripe.com/v1/billing_portal/sessions', {
+    method: 'POST',
+    headers: {
+      authorization: `Bearer ${cfg.STRIPE_SECRET_KEY}`,
+      'content-type': 'application/x-www-form-urlencoded',
+      'stripe-account': stripeAccountId,
+    },
+    body,
+  });
+  const json = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+  if (!res.ok) {
+    const message =
+      typeof json.error === 'object' && json.error && 'message' in json.error && typeof json.error.message === 'string'
+        ? json.error.message
+        : 'Stripe Billing Portal session creation failed';
+    throw new ConflictError(message);
+  }
+  const url = typeof json.url === 'string' ? json.url : '';
+  if (!url) throw new ConflictError('Stripe Billing Portal response did not include a URL');
+  return { url };
 }
 
 export interface StripeWebhookEvent {

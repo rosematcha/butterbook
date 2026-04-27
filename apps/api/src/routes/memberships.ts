@@ -19,7 +19,8 @@ import {
 import { withOrgContext, withOrgRead } from '../db/index.js';
 import { ConflictError, NotFoundError } from '../errors/index.js';
 import { allowIncludeDeleted } from '../utils/soft-delete.js';
-import { cancelStripeSubscription, createStripeRefund } from '../services/stripe.js';
+import { cancelStripeSubscription, createBillingPortalSession, createStripeRefund } from '../services/stripe.js';
+import { getConfig } from '../config.js';
 import {
   cancelMembershipInTx,
   createMembershipInTx,
@@ -115,6 +116,7 @@ function registerTierRoutes(app: FastifyInstance): void {
           guest_passes_included: body.guestPassesIncluded ?? 0,
           member_only_event_access: body.memberOnlyEventAccess ?? true,
           max_active: body.maxActive ?? null,
+          trial_period_days: body.trialPeriodDays ?? 0,
           sort_order: body.sortOrder ?? 0,
           active: body.active ?? true,
         })
@@ -151,6 +153,7 @@ function registerTierRoutes(app: FastifyInstance): void {
       if (body.guestPassesIncluded !== undefined) updates.guest_passes_included = body.guestPassesIncluded;
       if (body.memberOnlyEventAccess !== undefined) updates.member_only_event_access = body.memberOnlyEventAccess;
       if (body.maxActive !== undefined) updates.max_active = body.maxActive;
+      if (body.trialPeriodDays !== undefined) updates.trial_period_days = body.trialPeriodDays;
       if (body.sortOrder !== undefined) updates.sort_order = body.sortOrder;
       if (body.active !== undefined) updates.active = body.active;
       if (Object.keys(updates).length === 0) return { data: { ok: true } };
@@ -443,6 +446,38 @@ function registerMembershipRecordRoutes(app: FastifyInstance): void {
       await audit({ action: 'membership.refunded', targetType: 'membership', targetId: membershipId, diff: { after: body } });
       const row = await selectMembership(tx, orgId, membershipId);
       return { data: publicMembership(row!) };
+    });
+  });
+
+  app.post('/api/v1/orgs/:orgId/memberships/:membershipId/billing-portal-session', async (req) => {
+    const { orgId, membershipId } = membershipIdParamSchema.parse(req.params);
+    await req.requirePermission(orgId, 'memberships.manage');
+    return withOrgRead(orgId, async (tx) => {
+      const membership = await tx
+        .selectFrom('memberships')
+        .innerJoin('visitors', 'visitors.id', 'memberships.visitor_id')
+        .select(['visitors.stripe_customer_id'])
+        .where('memberships.org_id', '=', orgId)
+        .where('memberships.id', '=', membershipId)
+        .executeTakeFirst();
+      if (!membership) throw new NotFoundError();
+      if (!membership.stripe_customer_id) throw new ConflictError('No Stripe customer linked to this membership.');
+
+      const stripeAccount = await tx
+        .selectFrom('org_stripe_accounts')
+        .select(['stripe_account_id'])
+        .where('org_id', '=', orgId)
+        .executeTakeFirst();
+      if (!stripeAccount) throw new ConflictError('Stripe is not connected for this organization.');
+
+      const cfg = getConfig();
+      const returnUrl = `${cfg.APP_BASE_URL}/app/memberships/profile?id=${membershipId}`;
+      const session = await createBillingPortalSession(
+        stripeAccount.stripe_account_id,
+        membership.stripe_customer_id,
+        returnUrl,
+      );
+      return { data: { url: session.url } };
     });
   });
 }
