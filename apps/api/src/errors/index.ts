@@ -84,6 +84,12 @@ export class SuperadminInvariantError extends AppError {
   readonly title = 'Operation Would Leave Org Without A Superadmin';
 }
 
+export class SsoRequiredError extends AppError {
+  readonly status = 403;
+  readonly type = ERROR_TYPES.sso_required;
+  readonly title = 'SSO Required';
+}
+
 export class InternalError extends AppError {
   readonly status = 500;
   readonly type = ERROR_TYPES.internal;

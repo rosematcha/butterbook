@@ -23,6 +23,7 @@ import { newTotpSecret, otpAuthUrl, verifyTotp } from '../utils/totp.js';
 import {
   AuthenticationError,
   ConflictError,
+  SsoRequiredError,
   ValidationError,
 } from '../errors/index.js';
 
@@ -103,6 +104,22 @@ export function registerAuthRoutes(app: FastifyInstance): void {
       const secret = decryptSecret(user.totp_secret_enc!);
       if (!verifyTotp(secret, body.totpCode)) throw new AuthenticationError('Invalid TOTP code.');
     }
+    // Defense-in-depth: reject password login if any org the user belongs to
+    // requires SSO. The client should have already hidden the password field,
+    // but a curl request could bypass that.
+    const ssoRow = await db
+      .selectFrom('org_sso_providers')
+      .innerJoin('org_members', 'org_members.org_id', 'org_sso_providers.org_id')
+      .select(['org_sso_providers.provider'])
+      .where('org_members.user_id', '=', user.id)
+      .where('org_members.deleted_at', 'is', null)
+      .where('org_sso_providers.enabled', '=', true)
+      .where('org_sso_providers.sso_required', '=', true)
+      .executeTakeFirst();
+    if (ssoRow) {
+      throw new SsoRequiredError('Your organization requires SSO. Please sign in with your identity provider.');
+    }
+
     if (needsRehash(user.password_hash)) {
       const fresh = await hashPassword(body.password);
       await db.updateTable('users').set({ password_hash: fresh }).where('id', '=', user.id).execute();

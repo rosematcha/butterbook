@@ -19,4 +19,5 @@ export const ERROR_TYPES = {
   availability_conflict: 'https://scheduler.app/errors/availability_conflict',
   superadmin_invariant: 'https://scheduler.app/errors/superadmin_invariant',
   internal: 'https://scheduler.app/errors/internal',
+  sso_required: 'https://scheduler.app/errors/sso_required',
 } as const;

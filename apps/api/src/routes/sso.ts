@@ -172,9 +172,91 @@ export function registerSsoRoutes(app: FastifyInstance): void {
     });
   });
 
+  // --- Public SSO policy lookup ---
+
+  const policyRl = { config: { rateLimit: { max: 20, timeWindow: '1 minute' } } };
+
+  // Returns whether any org the user belongs to requires SSO, and which
+  // providers are available. Intentionally leaks no org-membership info beyond
+  // the boolean: ssoRequired is true if ANY org requires it, and providers is
+  // the union across all orgs (without revealing which org maps to which).
+  app.get('/api/v1/sso/policy', policyRl, async (req) => {
+    const q = z.object({ email: z.string().email() }).parse(req.query);
+    const db = getDb();
+    const user = await db
+      .selectFrom('users')
+      .select(['id'])
+      .where('email', '=', q.email)
+      .where('deleted_at', 'is', null)
+      .executeTakeFirst();
+    if (!user) {
+      // Don't reveal whether the email exists — return safe defaults.
+      return { data: { ssoRequired: false, providers: [] } };
+    }
+
+    // Find all enabled SSO providers across orgs the user is a member of.
+    const rows = await db
+      .selectFrom('org_sso_providers')
+      .innerJoin('org_members', 'org_members.org_id', 'org_sso_providers.org_id')
+      .select(['org_sso_providers.provider', 'org_sso_providers.sso_required', 'org_sso_providers.org_id'])
+      .where('org_members.user_id', '=', user.id)
+      .where('org_members.deleted_at', 'is', null)
+      .where('org_sso_providers.enabled', '=', true)
+      .execute();
+
+    const ssoRequired = rows.some((r) => r.sso_required);
+    const providers = [...new Set(rows.map((r) => r.provider))];
+
+    return { data: { ssoRequired, providers } };
+  });
+
   // --- Public SSO flow ---
 
   const ssoRl = { config: { rateLimit: { max: 30, timeWindow: '1 minute' } } };
+
+  // Email-based SSO redirect — used by the login page when SSO is required.
+  // Resolves the email to the first org with an enabled SSO provider of the
+  // requested type and redirects to the OIDC authorize endpoint.
+  app.get('/api/v1/sso/redirect-by-email', ssoRl, async (req, reply) => {
+    const q = z.object({ email: z.string().email(), provider: z.enum(['google', 'microsoft']).default('google') }).parse(req.query);
+    const db = getDb();
+    const user = await db
+      .selectFrom('users')
+      .select(['id'])
+      .where('email', '=', q.email)
+      .where('deleted_at', 'is', null)
+      .executeTakeFirst();
+    if (!user) throw new NotFoundError('No account found for that email.');
+
+    const ssoRow = await db
+      .selectFrom('org_sso_providers')
+      .innerJoin('org_members', 'org_members.org_id', 'org_sso_providers.org_id')
+      .selectAll('org_sso_providers')
+      .where('org_members.user_id', '=', user.id)
+      .where('org_members.deleted_at', 'is', null)
+      .where('org_sso_providers.enabled', '=', true)
+      .where('org_sso_providers.provider', '=', q.provider)
+      .executeTakeFirst();
+    if (!ssoRow) throw new NotFoundError('No SSO provider found for this account.');
+
+    const provider: SsoProvider = {
+      id: ssoRow.id,
+      orgId: ssoRow.org_id,
+      provider: ssoRow.provider,
+      clientId: ssoRow.client_id,
+      allowedDomains: ssoRow.allowed_domains,
+      defaultRoleId: ssoRow.default_role_id,
+      ssoRequired: ssoRow.sso_required,
+      enabled: ssoRow.enabled,
+    };
+
+    const callbackUrl = `${getConfig().APP_BASE_URL}/api/v1/sso/callback`;
+    const state = makeSsoState(ssoRow.org_id, ssoRow.id);
+    const secret = decryptSecret(ssoRow.client_secret);
+    const redirectUrl = buildSsoRedirectUrl(provider, secret, callbackUrl, state);
+
+    return reply.status(302).redirect(redirectUrl);
+  });
 
   app.get('/api/v1/sso/redirect', ssoRl, async (req, reply) => {
     const q = z.object({ org: z.string().trim().min(1), provider: z.enum(['google', 'microsoft']).optional() }).parse(req.query);
