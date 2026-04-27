@@ -6,6 +6,7 @@ import {
   testSendNotificationSchema,
   updateNotificationTemplateSchema,
 } from '@butterbook/shared';
+import { sql } from 'kysely';
 import { withOrgContext, withOrgRead } from '../db/index.js';
 import { NotFoundError, ValidationError } from '../errors/index.js';
 import { DEFAULT_TEMPLATES } from '../services/notifications/default-templates.js';
@@ -285,6 +286,104 @@ export function registerNotificationRoutes(app: FastifyInstance): void {
         diff: { after: { templateKey, toAddress: body.toAddress } },
       });
       return { data: { notificationId: row.id } };
+    });
+  });
+
+  // ── Deliverability health ──────────────────────────────────────────
+
+  app.get('/api/v1/orgs/:orgId/notifications/health', async (req) => {
+    const { orgId } = orgParam.parse(req.params);
+    await req.requirePermission(orgId, 'notifications.manage');
+    return withOrgRead(orgId, async (tx) => {
+      const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
+      const counts = await tx
+        .selectFrom('notifications_outbox')
+        .select((eb) => [
+          eb.fn.countAll<number>().as('total'),
+          sql<number>`count(*) filter (where status = 'sent')`.as('sent'),
+          sql<number>`count(*) filter (where status = 'failed' or status = 'dead')`.as('failed'),
+          sql<number>`count(*) filter (where status = 'suppressed')`.as('suppressed'),
+          sql<number>`count(*) filter (where status = 'pending')`.as('pending'),
+        ])
+        .where('org_id', '=', orgId)
+        .where('created_at', '>=', since)
+        .executeTakeFirstOrThrow();
+
+      const deadRows = await tx
+        .selectFrom('notifications_outbox')
+        .select([
+          'id',
+          'to_address',
+          'template_key',
+          'rendered_subject',
+          'status',
+          'attempts',
+          'max_attempts',
+          'last_error',
+          'created_at',
+        ])
+        .where('org_id', '=', orgId)
+        .where('status', 'in', ['dead', 'failed'])
+        .orderBy('created_at', 'desc')
+        .limit(50)
+        .execute();
+
+      return {
+        data: {
+          last24h: {
+            total: Number(counts.total),
+            sent: Number(counts.sent),
+            failed: Number(counts.failed),
+            suppressed: Number(counts.suppressed),
+            pending: Number(counts.pending),
+          },
+          failures: deadRows,
+        },
+      };
+    });
+  });
+
+  const outboxIdParam = z.object({ orgId: z.string().uuid(), notificationId: z.string().uuid() });
+
+  app.post('/api/v1/orgs/:orgId/notifications/outbox/:notificationId/requeue', async (req) => {
+    const { orgId, notificationId } = outboxIdParam.parse(req.params);
+    await req.requirePermission(orgId, 'notifications.manage');
+    const m = await req.loadMembershipFor(orgId);
+    return withOrgContext(orgId, req.actorForOrg(orgId, m), async ({ tx, audit }) => {
+      const row = await tx
+        .selectFrom('notifications_outbox')
+        .select(['id', 'status', 'attempts'])
+        .where('org_id', '=', orgId)
+        .where('id', '=', notificationId)
+        .executeTakeFirst();
+      if (!row) throw new NotFoundError();
+      if (row.status !== 'dead' && row.status !== 'failed') {
+        throw new ValidationError('Only dead or failed notifications can be re-queued.');
+      }
+      const updated = await tx
+        .updateTable('notifications_outbox')
+        .set({
+          status: 'pending',
+          attempts: 0,
+          last_error: null,
+          locked_by: null,
+          locked_until: null,
+          scheduled_at: new Date(),
+        })
+        .where('id', '=', notificationId)
+        .returning(['id', 'status', 'attempts'])
+        .executeTakeFirstOrThrow();
+      await audit({
+        action: 'notification.requeued',
+        targetType: 'notification',
+        targetId: notificationId,
+        diff: {
+          before: { status: row.status, attempts: row.attempts },
+          after: { status: 'pending', attempts: 0 },
+        },
+      });
+      return { data: updated };
     });
   });
 }

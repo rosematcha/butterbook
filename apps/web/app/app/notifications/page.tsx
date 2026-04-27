@@ -7,6 +7,7 @@ import { useSession } from '../../../lib/session';
 import { Timestamp } from '../../components/timestamp';
 import { EmptyState } from '../../components/empty-state';
 import { SkeletonRows } from '../../components/skeleton-rows';
+import { SettingsBackLink } from '../settings/_components/back-link';
 
 interface TemplateRow {
   id: string;
@@ -30,6 +31,21 @@ interface OutboxRow {
   last_error: string | null;
   provider_message_id: string | null;
   created_at: string;
+}
+
+interface HealthData {
+  last24h: { total: number; sent: number; failed: number; suppressed: number; pending: number };
+  failures: Array<{
+    id: string;
+    to_address: string;
+    template_key: string;
+    rendered_subject: string;
+    status: string;
+    attempts: number;
+    max_attempts: number;
+    last_error: string | null;
+    created_at: string;
+  }>;
 }
 
 const STATUS_TINT: Record<string, string> = {
@@ -63,11 +79,14 @@ function templateLabel(key: string): string {
   return key.slice(dot + 1).replace(/_/g, ' ');
 }
 
+type Tab = 'templates' | 'outbox' | 'deliverability';
+
 export default function NotificationsPage() {
   const { activeOrgId } = useSession();
   const perms = usePermissions();
   const canManage = perms.has('notifications.manage');
   const qc = useQueryClient();
+  const [tab, setTab] = useState<Tab>('templates');
   const [statusFilter, setStatusFilter] = useState<string>('');
   const [page, setPage] = useState(1);
   const [testingKey, setTestingKey] = useState<string | null>(null);
@@ -94,7 +113,27 @@ export default function NotificationsPage() {
           statusFilter ? `&status=${statusFilter}` : ''
         }`,
       ),
-    enabled: !!activeOrgId && canManage,
+    enabled: !!activeOrgId && canManage && tab === 'outbox',
+  });
+
+  const health = useQuery({
+    queryKey: ['notif-health', activeOrgId],
+    queryFn: () =>
+      apiGet<{ data: HealthData }>(
+        `/api/v1/orgs/${activeOrgId}/notifications/health`,
+      ),
+    enabled: !!activeOrgId && canManage && tab === 'deliverability',
+  });
+
+  const requeue = useMutation({
+    mutationFn: async (notificationId: string) =>
+      apiPost<{ data: { id: string } }>(
+        `/api/v1/orgs/${activeOrgId}/notifications/outbox/${notificationId}/requeue`,
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['notif-health', activeOrgId] });
+      qc.invalidateQueries({ queryKey: ['notif-outbox', activeOrgId] });
+    },
   });
 
   const testSend = useMutation({
@@ -188,7 +227,7 @@ export default function NotificationsPage() {
 
   const customizedCount = templateRows.filter((t) => t.is_customized).length;
 
-  if ((!perms.loading && !canManage) || templates.isError || outbox.isError) {
+  if ((!perms.loading && !canManage) || templates.isError) {
     return (
       <EmptyState
         title="Permission required."
@@ -197,9 +236,16 @@ export default function NotificationsPage() {
     );
   }
 
+  const TABS: { key: Tab; label: string }[] = [
+    { key: 'templates', label: 'Templates' },
+    { key: 'outbox', label: 'Outbox' },
+    { key: 'deliverability', label: 'Deliverability' },
+  ];
+
   return (
     <div>
-      <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
+      <SettingsBackLink />
+      <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
         <div>
           <div className="h-eyebrow">Delivery</div>
           <h1 className="h-display mt-1">Notifications</h1>
@@ -220,307 +266,432 @@ export default function NotificationsPage() {
         </div>
       </div>
 
-      <section className="mb-10">
-        <div className="mb-4 flex items-end justify-between gap-3">
-          <div>
-            <h2 className="font-display text-xl font-medium tracking-tight-er text-ink">Templates</h2>
-            <p className="mt-1 text-sm text-paper-600">
-              Edit the subject and body. Revert restores the default.
-            </p>
+      <div className="mb-8 flex gap-1 border-b border-paper-200">
+        {TABS.map((t) => (
+          <button
+            key={t.key}
+            type="button"
+            onClick={() => setTab(t.key)}
+            className={`px-4 py-2 text-sm font-medium transition-colors ${
+              tab === t.key
+                ? 'border-b-2 border-brand-accent text-brand-accent'
+                : 'text-paper-500 hover:text-ink'
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'templates' && (
+        <section>
+          <div className="mb-4 flex items-end justify-between gap-3">
+            <div>
+              <h2 className="font-display text-xl font-medium tracking-tight-er text-ink">Templates</h2>
+              <p className="mt-1 text-sm text-paper-600">
+                Edit the subject and body. Revert restores the default.
+              </p>
+            </div>
           </div>
-        </div>
 
-        <div className="grid gap-5 lg:grid-cols-[300px_minmax(0,1fr)]">
-          <div className="space-y-5">
-            {templates.isPending ? (
-              <div className="panel p-4">
-                <SkeletonRows cols={1} rows={6} />
-              </div>
-            ) : null}
-
-            {groupedTemplates.map(([group, items]) => (
-              <div key={group}>
-                <div className="mb-2 px-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-paper-500">
-                  {group}
+          <div className="grid gap-5 lg:grid-cols-[300px_minmax(0,1fr)]">
+            <div className="space-y-5">
+              {templates.isPending ? (
+                <div className="panel p-4">
+                  <SkeletonRows cols={1} rows={6} />
                 </div>
-                <div className="space-y-1.5">
-                  {items.map((t) => {
-                    const isSelected = selectedTemplate?.id === t.id;
-                    return (
-                      <button
-                        key={t.id}
-                        type="button"
-                        onClick={() => setSelectedKey(t.template_key)}
-                        className={`group relative w-full rounded-lg border px-3 py-2.5 text-left transition ${
-                          isSelected
-                            ? 'border-brand-accent/40 bg-brand-accent/5'
-                            : 'border-paper-200 bg-white hover:border-paper-300 hover:bg-paper-50/50'
-                        }`}
-                      >
-                        {isSelected ? (
-                          <span
-                            aria-hidden
-                            className="absolute -left-px top-2 bottom-2 w-[3px] rounded-r-full bg-brand-accent"
-                          />
-                        ) : null}
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="min-w-0 flex-1">
-                            <div className="font-mono text-[11px] uppercase tracking-[0.06em] text-paper-500">
-                              {templateLabel(t.template_key)}
-                            </div>
-                            <div className="mt-1 truncate text-sm font-medium text-ink">
-                              {t.subject}
-                            </div>
-                          </div>
-                          {t.is_customized ? (
-                            <span className="shrink-0 rounded-full bg-brand-accent/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.12em] text-brand-accent">
-                              Custom
-                            </span>
+              ) : null}
+
+              {groupedTemplates.map(([group, items]) => (
+                <div key={group}>
+                  <div className="mb-2 px-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-paper-500">
+                    {group}
+                  </div>
+                  <div className="space-y-1.5">
+                    {items.map((t) => {
+                      const isSelected = selectedTemplate?.id === t.id;
+                      return (
+                        <button
+                          key={t.id}
+                          type="button"
+                          onClick={() => setSelectedKey(t.template_key)}
+                          className={`group relative w-full rounded-lg border px-3 py-2.5 text-left transition ${
+                            isSelected
+                              ? 'border-brand-accent/40 bg-brand-accent/5'
+                              : 'border-paper-200 bg-white hover:border-paper-300 hover:bg-paper-50/50'
+                          }`}
+                        >
+                          {isSelected ? (
+                            <span
+                              aria-hidden
+                              className="absolute -left-px top-2 bottom-2 w-[3px] rounded-r-full bg-brand-accent"
+                            />
                           ) : null}
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <div className="panel p-6">
-            {selectedTemplate ? (
-              <form
-                className="space-y-5"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  updateTemplate.mutate({
-                    templateKey: selectedTemplate.template_key,
-                    values: form,
-                  });
-                }}
-              >
-                <div className="flex flex-wrap items-start justify-between gap-3 border-b border-paper-100 pb-4">
-                  <div>
-                    <div className="h-eyebrow">{templateGroup(selectedTemplate.template_key)} template</div>
-                    <h3 className="mt-1 font-display text-2xl font-medium tracking-tight-er text-ink">
-                      {templateLabel(selectedTemplate.template_key)}
-                    </h3>
-                    <p className="mt-1 font-mono text-[11px] text-paper-500">
-                      {selectedTemplate.template_key} · updated <Timestamp value={selectedTemplate.updated_at} />
-                    </p>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setTestingKey(selectedTemplate.template_key);
-                        setTestAddress('');
-                      }}
-                      className="btn-ghost text-xs"
-                    >
-                      Send test
-                    </button>
-                    <button
-                      type="button"
-                      disabled={!selectedTemplate.is_customized || revertTemplate.isPending}
-                      onClick={() => revertTemplate.mutate(selectedTemplate.template_key)}
-                      className="btn-ghost text-xs disabled:opacity-40"
-                    >
-                      {revertTemplate.isPending ? 'Reverting…' : 'Revert to default'}
-                    </button>
-                    <button
-                      type="submit"
-                      disabled={!dirty || updateTemplate.isPending}
-                      className="btn text-xs disabled:opacity-40"
-                    >
-                      {updateTemplate.isPending ? 'Saving…' : dirty ? 'Save changes' : 'Saved'}
-                    </button>
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0 flex-1">
+                              <div className="font-mono text-[11px] uppercase tracking-[0.06em] text-paper-500">
+                                {templateLabel(t.template_key)}
+                              </div>
+                              <div className="mt-1 truncate text-sm font-medium text-ink">
+                                {t.subject}
+                              </div>
+                            </div>
+                            {t.is_customized ? (
+                              <span className="shrink-0 rounded-full bg-brand-accent/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.12em] text-brand-accent">
+                                Custom
+                              </span>
+                            ) : null}
+                          </div>
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
+              ))}
+            </div>
 
-                <label className="block">
-                  <span className="h-eyebrow">Subject</span>
-                  <input
-                    value={form.subject}
-                    onChange={(e) => setForm((f) => ({ ...f, subject: e.target.value }))}
-                    className="input mt-1 w-full"
-                    maxLength={200}
-                  />
-                  <span className="mt-1 block text-right text-xs tabular-nums text-paper-500">
-                    {form.subject.length} / 200
-                  </span>
-                </label>
-
-                <div>
-                  <div className="flex items-end justify-between gap-3">
-                    <span className="h-eyebrow">Body</span>
-                    <div className="inline-flex rounded-md border border-paper-200 bg-paper-50 p-0.5 text-[11px] font-medium">
+            <div className="panel p-6">
+              {selectedTemplate ? (
+                <form
+                  className="space-y-5"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    updateTemplate.mutate({
+                      templateKey: selectedTemplate.template_key,
+                      values: form,
+                    });
+                  }}
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-3 border-b border-paper-100 pb-4">
+                    <div>
+                      <div className="h-eyebrow">{templateGroup(selectedTemplate.template_key)} template</div>
+                      <h3 className="mt-1 font-display text-2xl font-medium tracking-tight-er text-ink">
+                        {templateLabel(selectedTemplate.template_key)}
+                      </h3>
+                      <p className="mt-1 font-mono text-[11px] text-paper-500">
+                        {selectedTemplate.template_key} · updated <Timestamp value={selectedTemplate.updated_at} />
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
                       <button
                         type="button"
-                        onClick={() => setPreviewMode('text')}
-                        className={`rounded px-2.5 py-1 transition ${
-                          previewMode === 'text' ? 'bg-white text-ink shadow-sm' : 'text-paper-600 hover:text-ink'
-                        }`}
+                        onClick={() => {
+                          setTestingKey(selectedTemplate.template_key);
+                          setTestAddress('');
+                        }}
+                        className="btn-ghost text-xs"
                       >
-                        Text
+                        Send test
                       </button>
                       <button
                         type="button"
-                        onClick={() => setPreviewMode('html')}
-                        className={`rounded px-2.5 py-1 transition ${
-                          previewMode === 'html' ? 'bg-white text-ink shadow-sm' : 'text-paper-600 hover:text-ink'
-                        }`}
+                        disabled={!selectedTemplate.is_customized || revertTemplate.isPending}
+                        onClick={() => revertTemplate.mutate(selectedTemplate.template_key)}
+                        className="btn-ghost text-xs disabled:opacity-40"
                       >
-                        HTML
+                        {revertTemplate.isPending ? 'Reverting…' : 'Revert to default'}
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={!dirty || updateTemplate.isPending}
+                        className="btn text-xs disabled:opacity-40"
+                      >
+                        {updateTemplate.isPending ? 'Saving…' : dirty ? 'Save changes' : 'Saved'}
                       </button>
                     </div>
                   </div>
-                  <textarea
-                    value={previewMode === 'text' ? form.bodyText : form.bodyHtml}
-                    onChange={(e) =>
-                      setForm((f) =>
-                        previewMode === 'text'
-                          ? { ...f, bodyText: e.target.value }
-                          : { ...f, bodyHtml: e.target.value },
-                      )
-                    }
-                    className="input mt-1 min-h-[260px] w-full font-mono text-[12px] leading-relaxed"
-                    spellCheck={false}
-                  />
-                  <span className="mt-1 block text-xs text-paper-500">
-                    {previewMode === 'text'
-                      ? 'Plain-text fallback for screen readers and some inboxes.'
-                      : 'HTML version. Inline styles only, no external CSS.'}
-                  </span>
-                </div>
 
-                {updateTemplate.isError || revertTemplate.isError ? (
-                  <div className="rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">
-                    {((updateTemplate.error ?? revertTemplate.error) as Error).message}
+                  <label className="block">
+                    <span className="h-eyebrow">Subject</span>
+                    <input
+                      value={form.subject}
+                      onChange={(e) => setForm((f) => ({ ...f, subject: e.target.value }))}
+                      className="input mt-1 w-full"
+                      maxLength={200}
+                    />
+                    <span className="mt-1 block text-right text-xs tabular-nums text-paper-500">
+                      {form.subject.length} / 200
+                    </span>
+                  </label>
+
+                  <div>
+                    <div className="flex items-end justify-between gap-3">
+                      <span className="h-eyebrow">Body</span>
+                      <div className="inline-flex rounded-md border border-paper-200 bg-paper-50 p-0.5 text-[11px] font-medium">
+                        <button
+                          type="button"
+                          onClick={() => setPreviewMode('text')}
+                          className={`rounded px-2.5 py-1 transition ${
+                            previewMode === 'text' ? 'bg-white text-ink shadow-sm' : 'text-paper-600 hover:text-ink'
+                          }`}
+                        >
+                          Text
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setPreviewMode('html')}
+                          className={`rounded px-2.5 py-1 transition ${
+                            previewMode === 'html' ? 'bg-white text-ink shadow-sm' : 'text-paper-600 hover:text-ink'
+                          }`}
+                        >
+                          HTML
+                        </button>
+                      </div>
+                    </div>
+                    <textarea
+                      value={previewMode === 'text' ? form.bodyText : form.bodyHtml}
+                      onChange={(e) =>
+                        setForm((f) =>
+                          previewMode === 'text'
+                            ? { ...f, bodyText: e.target.value }
+                            : { ...f, bodyHtml: e.target.value },
+                        )
+                      }
+                      className="input mt-1 min-h-[260px] w-full font-mono text-[12px] leading-relaxed"
+                      spellCheck={false}
+                    />
+                    <span className="mt-1 block text-xs text-paper-500">
+                      {previewMode === 'text'
+                        ? 'Plain-text fallback for screen readers and some inboxes.'
+                        : 'HTML version. Inline styles only, no external CSS.'}
+                    </span>
                   </div>
-                ) : null}
-              </form>
-            ) : (
-              <EmptyState
-                title="No templates."
-                description="No notification templates are seeded for this org."
-              />
-            )}
-          </div>
-        </div>
-      </section>
 
-      <section>
-        <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <h2 className="font-display text-xl font-medium tracking-tight-er text-ink">Outbox</h2>
+                  {updateTemplate.isError || revertTemplate.isError ? (
+                    <div className="rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">
+                      {((updateTemplate.error ?? revertTemplate.error) as Error).message}
+                    </div>
+                  ) : null}
+                </form>
+              ) : (
+                <EmptyState
+                  title="No templates."
+                  description="No notification templates are seeded for this org."
+                />
+              )}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {tab === 'outbox' && (
+        <section>
+          <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <h2 className="font-display text-xl font-medium tracking-tight-er text-ink">Outbox</h2>
+              <p className="mt-1 text-sm text-paper-600">
+                Every render passes through here. Failed and dead rows need a human.
+              </p>
+            </div>
+            <select
+              value={statusFilter}
+              onChange={(e) => {
+                setStatusFilter(e.target.value);
+                setPage(1);
+              }}
+              className="input max-w-[200px]"
+            >
+              <option value="">All statuses</option>
+              <option value="pending">Pending</option>
+              <option value="sending">Sending</option>
+              <option value="sent">Sent</option>
+              <option value="failed">Failed</option>
+              <option value="suppressed">Suppressed</option>
+              <option value="dead">Dead</option>
+            </select>
+          </div>
+
+          <div className="panel overflow-hidden">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-paper-200 text-left text-[11px] font-semibold uppercase tracking-[0.14em] text-paper-500">
+                  <th className="px-5 py-3">Created</th>
+                  <th className="px-5 py-3">Recipient</th>
+                  <th className="px-5 py-3">Template</th>
+                  <th className="px-5 py-3">Status</th>
+                  <th className="px-5 py-3 text-right">Attempts</th>
+                </tr>
+              </thead>
+              <tbody>
+                {outbox.isPending ? <SkeletonRows cols={5} rows={6} /> : null}
+                {outbox.isSuccess && outboxRows.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="px-5 py-2">
+                      <EmptyState
+                        title={statusFilter ? `Nothing in "${statusFilter}".` : 'Nothing queued yet.'}
+                        description={statusFilter ? 'Try a different status filter.' : 'Outbox rows will appear here as notifications are enqueued.'}
+                      />
+                    </td>
+                  </tr>
+                ) : null}
+                {outboxRows.map((r) => (
+                  <tr key={r.id} className="border-t border-paper-100 align-top transition hover:bg-paper-50/70">
+                    <td className="px-5 py-3.5 tabular-nums text-paper-700">
+                      <Timestamp value={r.created_at} />
+                    </td>
+                    <td className="px-5 py-3.5 text-paper-700">{r.to_address}</td>
+                    <td className="px-5 py-3.5">
+                      <code className="rounded bg-paper-100 px-1.5 py-0.5 font-mono text-[11px] text-ink">
+                        {r.template_key}
+                      </code>
+                      {r.rendered_subject ? (
+                        <div className="mt-1 max-w-md truncate text-xs text-paper-500">
+                          {r.rendered_subject}
+                        </div>
+                      ) : null}
+                    </td>
+                    <td className="px-5 py-3.5">
+                      <span
+                        className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium ${
+                          STATUS_TINT[r.status] ?? 'bg-paper-100 text-paper-700'
+                        }`}
+                      >
+                        <span
+                          aria-hidden
+                          className={`inline-block h-1.5 w-1.5 rounded-full ${
+                            STATUS_DOT[r.status] ?? 'bg-paper-400'
+                          }`}
+                        />
+                        {r.status}
+                      </span>
+                      {r.last_error ? (
+                        <div className="mt-1.5 max-w-md text-xs leading-relaxed text-rose-700">{r.last_error}</div>
+                      ) : null}
+                    </td>
+                    <td className="px-5 py-3.5 text-right tabular-nums text-paper-600">{r.attempts}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="mt-4 flex items-center justify-between text-sm text-paper-600">
+            <span className="tabular-nums">
+              {outbox.data ? `${outbox.data.meta.total.toLocaleString()} total` : ''}
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                disabled={page <= 1}
+                onClick={() => setPage((p) => p - 1)}
+                className="btn-ghost disabled:opacity-40"
+              >
+                ← Previous
+              </button>
+              <span className="tabular-nums">
+                Page {page} of {outbox.data?.meta.pages ?? 1}
+              </span>
+              <button
+                disabled={page >= (outbox.data?.meta.pages ?? 1)}
+                onClick={() => setPage((p) => p + 1)}
+                className="btn-ghost disabled:opacity-40"
+              >
+                Next →
+              </button>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {tab === 'deliverability' && (
+        <section>
+          <div className="mb-6">
+            <h2 className="font-display text-xl font-medium tracking-tight-er text-ink">Deliverability</h2>
             <p className="mt-1 text-sm text-paper-600">
-              Every render passes through here. Failed and dead rows need a human.
+              Last 24 hours at a glance. Re-queue dead-letter rows to retry.
             </p>
           </div>
-          <select
-            value={statusFilter}
-            onChange={(e) => {
-              setStatusFilter(e.target.value);
-              setPage(1);
-            }}
-            className="input max-w-[200px]"
-          >
-            <option value="">All statuses</option>
-            <option value="pending">Pending</option>
-            <option value="sending">Sending</option>
-            <option value="sent">Sent</option>
-            <option value="failed">Failed</option>
-            <option value="suppressed">Suppressed</option>
-            <option value="dead">Dead</option>
-          </select>
-        </div>
 
-        <div className="panel overflow-hidden">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-paper-200 text-left text-[11px] font-semibold uppercase tracking-[0.14em] text-paper-500">
-                <th className="px-5 py-3">Created</th>
-                <th className="px-5 py-3">Recipient</th>
-                <th className="px-5 py-3">Template</th>
-                <th className="px-5 py-3">Status</th>
-                <th className="px-5 py-3 text-right">Attempts</th>
-              </tr>
-            </thead>
-            <tbody>
-              {outbox.isPending ? <SkeletonRows cols={5} rows={6} /> : null}
-              {outbox.isSuccess && outboxRows.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="px-5 py-10 text-center text-sm italic text-paper-400">
-                    {statusFilter ? `Nothing in “${statusFilter}”.` : 'Nothing queued yet.'}
-                  </td>
-                </tr>
-              ) : null}
-              {outboxRows.map((r) => (
-                <tr key={r.id} className="border-t border-paper-100 align-top transition hover:bg-paper-50/70">
-                  <td className="px-5 py-3.5 tabular-nums text-paper-700">
-                    <Timestamp value={r.created_at} />
-                  </td>
-                  <td className="px-5 py-3.5 text-paper-700">{r.to_address}</td>
-                  <td className="px-5 py-3.5">
-                    <code className="rounded bg-paper-100 px-1.5 py-0.5 font-mono text-[11px] text-ink">
-                      {r.template_key}
-                    </code>
-                    {r.rendered_subject ? (
-                      <div className="mt-1 max-w-md truncate text-xs text-paper-500">
-                        {r.rendered_subject}
-                      </div>
-                    ) : null}
-                  </td>
-                  <td className="px-5 py-3.5">
-                    <span
-                      className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium ${
-                        STATUS_TINT[r.status] ?? 'bg-paper-100 text-paper-700'
-                      }`}
-                    >
-                      <span
-                        aria-hidden
-                        className={`inline-block h-1.5 w-1.5 rounded-full ${
-                          STATUS_DOT[r.status] ?? 'bg-paper-400'
-                        }`}
-                      />
-                      {r.status}
-                    </span>
-                    {r.last_error ? (
-                      <div className="mt-1.5 max-w-md text-xs leading-relaxed text-rose-700">{r.last_error}</div>
-                    ) : null}
-                  </td>
-                  <td className="px-5 py-3.5 text-right tabular-nums text-paper-600">{r.attempts}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+          {health.isPending ? (
+            <div className="panel p-6">
+              <SkeletonRows cols={4} rows={1} />
+            </div>
+          ) : health.isError ? (
+            <div className="rounded-md border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
+              Failed to load health data.
+            </div>
+          ) : (
+            <>
+              <div className="mb-8 grid grid-cols-2 gap-4 sm:grid-cols-4">
+                {([
+                  { label: 'Sent', value: health.data!.data.last24h.sent, color: 'text-emerald-600' },
+                  { label: 'Pending', value: health.data!.data.last24h.pending, color: 'text-paper-600' },
+                  { label: 'Failed / Dead', value: health.data!.data.last24h.failed, color: 'text-rose-600' },
+                  { label: 'Suppressed', value: health.data!.data.last24h.suppressed, color: 'text-paper-500' },
+                ] as const).map((s) => (
+                  <div key={s.label} className="panel p-5">
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-paper-500">
+                      {s.label}
+                    </div>
+                    <div className={`mt-1 font-display text-3xl font-medium tabular-nums ${s.color}`}>
+                      {s.value.toLocaleString()}
+                    </div>
+                  </div>
+                ))}
+              </div>
 
-        <div className="mt-4 flex items-center justify-between text-sm text-paper-600">
-          <span className="tabular-nums">
-            {outbox.data ? `${outbox.data.meta.total.toLocaleString()} total` : ''}
-          </span>
-          <div className="flex items-center gap-2">
-            <button
-              disabled={page <= 1}
-              onClick={() => setPage((p) => p - 1)}
-              className="btn-ghost disabled:opacity-40"
-            >
-              ← Previous
-            </button>
-            <span className="tabular-nums">
-              Page {page} of {outbox.data?.meta.pages ?? 1}
-            </span>
-            <button
-              disabled={page >= (outbox.data?.meta.pages ?? 1)}
-              onClick={() => setPage((p) => p + 1)}
-              className="btn-ghost disabled:opacity-40"
-            >
-              Next →
-            </button>
-          </div>
-        </div>
-      </section>
+              <div className="mb-3 flex items-end justify-between gap-3">
+                <h3 className="font-display text-lg font-medium text-ink">Recent failures</h3>
+                <span className="text-xs tabular-nums text-paper-500">
+                  {health.data!.data.failures.length} row{health.data!.data.failures.length !== 1 ? 's' : ''}
+                </span>
+              </div>
+
+              {health.data!.data.failures.length === 0 ? (
+                <EmptyState
+                  title="No failures."
+                  description="All notifications delivered successfully."
+                />
+              ) : (
+                <div className="panel overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-paper-200 text-left text-[11px] font-semibold uppercase tracking-[0.14em] text-paper-500">
+                        <th className="px-5 py-3">Created</th>
+                        <th className="px-5 py-3">Recipient</th>
+                        <th className="px-5 py-3">Template</th>
+                        <th className="px-5 py-3">Error</th>
+                        <th className="px-5 py-3 text-right">Attempts</th>
+                        <th className="px-5 py-3" />
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {health.data!.data.failures.map((r) => (
+                        <tr key={r.id} className="border-t border-paper-100 align-top transition hover:bg-paper-50/70">
+                          <td className="px-5 py-3.5 tabular-nums text-paper-700">
+                            <Timestamp value={r.created_at} />
+                          </td>
+                          <td className="px-5 py-3.5 text-paper-700">{r.to_address}</td>
+                          <td className="px-5 py-3.5">
+                            <code className="rounded bg-paper-100 px-1.5 py-0.5 font-mono text-[11px] text-ink">
+                              {r.template_key}
+                            </code>
+                          </td>
+                          <td className="max-w-xs px-5 py-3.5 text-xs leading-relaxed text-rose-700">
+                            {r.last_error ?? 'Unknown error'}
+                          </td>
+                          <td className="px-5 py-3.5 text-right tabular-nums text-paper-600">
+                            {r.attempts}/{r.max_attempts}
+                          </td>
+                          <td className="px-5 py-3.5 text-right">
+                            <button
+                              type="button"
+                              disabled={requeue.isPending}
+                              onClick={() => requeue.mutate(r.id)}
+                              className="btn-ghost text-xs text-brand-accent hover:text-brand-accent/80 disabled:opacity-40"
+                            >
+                              Re-queue
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </>
+          )}
+        </section>
+      )}
 
       {testingKey ? (
         <div
