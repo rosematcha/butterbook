@@ -2,6 +2,11 @@
   "name": "butterbook",
   "private": true,
   "version": "0.1.0",
+  "license": "AGPL-3.0-only",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/rosematcha/butterbook.git"
+  },
   "packageManager": "pnpm@9.12.3",
   "scripts": {
     "build": "turbo run build",

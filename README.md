@@ -72,3 +72,7 @@ Direct `db` access is reserved for cross-tenant bootstrap paths (users, orgs cre
 - `pnpm lint` runs ESLint across the workspace, including the local `no-direct-tenant-db` rule.
 - `pnpm audit --audit-level=high` runs in CI; Renovate manages dependency updates on a weekly schedule.
 - Prometheus metrics are exposed at `/metrics` behind a `METRICS_TOKEN` bearer (HTTP histogram, DB histogram, pool gauge, rate-limit counter).
+
+## License
+
+Butterbook is licensed under the [GNU Affero General Public License v3.0](LICENSE). You can run the hosted version, self-host the code on your own infrastructure, or modify it for your organization's needs. If you offer a modified version as a network service, the AGPL requires you to make your modifications available under the same license.
