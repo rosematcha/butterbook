@@ -8,6 +8,7 @@ import { useToast } from '../../../lib/toast';
 import { EmptyState } from '../../components/empty-state';
 import { SkeletonRows } from '../../components/skeleton-rows';
 import { Timestamp } from '../../components/timestamp';
+import { BulkActionBar } from '../../components/bulk-action-bar';
 import { contactName, tagsFromText, type Contact, type ContactListResponse } from './types';
 
 function apiErrMsg(e: unknown, fallback: string): string {
@@ -23,6 +24,16 @@ function initials(c: Contact): string {
   return email[0]?.toUpperCase() ?? '?';
 }
 
+type BulkTagResult = { data: Record<string, { ok: boolean; error?: string }> };
+
+function bulkTagSummary(results: Record<string, { ok: boolean; error?: string }>): string {
+  const entries = Object.values(results);
+  const ok = entries.filter((r) => r.ok).length;
+  const errors = entries.length - ok;
+  if (errors === 0) return `Updated ${ok} contact${ok === 1 ? '' : 's'}`;
+  return `Updated ${ok} contact${ok === 1 ? '' : 's'} (${errors} error${errors === 1 ? '' : 's'})`;
+}
+
 export default function ContactsPage() {
   const { activeOrgId } = useSession();
   const qc = useQueryClient();
@@ -32,6 +43,9 @@ export default function ContactsPage() {
   const [page, setPage] = useState(1);
   const [addOpen, setAddOpen] = useState(false);
   const [newContact, setNewContact] = useState({ email: '', firstName: '', lastName: '', tags: '' });
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkTagInput, setBulkTagInput] = useState('');
+  const [bulkTagMode, setBulkTagMode] = useState<'add' | 'remove'>('add');
 
   const query = useMemo(() => {
     const p = new URLSearchParams({ page: String(page), limit: '50' });
@@ -63,14 +77,54 @@ export default function ContactsPage() {
     onError: (e) => toast.push({ kind: 'error', message: apiErrMsg(e, 'Contact could not be created') }),
   });
 
+  const bulkTag = useMutation({
+    mutationFn: (body: { contactIds: string[]; add?: string[]; remove?: string[] }) =>
+      apiPost<BulkTagResult>(`/api/v1/orgs/${activeOrgId}/contacts/bulk-tag`, body),
+    onSuccess: (res) => {
+      qc.invalidateQueries({ queryKey: ['contacts', activeOrgId] });
+      setSelected(new Set());
+      setBulkTagInput('');
+      toast.push({ kind: 'success', message: bulkTagSummary(res.data) });
+    },
+    onError: (e) => toast.push({ kind: 'error', message: apiErrMsg(e, 'Bulk tag failed') }),
+  });
+
   function onCreate(e: FormEvent) {
     e.preventDefault();
     create.mutate();
   }
 
+  function onBulkTag(e: FormEvent) {
+    e.preventDefault();
+    const tags = tagsFromText(bulkTagInput);
+    if (tags.length === 0 || selectedArray.length === 0) return;
+    const body = bulkTagMode === 'add'
+      ? { contactIds: selectedArray, add: tags }
+      : { contactIds: selectedArray, remove: tags };
+    bulkTag.mutate(body);
+  }
+
   const rows = contacts.data?.data ?? [];
   const meta = contacts.data?.meta;
   const filtered = q.trim() || tag.trim();
+  const allIds = rows.map((c) => c.id);
+  const selectedArray = Array.from(selected).filter((id) => allIds.includes(id));
+
+  function toggleSelect(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleAll() {
+    if (selectedArray.length === allIds.length) {
+      setSelected(new Set());
+    } else {
+      setSelected(new Set(allIds));
+    }
+  }
 
   return (
     <div>
@@ -171,20 +225,20 @@ export default function ContactsPage() {
             <input
               className="input pl-9"
               value={q}
-              onChange={(e) => { setQ(e.target.value); setPage(1); }}
+              onChange={(e) => { setQ(e.target.value); setPage(1); setSelected(new Set()); }}
               placeholder="Search name, email, or phone"
             />
           </div>
           <input
             className="input"
             value={tag}
-            onChange={(e) => { setTag(e.target.value); setPage(1); }}
+            onChange={(e) => { setTag(e.target.value); setPage(1); setSelected(new Set()); }}
             placeholder="Filter by tag"
           />
           <button
             type="button"
             className="btn-ghost"
-            onClick={() => { setQ(''); setTag(''); setPage(1); }}
+            onClick={() => { setQ(''); setTag(''); setPage(1); setSelected(new Set()); }}
             disabled={!filtered}
           >
             Clear filters
@@ -205,6 +259,16 @@ export default function ContactsPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-paper-200 text-left text-[11px] font-semibold uppercase tracking-[0.14em] text-paper-500">
+                <th className="w-8 px-3 py-3">
+                  {rows.length > 0 ? (
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 rounded border-paper-300"
+                      checked={selectedArray.length === allIds.length && allIds.length > 0}
+                      onChange={toggleAll}
+                    />
+                  ) : null}
+                </th>
                 <th className="px-5 py-3">Contact</th>
                 <th className="px-5 py-3">Tags</th>
                 <th className="px-5 py-3">Phone</th>
@@ -213,9 +277,20 @@ export default function ContactsPage() {
             </thead>
             <tbody>
               {contacts.isPending
-                ? <SkeletonRows cols={4} rows={8} />
+                ? <SkeletonRows cols={5} rows={8} />
                 : rows.map((c) => (
-                  <tr key={c.id} className="group border-t border-paper-100 transition hover:bg-paper-50/70">
+                  <tr
+                    key={c.id}
+                    className={`group border-t border-paper-100 transition hover:bg-paper-50/70 ${selected.has(c.id) ? 'bg-brand-accent/5' : ''}`}
+                  >
+                    <td className="px-3 py-3.5">
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 rounded border-paper-300"
+                        checked={selected.has(c.id)}
+                        onChange={() => toggleSelect(c.id)}
+                      />
+                    </td>
                     <td className="px-5 py-3.5">
                       <div className="flex items-center gap-3">
                         <span
@@ -266,16 +341,42 @@ export default function ContactsPage() {
         <div className="mt-4 flex items-center justify-between text-sm text-paper-600">
           <span className="tabular-nums">{meta.total} contacts</span>
           <div className="flex items-center gap-2">
-            <button className="btn-ghost" disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>
+            <button className="btn-ghost" disabled={page <= 1} onClick={() => { setPage((p) => Math.max(1, p - 1)); setSelected(new Set()); }}>
               ← Previous
             </button>
             <span className="tabular-nums">Page {meta.page} of {meta.pages}</span>
-            <button className="btn-ghost" disabled={page >= meta.pages} onClick={() => setPage((p) => p + 1)}>
+            <button className="btn-ghost" disabled={page >= meta.pages} onClick={() => { setPage((p) => p + 1); setSelected(new Set()); }}>
               Next →
             </button>
           </div>
         </div>
       ) : null}
+
+      <BulkActionBar count={selectedArray.length} onClear={() => setSelected(new Set())}>
+        <form onSubmit={onBulkTag} className="flex items-center gap-2">
+          <select
+            className="input py-1 text-xs"
+            value={bulkTagMode}
+            onChange={(e) => setBulkTagMode(e.target.value as 'add' | 'remove')}
+          >
+            <option value="add">Add tags</option>
+            <option value="remove">Remove tags</option>
+          </select>
+          <input
+            className="input w-40 py-1 text-xs"
+            value={bulkTagInput}
+            onChange={(e) => setBulkTagInput(e.target.value)}
+            placeholder="tag1, tag2"
+          />
+          <button
+            type="submit"
+            className="btn text-xs"
+            disabled={bulkTag.isPending || !bulkTagInput.trim()}
+          >
+            {bulkTag.isPending ? 'Applying…' : 'Apply'}
+          </button>
+        </form>
+      </BulkActionBar>
     </div>
   );
 }
