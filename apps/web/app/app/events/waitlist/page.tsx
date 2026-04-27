@@ -4,6 +4,7 @@ import { useSearchParams } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiDelete, apiGet, apiPost } from '../../../../lib/api';
 import { useSession } from '../../../../lib/session';
+import { EmptyState } from '../../../components/empty-state';
 
 interface WaitlistEntry {
   id: string;
@@ -68,7 +69,7 @@ function WaitlistInner() {
               </tr>
             ))}
             {waitlist.data && waitlist.data.data.length === 0 ? (
-              <tr><td colSpan={5} className="py-4 text-center text-slate-500">No entries.</td></tr>
+              <tr><td colSpan={5} className="py-2"><EmptyState title="No waitlist entries." description="Visitors will appear here when the event reaches capacity." /></td></tr>
             ) : null}
           </tbody>
         </table>

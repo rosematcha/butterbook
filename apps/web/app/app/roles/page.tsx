@@ -7,6 +7,7 @@ import { usePermissions } from '../../../lib/permissions';
 import { useSession } from '../../../lib/session';
 import { EmptyState } from '../../components/empty-state';
 import { SkeletonRows } from '../../components/skeleton-rows';
+import { SettingsBackLink } from '../settings/_components/back-link';
 
 interface Role {
   id: string;
@@ -92,6 +93,7 @@ export default function RolesPage() {
 
   return (
     <div className="space-y-6">
+      <SettingsBackLink />
       <section className="card">
         <h2 className="text-lg font-semibold">New role</h2>
         <form
@@ -122,7 +124,7 @@ export default function RolesPage() {
             {roles.isPending ? (
               <SkeletonRows cols={3} rows={3} />
             ) : (roles.data?.data ?? []).length === 0 ? (
-              <tr><td colSpan={3} className="py-4 text-center text-slate-500">No custom roles yet.</td></tr>
+              <tr><td colSpan={3} className="py-2"><EmptyState title="No custom roles yet." description="Create a role to grant specific permissions to members." /></td></tr>
             ) : (
               (roles.data?.data ?? []).map((r) => (
                 <tr key={r.id} className="border-t border-slate-100">
