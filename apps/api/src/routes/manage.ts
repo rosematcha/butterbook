@@ -6,7 +6,8 @@ import { AuthenticationError, ConflictError, NotFoundError, PermissionError } fr
 import { verifyManageToken } from '../utils/manage-token.js';
 import { slotsForDate, type SlotRounding } from '../services/availability.js';
 import { cancelMembershipInTx, publicMembership, selectMembership } from '../services/memberships.js';
-import { cancelStripeSubscription } from '../services/stripe.js';
+import { cancelStripeSubscription, createBillingPortalSession } from '../services/stripe.js';
+import { getConfig } from '../config.js';
 import { redactVisitorInTx } from '../services/contacts.js';
 import { cancelVisitInTx, rescheduleVisitInTx } from '../services/visits.js';
 import { buildCalendar } from '../services/ical.js';
@@ -331,6 +332,43 @@ export function registerManageRoutes(app: FastifyInstance): void {
         });
       }
       return { data: { ok: true } };
+    });
+  });
+
+  app.post('/api/v1/manage/:token/memberships/:membershipId/billing-portal-session', rl, async (req) => {
+    const { token, membershipId } = membershipTokenParam.parse(req.params);
+    const { visit } = await resolveToken(token);
+
+    return withOrgRead(visit.org_id, async (tx) => {
+      const membership = await tx
+        .selectFrom('memberships')
+        .innerJoin('visitors', 'visitors.id', 'memberships.visitor_id')
+        .select(['visitors.stripe_customer_id', 'memberships.visitor_id'])
+        .where('memberships.org_id', '=', visit.org_id)
+        .where('memberships.id', '=', membershipId)
+        .executeTakeFirst();
+      if (!membership) throw new NotFoundError();
+      // Ensure the token's visitor matches the membership's visitor
+      if (visit.visitor_id && membership.visitor_id !== visit.visitor_id) {
+        throw new PermissionError('Token does not belong to this membership holder.');
+      }
+      if (!membership.stripe_customer_id) throw new ConflictError('No Stripe customer linked to this membership.');
+
+      const stripeAccount = await tx
+        .selectFrom('org_stripe_accounts')
+        .select(['stripe_account_id'])
+        .where('org_id', '=', visit.org_id)
+        .executeTakeFirst();
+      if (!stripeAccount) throw new ConflictError('Stripe is not connected for this organization.');
+
+      const cfg = getConfig();
+      const returnUrl = `${cfg.APP_BASE_URL}/manage/${token}`;
+      const session = await createBillingPortalSession(
+        stripeAccount.stripe_account_id,
+        membership.stripe_customer_id,
+        returnUrl,
+      );
+      return { data: { url: session.url } };
     });
   });
 
