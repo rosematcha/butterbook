@@ -14,6 +14,7 @@ export interface MembershipTier {
   guestPassesIncluded: number;
   memberOnlyEventAccess: boolean;
   maxActive: number | null;
+  trialPeriodDays: number;
   sortOrder: number;
   active: boolean;
   deletedAt: string | null;

@@ -106,6 +106,7 @@ export interface MembershipTiersTable {
   member_only_event_access: Generated<boolean>;
   stripe_price_id: string | null;
   max_active: number | null;
+  trial_period_days: Generated<number>;
   sort_order: Generated<number>;
   active: Generated<boolean>;
   deleted_at: Timestamp | null;

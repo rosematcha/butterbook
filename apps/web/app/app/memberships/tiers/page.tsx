@@ -1,12 +1,15 @@
 'use client';
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { Suspense, useEffect, useMemo, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { apiDelete, apiGet, apiPatch, apiPost, ApiError } from '../../../../lib/api';
 import { useConfirm } from '../../../../lib/confirm';
 import { usePermissions } from '../../../../lib/permissions';
 import { useSession } from '../../../../lib/session';
 import { useToast } from '../../../../lib/toast';
 import { EmptyState } from '../../../components/empty-state';
+import { Timestamp } from '../../../components/timestamp';
+import { MembershipsTabs } from '../_components/tabs';
 import { intervalLabel, money, type MembershipBillingInterval, type MembershipTier } from '../types';
 
 interface TierDraft {
@@ -19,6 +22,7 @@ interface TierDraft {
   durationDays: string;
   guestPassesIncluded: string;
   maxActive: string;
+  trialPeriodDays: string;
   sortOrder: string;
   memberOnlyEventAccess: boolean;
   active: boolean;
@@ -34,6 +38,7 @@ const emptyDraft: TierDraft = {
   durationDays: '365',
   guestPassesIncluded: '0',
   maxActive: '',
+  trialPeriodDays: '0',
   sortOrder: '0',
   memberOnlyEventAccess: true,
   active: true,
@@ -44,19 +49,49 @@ function apiErrMsg(e: unknown, fallback: string): string {
 }
 
 export default function MembershipTiersPage() {
-  const { activeOrgId } = useSession();
+  return (
+    <Suspense fallback={null}>
+      <MembershipTiersPageInner />
+    </Suspense>
+  );
+}
+
+function MembershipTiersPageInner() {
+  const { activeOrgId, membership } = useSession();
+  const isSuperadmin = membership?.isSuperadmin ?? false;
   const perms = usePermissions();
   const canView = perms.has('memberships.view_all');
   const canManage = perms.has('memberships.manage');
   const qc = useQueryClient();
   const toast = useToast();
   const confirm = useConfirm();
+  const router = useRouter();
+  const pathname = usePathname();
+  const params = useSearchParams();
   const [draft, setDraft] = useState<TierDraft>(emptyDraft);
   const [editorOpen, setEditorOpen] = useState(false);
 
+  const showDeleted = isSuperadmin && params.get('include_deleted') === '1';
+
+  function toggleShowDeleted() {
+    const sp = new URLSearchParams(params.toString());
+    if (showDeleted) {
+      sp.delete('include_deleted');
+    } else {
+      sp.set('include_deleted', '1');
+    }
+    const qs = sp.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname);
+  }
+
+  const tiersKey = ['membership-tiers', activeOrgId, showDeleted ? 'with-deleted' : 'active'] as const;
+
   const tiers = useQuery({
-    queryKey: ['membership-tiers', activeOrgId],
-    queryFn: () => apiGet<{ data: MembershipTier[] }>(`/api/v1/orgs/${activeOrgId}/membership-tiers`),
+    queryKey: tiersKey,
+    queryFn: () =>
+      apiGet<{ data: MembershipTier[] }>(
+        `/api/v1/orgs/${activeOrgId}/membership-tiers${showDeleted ? '?include_deleted=true' : ''}`,
+      ),
     enabled: !!activeOrgId && canView,
   });
 
@@ -78,6 +113,7 @@ export default function MembershipTiersPage() {
         guestPassesIncluded: Number(draft.guestPassesIncluded || '0'),
         memberOnlyEventAccess: draft.memberOnlyEventAccess,
         maxActive: draft.maxActive.trim() === '' ? null : Number(draft.maxActive),
+        trialPeriodDays: Number(draft.trialPeriodDays || '0'),
         sortOrder: Number(draft.sortOrder || '0'),
         active: draft.active,
       };
@@ -88,7 +124,7 @@ export default function MembershipTiersPage() {
     onSuccess: (res) => {
       setDraft(emptyDraft);
       setEditorOpen(false);
-      qc.invalidateQueries({ queryKey: ['membership-tiers', activeOrgId] });
+      qc.invalidateQueries({ queryKey: tiersKey });
       toast.push({ kind: 'success', message: 'Tier saved', description: res.data.name });
     },
     onError: (e) => toast.push({ kind: 'error', message: apiErrMsg(e, 'Tier could not be saved') }),
@@ -97,10 +133,19 @@ export default function MembershipTiersPage() {
   const remove = useMutation({
     mutationFn: (id: string) => apiDelete(`/api/v1/orgs/${activeOrgId}/membership-tiers/${id}`),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['membership-tiers', activeOrgId] });
+      qc.invalidateQueries({ queryKey: tiersKey });
       toast.push({ kind: 'success', message: 'Tier archived' });
     },
     onError: (e) => toast.push({ kind: 'error', message: apiErrMsg(e, 'Tier could not be archived') }),
+  });
+
+  const restoreTier = useMutation({
+    mutationFn: (id: string) => apiPost(`/api/v1/orgs/${activeOrgId}/membership-tiers/${id}/restore`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: tiersKey });
+      toast.push({ kind: 'success', message: 'Tier restored' });
+    },
+    onError: (e) => toast.push({ kind: 'error', message: apiErrMsg(e, 'Could not restore tier') }),
   });
 
   function editTier(tier: MembershipTier) {
@@ -114,6 +159,7 @@ export default function MembershipTiersPage() {
       durationDays: tier.durationDays == null ? '' : String(tier.durationDays),
       guestPassesIncluded: String(tier.guestPassesIncluded),
       maxActive: tier.maxActive == null ? '' : String(tier.maxActive),
+      trialPeriodDays: String(tier.trialPeriodDays),
       sortOrder: String(tier.sortOrder),
       memberOnlyEventAccess: tier.memberOnlyEventAccess,
       active: tier.active,
@@ -160,7 +206,7 @@ export default function MembershipTiersPage() {
 
   return (
     <div>
-      <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
+      <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
         <div>
           <div className="h-eyebrow">Members &amp; CRM</div>
           <h1 className="h-display mt-1">Tiers</h1>
@@ -172,6 +218,12 @@ export default function MembershipTiersPage() {
           <span className="text-sm tabular-nums text-paper-500">
             {rows.length} total · {activeCount} active
           </span>
+          {isSuperadmin ? (
+            <label className="flex items-center gap-2 text-xs text-paper-600">
+              <input type="checkbox" checked={showDeleted} onChange={toggleShowDeleted} />
+              Show deleted
+            </label>
+          ) : null}
           {canManage ? (
             <button type="button" className="btn" onClick={newTier}>
               New tier
@@ -179,6 +231,8 @@ export default function MembershipTiersPage() {
           ) : null}
         </div>
       </div>
+
+      <MembershipsTabs />
 
       {canManage && editorOpen ? (
         <form onSubmit={onSubmit} className="panel relative mb-6 overflow-hidden p-6">
@@ -274,7 +328,7 @@ export default function MembershipTiersPage() {
                   />
                 </label>
               </div>
-              <div className="grid gap-4 sm:grid-cols-3">
+              <div className="grid gap-4 sm:grid-cols-4">
                 <label className="block">
                   <span className="h-eyebrow">Guest passes</span>
                   <input
@@ -294,6 +348,18 @@ export default function MembershipTiersPage() {
                     value={draft.maxActive}
                     onChange={(e) => setDraft((d) => ({ ...d, maxActive: e.target.value }))}
                     placeholder="None"
+                  />
+                </label>
+                <label className="block">
+                  <span className="h-eyebrow">Trial days</span>
+                  <input
+                    className="input mt-1 tabular-nums"
+                    type="number"
+                    min={0}
+                    max={365}
+                    value={draft.trialPeriodDays}
+                    onChange={(e) => setDraft((d) => ({ ...d, trialPeriodDays: e.target.value }))}
+                    disabled={draft.billingInterval !== 'year' && draft.billingInterval !== 'month'}
                   />
                 </label>
                 <label className="block">
@@ -349,9 +415,11 @@ export default function MembershipTiersPage() {
             <TierCard
               key={tier.id}
               tier={tier}
-              featured={i === 1 && rows.length >= 3}
-              onEdit={canManage ? () => editTier(tier) : undefined}
-              onArchive={canManage ? () => archiveTier(tier) : undefined}
+              featured={i === 1 && rows.length >= 3 && !tier.deletedAt}
+              onEdit={canManage && !tier.deletedAt ? () => editTier(tier) : undefined}
+              onArchive={canManage && !tier.deletedAt ? () => archiveTier(tier) : undefined}
+              onRestore={isSuperadmin && !!tier.deletedAt ? () => restoreTier.mutate(tier.id) : undefined}
+              isRestoring={restoreTier.isPending}
             />
           ))}
         </div>
@@ -365,18 +433,23 @@ function TierCard({
   featured,
   onEdit,
   onArchive,
+  onRestore,
+  isRestoring,
 }: {
   tier: MembershipTier;
   featured: boolean;
   onEdit?: () => void;
   onArchive?: () => void;
+  onRestore?: () => void;
+  isRestoring?: boolean;
 }) {
   const interval = intervalLabel(tier.billingInterval);
+  const isDeleted = !!tier.deletedAt;
   return (
     <article
       className={`group relative flex flex-col overflow-hidden rounded-lg border bg-white p-6 transition ${
         featured ? 'border-brand-accent/40 shadow-[0_4px_20px_rgb(0_0_0/0.04)]' : 'border-paper-200'
-      } ${!tier.active ? 'opacity-70' : ''}`}
+      } ${isDeleted ? 'opacity-50' : !tier.active ? 'opacity-70' : ''}`}
     >
       {featured ? (
         <div
@@ -393,7 +466,11 @@ function TierCard({
             {tier.name}
           </h3>
         </div>
-        {tier.active ? (
+        {isDeleted ? (
+          <span className="shrink-0 rounded bg-red-100 px-1.5 py-0.5 text-[10px] font-medium text-red-700">
+            Deleted <Timestamp value={tier.deletedAt!} />
+          </span>
+        ) : tier.active ? (
           <span className="badge-accent shrink-0">Active</span>
         ) : (
           <span className="badge shrink-0">Archived</span>
@@ -438,27 +515,43 @@ function TierCard({
               : 'No term set'
           }
         />
+        {tier.trialPeriodDays > 0 ? (
+          <FeatureRow on label={`${tier.trialPeriodDays}-day free trial`} />
+        ) : null}
         {tier.maxActive != null ? (
           <FeatureRow on label={`Capped at ${tier.maxActive} active`} muted />
         ) : null}
       </ul>
 
-      {(onEdit || onArchive) ? (
+      {(onEdit || onArchive || onRestore) ? (
         <div className="relative mt-6 flex items-center justify-between border-t border-paper-100 pt-4 text-xs">
           <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-paper-400">
             Sort {tier.sortOrder}
           </span>
           <div className="flex items-center gap-1">
-            {onEdit ? (
-              <button type="button" className="btn-ghost text-xs" onClick={onEdit}>
-                Edit
+            {onRestore ? (
+              <button
+                type="button"
+                className="btn-ghost text-xs font-medium text-emerald-700"
+                onClick={onRestore}
+                disabled={isRestoring}
+              >
+                Restore
               </button>
-            ) : null}
-            {onArchive && tier.active ? (
-              <button type="button" className="btn-ghost text-xs text-red-700 hover:bg-red-50" onClick={onArchive}>
-                Archive
-              </button>
-            ) : null}
+            ) : (
+              <>
+                {onEdit ? (
+                  <button type="button" className="btn-ghost text-xs" onClick={onEdit}>
+                    Edit
+                  </button>
+                ) : null}
+                {onArchive && tier.active ? (
+                  <button type="button" className="btn-ghost text-xs text-red-700 hover:bg-red-50" onClick={onArchive}>
+                    Archive
+                  </button>
+                ) : null}
+              </>
+            )}
           </div>
         </div>
       ) : null}

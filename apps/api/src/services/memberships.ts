@@ -35,6 +35,7 @@ export function publicTier(row: {
   guest_passes_included: number;
   member_only_event_access: boolean;
   max_active: number | null;
+  trial_period_days: number;
   sort_order: number;
   active: boolean;
   deleted_at: Date | null;
@@ -52,6 +53,7 @@ export function publicTier(row: {
     guestPassesIncluded: row.guest_passes_included,
     memberOnlyEventAccess: row.member_only_event_access,
     maxActive: row.max_active,
+    trialPeriodDays: row.trial_period_days,
     sortOrder: row.sort_order,
     active: row.active,
     deletedAt: row.deleted_at?.toISOString() ?? null,

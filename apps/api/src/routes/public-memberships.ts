@@ -162,6 +162,7 @@ export function registerPublicMembershipRoutes(app: FastifyInstance): void {
                 discountCents: promo.discountCents,
               }
             : {}),
+          trialPeriodDays: tier.trial_period_days,
           successUrl: body.successUrl,
           cancelUrl: body.cancelUrl,
         });

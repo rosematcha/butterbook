@@ -15,6 +15,7 @@ export const createMembershipTierSchema = z
     guestPassesIncluded: z.number().int().min(0).max(500).optional(),
     memberOnlyEventAccess: z.boolean().optional(),
     maxActive: z.number().int().positive().nullable().optional(),
+    trialPeriodDays: z.number().int().min(0).max(365).optional(),
     sortOrder: z.number().int().optional(),
     active: z.boolean().optional(),
   })
