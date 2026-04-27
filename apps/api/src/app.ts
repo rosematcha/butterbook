@@ -43,6 +43,7 @@ import { registerStripeRoutes } from './routes/stripe.js';
 import { registerPublicMembershipRoutes } from './routes/public-memberships.js';
 import { registerApiKeyRoutes } from './routes/api-keys.js';
 import { registerSsoRoutes } from './routes/sso.js';
+import { registerUnsubscribeRoutes } from './routes/unsubscribe.js';
 import { registerMetricsRoutes } from './plugins/metrics.js';
 
 declare module 'fastify' {
@@ -89,11 +90,23 @@ export async function buildApp(): Promise<FastifyInstance> {
     });
   }
 
+  registerSecurityHeaders(app);
+  registerErrorHandler(app);
+  // Auth-context must be registered before the rate limiter so that
+  // req.apiKeyId / req.userId are populated by the time keyGenerator runs.
+  registerAuthContext(app);
+
   await app.register(fastifyRateLimit, {
     global: true,
-    max: 300,
+    max: (req) => {
+      // API-key-authenticated requests get a higher per-key bucket (600/min)
+      // compared to the default 300/min per-user / per-IP.
+      if (req.apiKeyId) return 600;
+      return 300;
+    },
     timeWindow: '1 minute',
     keyGenerator: (req) => {
+      if (req.apiKeyId) return `apikey:${req.apiKeyId}`;
       if (req.userId) return `user:${req.userId}`;
       return `ip:${req.ip}`;
     },
@@ -103,10 +116,6 @@ export async function buildApp(): Promise<FastifyInstance> {
     // leave the route matrix red. Skip limits entirely when NODE_ENV=test.
     ...(cfg.NODE_ENV === 'test' ? { allowList: () => true } : {}),
   });
-
-  registerSecurityHeaders(app);
-  registerErrorHandler(app);
-  registerAuthContext(app);
 
   app.addHook('preParsing', async (req, _reply, payload) => {
     if (req.method !== 'POST' || !req.url.startsWith('/api/v1/stripe/webhook/')) return payload;
@@ -173,6 +182,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   registerPublicMembershipRoutes(app);
   registerApiKeyRoutes(app);
   registerSsoRoutes(app);
+  registerUnsubscribeRoutes(app);
   registerMetricsRoutes(app);
 
   return app;
