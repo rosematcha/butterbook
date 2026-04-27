@@ -42,6 +42,8 @@ export interface DB {
   stripe_events: StripeEventsTable;
   org_api_keys: OrgApiKeysTable;
   org_sso_providers: OrgSsoProvidersTable;
+  org_subscriptions: OrgSubscriptionsTable;
+  org_usage_periods: OrgUsagePeriodsTable;
 }
 
 export interface BroadcastsTable {
@@ -268,6 +270,9 @@ export interface OrgsTable {
   logo_url: string | null;
   theme: Generated<Jsonb>;
   form_fields: Generated<Jsonb>;
+  plan: Generated<PlanSlugDb>;
+  plan_status: Generated<PlanStatusDb>;
+  plan_grandfathered_until: Timestamp | null;
   is_demo: Generated<boolean>;
   created_at: Generated<Timestamp>;
   updated_at: Generated<Timestamp>;
@@ -563,5 +568,32 @@ export interface OrgSsoProvidersTable {
   sso_required: Generated<boolean>;
   enabled: Generated<boolean>;
   created_at: Generated<Timestamp>;
+  updated_at: Generated<Timestamp>;
+}
+
+export type PlanSlugDb = 'free' | 'starter' | 'growth' | 'professional';
+export type PlanStatusDb = 'active' | 'past_due' | 'cancelled' | 'incomplete';
+
+export interface OrgSubscriptionsTable {
+  org_id: string;
+  stripe_customer_id: string | null;
+  stripe_subscription_id: string | null;
+  current_plan: Generated<PlanSlugDb>;
+  current_period_start: Timestamp | null;
+  current_period_end: Timestamp | null;
+  cancel_at_period_end: Generated<boolean>;
+  last_invoice_status: string | null;
+  last_synced_at: Timestamp | null;
+  created_at: Generated<Timestamp>;
+  updated_at: Generated<Timestamp>;
+}
+
+export interface OrgUsagePeriodsTable {
+  org_id: string;
+  period_yyyymm: number;
+  appointments_count: Generated<number>;
+  events_count: Generated<number>;
+  cap_warning_sent_at: Timestamp | null;
+  cap_exceeded_at: Timestamp | null;
   updated_at: Generated<Timestamp>;
 }

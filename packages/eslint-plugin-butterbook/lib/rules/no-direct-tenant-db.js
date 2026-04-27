@@ -52,6 +52,8 @@ const TENANT_TABLES = new Set([
   'stripe_events',
   'org_api_keys',
   'org_sso_providers',
+  'org_subscriptions',
+  'org_usage_periods',
 ]);
 
 const MUTATING_METHODS = new Set(['selectFrom', 'insertInto', 'updateTable', 'deleteFrom']);
