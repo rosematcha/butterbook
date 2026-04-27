@@ -71,7 +71,7 @@ export function registerMetricsRoutes(app: FastifyInstance): void {
     const token = getConfig().METRICS_TOKEN;
     if (!token) {
       return reply.status(404).type('application/problem+json').send({
-        type: 'https://scheduler.app/errors/not_found',
+        type: 'https://butterbook.app/errors/not_found',
         title: 'Not Found',
         status: 404,
       });
@@ -82,7 +82,7 @@ export function registerMetricsRoutes(app: FastifyInstance): void {
     const b = Buffer.from(expected);
     if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
       return reply.status(401).type('application/problem+json').send({
-        type: 'https://scheduler.app/errors/authentication_required',
+        type: 'https://butterbook.app/errors/authentication_required',
         title: 'Authentication Required',
         status: 401,
       });
