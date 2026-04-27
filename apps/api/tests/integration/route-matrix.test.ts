@@ -56,6 +56,7 @@ interface Ctx {
   // Send is a one-shot state transition; reuse a separate row so the rest of
   // the broadcast matrix can keep operating on a draft.
   sendableBroadcastId: string;
+  deadNotificationId: string;
 }
 
 interface RouteCase {
@@ -134,6 +135,7 @@ const ROUTES: RouteCase[] = [
   { name: 'POST membership cancel', method: 'POST', url: (c) => `/api/v1/orgs/${c.orgId}/memberships/${c.membershipId}/cancel`, body: () => ({ reason: 'requested' }), notFoundUrl: (c) => `/api/v1/orgs/${c.orgId}/memberships/00000000-0000-0000-0000-000000000000/cancel` },
   { name: 'POST membership renew', method: 'POST', url: (c) => `/api/v1/orgs/${c.orgId}/memberships/${c.membershipId}/renew`, body: () => ({ amountCents: 5000 }), invalidBody: () => ({ amountCents: -1 }), notFoundUrl: (c) => `/api/v1/orgs/${c.orgId}/memberships/00000000-0000-0000-0000-000000000000/renew` },
   { name: 'POST membership refund', method: 'POST', url: (c) => `/api/v1/orgs/${c.orgId}/memberships/${c.membershipId}/refund`, body: () => ({ amountCents: 5000 }), invalidBody: () => ({ amountCents: -1 }), notFoundUrl: (c) => `/api/v1/orgs/${c.orgId}/memberships/00000000-0000-0000-0000-000000000000/refund` },
+  { name: 'POST membership billing-portal-session', method: 'POST', url: (c) => `/api/v1/orgs/${c.orgId}/memberships/${c.membershipId}/billing-portal-session`, happyStatus: 409, notFoundUrl: (c) => `/api/v1/orgs/${c.orgId}/memberships/00000000-0000-0000-0000-000000000000/billing-portal-session` },
   // --- guest passes ---
   { name: 'GET guest-passes', method: 'GET', url: (c) => `/api/v1/orgs/${c.orgId}/guest-passes` },
   { name: 'POST issue guest-passes', method: 'POST', url: (c) => `/api/v1/orgs/${c.orgId}/memberships/${c.membershipId}/guest-passes`, notFoundUrl: (c) => `/api/v1/orgs/${c.orgId}/memberships/00000000-0000-0000-0000-000000000000/guest-passes` },
@@ -184,6 +186,11 @@ const ROUTES: RouteCase[] = [
   { name: 'PATCH role', method: 'PATCH', url: (c) => `/api/v1/orgs/${c.orgId}/roles/${c.roleId}`, body: () => ({ description: 'new' }) },
   { name: 'GET role permissions', method: 'GET', url: (c) => `/api/v1/orgs/${c.orgId}/roles/${c.roleId}/permissions` },
   { name: 'PUT role permissions', method: 'PUT', url: (c) => `/api/v1/orgs/${c.orgId}/roles/${c.roleId}/permissions`, body: () => ({ permissions: ['visits.view_all'] }), invalidBody: () => ({ permissions: ['not.a.real.permission'] }) },
+
+  // --- member roles ---
+  { name: 'POST assign role', method: 'POST', url: (c) => `/api/v1/orgs/${c.orgId}/members/${c.memberId}/roles`, body: (c) => ({ roleId: c.roleId }), invalidBody: () => ({ roleId: 'not-a-uuid' }) },
+  { name: 'POST assign scoped role', method: 'POST', url: (c) => `/api/v1/orgs/${c.orgId}/members/${c.memberId}/roles`, body: (c) => ({ roleId: c.roleId, scopeLocationId: c.locationId }) },
+  { name: 'DELETE remove role', method: 'DELETE', url: (c) => `/api/v1/orgs/${c.orgId}/members/${c.unprivilegedMemberId}/roles/${c.roleId}` },
 
   // --- invitations ---
   { name: 'GET invitations', method: 'GET', url: (c) => `/api/v1/orgs/${c.orgId}/invitations` },
@@ -272,6 +279,8 @@ const ROUTES: RouteCase[] = [
   { name: 'POST notifications/templates/:key/revert', method: 'POST', url: (c) => `/api/v1/orgs/${c.orgId}/notifications/templates/visit.confirmation/revert`, notFoundUrl: (c) => `/api/v1/orgs/${c.orgId}/notifications/templates/does.not.exist/revert` },
   { name: 'GET notifications/outbox', method: 'GET', url: (c) => `/api/v1/orgs/${c.orgId}/notifications/outbox` },
   { name: 'POST notifications test-send', method: 'POST', url: (c) => `/api/v1/orgs/${c.orgId}/notifications/templates/visit.confirmation/test-send`, body: () => ({ toAddress: 'test@example.com' }), invalidBody: () => ({ toAddress: 'not-an-email' }), notFoundUrl: (c) => `/api/v1/orgs/${c.orgId}/notifications/templates/does.not.exist/test-send` },
+  { name: 'GET notifications/health', method: 'GET', url: (c) => `/api/v1/orgs/${c.orgId}/notifications/health` },
+  { name: 'POST notifications/outbox/:id/requeue', method: 'POST', url: (c) => `/api/v1/orgs/${c.orgId}/notifications/outbox/${c.deadNotificationId}/requeue`, notFoundUrl: (c) => `/api/v1/orgs/${c.orgId}/notifications/outbox/00000000-0000-0000-0000-000000000000/requeue` },
 
   // --- reports ---
   { name: 'GET reports/visits', method: 'GET', url: (c) => `/api/v1/orgs/${c.orgId}/reports/visits` },
@@ -547,6 +556,24 @@ describe('route matrix: happy + 401 + 403 + 422 + 404', () => {
       .returning(['id'])
       .executeTakeFirstOrThrow();
 
+    const deadNotif = await getDb()
+      .insertInto('notifications_outbox')
+      .values({
+        org_id: owner.orgId,
+        to_address: 'fail@example.com',
+        template_key: 'visit.confirmation',
+        rendered_subject: 'Test',
+        rendered_html: '<p>Test</p>',
+        rendered_text: 'Test',
+        payload: JSON.stringify({}),
+        status: 'dead',
+        attempts: 5,
+        max_attempts: 5,
+        last_error: 'Connection refused',
+      })
+      .returning(['id'])
+      .executeTakeFirstOrThrow();
+
     ctx = {
       orgId: owner.orgId,
       orgSlug: orgRow.public_slug,
@@ -578,6 +605,7 @@ describe('route matrix: happy + 401 + 403 + 422 + 404', () => {
       ssoProviderId: ssoProvider.id,
       broadcastId: broadcast.id,
       sendableBroadcastId: sendableBroadcast.id,
+      deadNotificationId: deadNotif.id,
     };
   });
 

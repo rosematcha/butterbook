@@ -3,6 +3,7 @@ import { withOrgContext, type Tx } from '../../db/index.js';
 import { logger } from '../../utils/logger.js';
 import type { ActorContext } from '@butterbook/shared';
 import { defaultManageExpiry, makeManageToken } from '../../utils/manage-token.js';
+import { defaultUnsubscribeExpiry, makeUnsubscribeToken } from '../../utils/unsubscribe-token.js';
 import { renderTemplate } from './render.js';
 
 // System actor used for subscriber work. Subscribers run inside withOrgContext
@@ -107,6 +108,10 @@ async function enqueueRendered(
     manageUrl = `${getConfig().APP_BASE_URL}/manage/${token}`;
   }
 
+  // Build unsubscribe URL for every outgoing email.
+  const unsubscribeToken = makeUnsubscribeToken(address.to, orgId, defaultUnsubscribeExpiry());
+  const unsubscribeUrl = `${getConfig().APP_BASE_URL}/unsubscribe/${unsubscribeToken}`;
+
   const vars: Record<string, unknown> = {
     ...payload,
     orgName: org?.name ?? '',
@@ -121,6 +126,7 @@ async function enqueueRendered(
           : '',
     inviterName: typeof payload.inviterName === 'string' ? payload.inviterName : 'A team member',
     manageUrl,
+    unsubscribeUrl,
     scheduledAtLocal:
       typeof payload.scheduledAt === 'string'
         ? new Intl.DateTimeFormat('en-US', {

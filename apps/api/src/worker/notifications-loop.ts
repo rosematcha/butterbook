@@ -52,6 +52,23 @@ export async function runNotificationsTick(workerId: string): Promise<number> {
   const from = cfg.EMAIL_FROM_ADDRESS ?? 'no-reply@butterbook.app';
 
   for (const row of rows) {
+    // Re-check suppression at send time — the address may have been suppressed
+    // between enqueue and claim (e.g. visitor clicked unsubscribe while pending).
+    const suppressed = await db
+      .selectFrom('notification_suppressions')
+      .select(['address'])
+      .where('org_id', '=', row.org_id)
+      .where('address', '=', row.to_address.toLowerCase())
+      .executeTakeFirst();
+    if (suppressed) {
+      await db
+        .updateTable('notifications_outbox')
+        .set({ status: 'suppressed', locked_by: null, locked_until: null })
+        .where('id', '=', row.id)
+        .execute();
+      continue;
+    }
+
     try {
       const result = await provider.send({
         from,

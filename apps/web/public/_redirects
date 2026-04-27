@@ -1,7 +1,9 @@
 /kiosk/:token                /kiosk?token=:token           301
 /manage/:token               /manage?token=:token          301
+/unsubscribe/:token          /unsubscribe?token=:token     301
 /join/:slug                  /join?org=:slug               301
 /app/events/:id/waitlist     /app/events/waitlist?id=:id   301
 /app/locations/:id/hours     /app/locations/hours?id=:id   301
 /app/locations/:id/qr        /app/locations/qr?id=:id      301
 /app/events/:id/print        /app/events/print?id=:id      301
+/app/memberships/profile/:id/print  /app/memberships/profile/print?id=:id  301
