@@ -18,7 +18,7 @@ const PLANS: Plan[] = [
     price: '$0',
     tag: 'Try before you pay',
     blurb: 'Poke around, book a few guests, see if it fits.',
-    caps: ['10 contacts', '4 events / month', '50 appointments / month'],
+    caps: ['Unlimited contacts', '200 appointments / month', '4 events / month'],
     features: ['Public booking page', 'Kiosk check-in', 'Waitlists', 'Reports & CSV'],
   },
   {
@@ -26,45 +26,48 @@ const PLANS: Plan[] = [
     price: '$8',
     tag: 'For growing calendars',
     blurb: 'Room for a busier season and the forms to go with it.',
-    caps: ['250 contacts', '10 events / month', '1,200 appointments / month'],
+    caps: ['Unlimited contacts', '1,500 appointments / month', '15 events / month'],
     features: ['Everything in Free', 'Custom form fields', 'Custom branding'],
   },
   {
     name: 'Growth',
     price: '$18',
     tag: 'Most organizations',
-    blurb: 'Everything a small org needs.',
-    caps: ['1,000 contacts', '50 events / month', '5,000 appointments / month'],
-    features: ['Everything in Starter', 'Email verification', 'Payment processor'],
+    blurb: 'Verified bookings, paid event tickets, and the volume for both.',
+    caps: ['Unlimited contacts', '6,000 appointments / month', '50 events / month'],
+    features: ['Everything in Starter', 'Email verification', 'Event ticket payments'],
     accent: true,
   },
   {
     name: 'Professional',
     price: '$36',
     tag: 'For larger operations',
-    blurb: 'More headroom, priority when you need it.',
-    caps: ['5,000 contacts', '100 events / month', '20,000 appointments / month'],
-    features: ['Everything in Growth', 'Priority support'],
+    blurb: 'Memberships, promo codes, and member-only events.',
+    caps: ['Unlimited contacts', '25,000 appointments / month', '150 events / month'],
+    features: ['Everything in Growth', 'Visitor memberships & subscriptions', 'Priority support'],
   },
 ];
 
 type MatrixVal = string | boolean;
 
 const MATRIX: { label: string; vals: MatrixVal[] }[] = [
-  { label: 'Contacts', vals: ['10', '250', '1,000', '5,000'] },
-  { label: 'Events / month', vals: ['4', '10', '50', '100'] },
-  { label: 'Appointments / month', vals: ['50', '1,200', '5,000', '20,000'] },
+  { label: 'Contacts', vals: ['Unlimited', 'Unlimited', 'Unlimited', 'Unlimited'] },
+  { label: 'Appointments / month', vals: ['200', '1,500', '6,000', '25,000'] },
+  { label: 'Events / month', vals: ['4', '15', '50', '150'] },
   { label: 'Kiosk & QR check-in', vals: [true, true, true, true] },
   { label: 'Events & registration', vals: [true, true, true, true] },
   { label: 'Waitlists', vals: [true, true, true, true] },
-  { label: 'Custom forms', vals: [false, true, true, true] },
-  { label: 'Custom branding', vals: [false, true, true, true] },
   { label: 'Reports & CSV export', vals: [true, true, true, true] },
   { label: 'Audit log', vals: [true, true, true, true] },
   { label: 'Visitor self-serve links', vals: [true, true, true, true] },
   { label: 'Unlimited team seats', vals: [true, true, true, true] },
+  { label: 'Custom forms', vals: [false, true, true, true] },
+  { label: 'Custom branding', vals: [false, true, true, true] },
   { label: 'Email verification', vals: [false, false, true, true] },
-  { label: 'Payment processor', vals: [false, false, true, true] },
+  { label: 'Event ticket payments', vals: [false, false, true, true] },
+  { label: 'Visitor memberships & subscriptions', vals: [false, false, false, true] },
+  { label: 'Promo codes & guest passes', vals: [false, false, false, true] },
+  { label: 'Member-only events', vals: [false, false, false, true] },
   { label: 'Priority support', vals: [false, false, false, true] },
 ];
 
@@ -72,6 +75,14 @@ const FAQ_ITEMS = [
   {
     q: 'Can I switch plans later?',
     a: 'Yes, any time. Move up or down from your account settings. Changes take effect at the start of your next billing cycle. No penalties.',
+  },
+  {
+    q: 'What counts toward the appointment and event caps?',
+    a: 'Every booking counts as one appointment, including event registrations and visitor self-serve bookings. Cancellations and no-shows still count for the month they happened. The events cap counts published events: every event you put on the calendar in a given month, regardless of how many people register for it.',
+  },
+  {
+    q: 'When do the monthly caps reset?',
+    a: 'On the first of each calendar month, in your organization\'s timezone. Counts are not cumulative; last month\'s appointments don\'t carry over.',
   },
   {
     q: 'What happens if I go over a monthly cap?',
@@ -89,10 +100,6 @@ const FAQ_ITEMS = [
     q: 'Is there a setup fee or contract?',
     a: 'Neither. Plans are month-to-month. Cancel from settings any time.',
   },
-  {
-    q: 'Do you offer a discount for nonprofits or very small museums?',
-    a: "Yes. Write to us with a little context about your organization and we'll sort something out.",
-  },
 ];
 
 export default function PricingPage() {
@@ -101,8 +108,8 @@ export default function PricingPage() {
       breadcrumb={[{ label: 'Butterbook', href: MARKETING_URL }, { label: 'Pricing' }]}
       title={
         <>
-          Priced for <em>organizations</em>,<br />
-          not platforms.
+          Priced for<br />
+          <em>organizations</em>.
         </>
       }
       subtitle="One rate per organization. The bill doesn't change when you sell more tickets or add more staff."
@@ -126,18 +133,17 @@ export default function PricingPage() {
         </h2>
         <div className="space-y-5 text-[15.5px] leading-relaxed text-paper-600">
           <p>
-            Most scheduling tools charge per ticket sold, per seat on your account, or per
-            feature unlocked. That works for platforms that want a stake in your revenue. We
-            sell software.
+            Add your whole staff, your seasonal volunteers, and your board members. The
+            bill is the same on a slow Tuesday as it is on your busiest Saturday.
           </p>
           <p>
-            Nothing here phones home to optimize your capacity or surface insights. Your
-            visitor data belongs to your organization. The bill is the same on a slow Tuesday
-            as it is on your busiest Saturday of the year.
+            Your visitor data stays with your organization. CSV export and the audit log are
+            on every plan, including Free.
           </p>
           <p>
-            The codebase is open. Self-host and pay us nothing if you prefer. We&apos;d rather
-            you pick Butterbook because it fits than because switching would be painful.
+            Kiosk check-in runs on any tablet at the front desk. Visitors reschedule
+            themselves with a link in their confirmation email. When someone cancels, the
+            next person on the waitlist gets the slot.
           </p>
         </div>
       </section>
@@ -206,9 +212,8 @@ export default function PricingPage() {
             Need more than Professional?
           </h3>
           <p className="mb-4 text-[14.5px] leading-relaxed text-paper-600">
-            If you&apos;re running higher volumes, need a custom contract, or want to talk about
-            data residency and dedicated support, we&apos;re happy to work something out. No
-            sales funnel. Email us.
+            We&apos;re a small team and we don&apos;t have a formal enterprise plan yet. If
+            your volumes exceed Professional, write to us. We&apos;ll work something out.
           </p>
           <a
             href="mailto:hello@butterbook.app"
@@ -237,27 +242,6 @@ export default function PricingPage() {
           </a>
         </aside>
       </div>
-
-      {/* Nonprofit note */}
-      <section className="mt-5 rounded-xl border border-paper-200 bg-paper-100 px-7 py-6">
-        <h3
-          className="font-display mb-2"
-          style={{ fontSize: 17, letterSpacing: '-0.015em', fontWeight: 450 }}
-        >
-          Nonprofits and very small museums
-        </h3>
-        <p className="max-w-[60ch] text-[14.5px] leading-relaxed text-paper-600">
-          If your organization is a registered nonprofit, or if you&apos;re a sole curator
-          running a very small site, write to us. No discount form to fill out. We work it
-          out case by case.{' '}
-          <a
-            href="mailto:hello@butterbook.app"
-            className="text-brand-accent underline underline-offset-[3px]"
-          >
-            hello@butterbook.app
-          </a>
-        </p>
-      </section>
 
       {/* FAQ — full width */}
       <section className="mt-16 border-t border-paper-200 pt-12">

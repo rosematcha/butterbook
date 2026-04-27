@@ -183,7 +183,7 @@ function AuthSidePanel() {
         </p>
         <div className="mt-7 grid max-w-[340px] gap-2.5 text-[13px] text-paper-600">
           {[
-            ['01', 'One flat rate. No per-visitor or per-seat fees.'],
+            ['01', 'One flat rate for the whole organization.'],
             ['02', 'Soft warnings, not hard gates.'],
             ['03', 'CSV and JSON exports anytime.'],
           ].map(([n, t]) => (
