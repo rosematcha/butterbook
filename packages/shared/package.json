@@ -17,6 +17,11 @@
       "types": "./dist/permissions/index.d.ts",
       "default": "./dist/permissions/index.js"
     },
+    "./plans": {
+      "source": "./src/plans/index.ts",
+      "types": "./dist/plans/index.d.ts",
+      "default": "./dist/plans/index.js"
+    },
     "./schemas": {
       "source": "./src/schemas/index.ts",
       "types": "./dist/schemas/index.d.ts",
@@ -42,12 +47,13 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "lint": "echo 'shared: lint via root'",
-    "test": "echo 'shared: no tests'"
+    "test": "vitest run"
   },
   "dependencies": {
     "zod": "3.23.8"
   },
   "devDependencies": {
-    "typescript": "5.6.3"
+    "typescript": "5.6.3",
+    "vitest": "2.1.9"
   }
 }
