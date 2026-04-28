@@ -20,4 +20,5 @@ export const ERROR_TYPES = {
   superadmin_invariant: 'https://butterbook.app/errors/superadmin_invariant',
   internal: 'https://butterbook.app/errors/internal',
   sso_required: 'https://butterbook.app/errors/sso_required',
+  plan_feature_locked: 'https://butterbook.app/errors/plan-feature-locked',
 } as const;

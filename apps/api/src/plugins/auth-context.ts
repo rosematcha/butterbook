@@ -1,11 +1,12 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
-import type { Permission, ActorContext } from '@butterbook/shared';
+import type { Permission, ActorContext, PlanSlug } from '@butterbook/shared';
 import { PERMISSION_SET } from '@butterbook/shared';
 import { getDb } from '../db/index.js';
 import { resolveSession } from '../auth/session.js';
 import { loadMembership } from '../auth/permissions.js';
 import { AuthenticationError, NotFoundError, PermissionError } from '../errors/index.js';
 import { sha256Hex } from '../utils/ids.js';
+import { resolveEffectivePlan } from '../services/plan.js';
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -32,6 +33,7 @@ declare module 'fastify' {
     requireNotDemo(orgId: string): Promise<void>;
     actor(): ActorContext;
     actorForOrg(orgId: string, m: { isSuperadmin: boolean; permissions: Set<Permission> }): ActorContext;
+    getEffectivePlan(orgId: string): Promise<PlanSlug>;
   }
 }
 
@@ -160,6 +162,24 @@ export function registerAuthContext(app: FastifyInstance): void {
       if (isDemo) {
         throw new PermissionError('This action is disabled in the demo.');
       }
+    };
+
+    const planCache = new Map<string, PlanSlug>();
+    req.getEffectivePlan = async (orgId: string): Promise<PlanSlug> => {
+      const cached = planCache.get(orgId);
+      if (cached !== undefined) return cached;
+      const row = await getDb()
+        .selectFrom('orgs')
+        .select(['plan', 'is_demo', 'plan_grandfathered_until'])
+        .where('id', '=', orgId)
+        .executeTakeFirst();
+      if (!row) return 'free';
+      const effective = resolveEffectivePlan(row.plan as PlanSlug, {
+        isDemo: row.is_demo,
+        grandfatheredUntil: row.plan_grandfathered_until ?? null,
+      });
+      planCache.set(orgId, effective);
+      return effective;
     };
 
     req.actor = () => ({

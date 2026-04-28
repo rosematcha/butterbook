@@ -68,6 +68,11 @@ const ConfigSchema = z.object({
   // DEMO_MODE=true turns on: the /demo/session provisioning route, the
   // X-Robots-Tag: noindex response header, and the requireNotDemo() guard on
   // destructive actions. On prod API instances it must stay false.
+  // Master switch for plan-based feature gating and billing routes.
+  // When false (default), every feature check passes and /billing/* returns 404.
+  // Hosted deploys set this to true; self-hosters leave it unset.
+  BILLING_GATING_ENABLED: z.coerce.boolean().default(false),
+
   DEMO_MODE: z.coerce.boolean().default(false),
   // Hard cap on concurrent demo orgs. New provision requests above this are
   // rejected with 429. Tune from the `demo_orgs_active` metric.

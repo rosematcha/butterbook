@@ -90,6 +90,33 @@ export class SsoRequiredError extends AppError {
   readonly title = 'SSO Required';
 }
 
+export class PlanFeatureLockedError extends AppError {
+  readonly status = 402;
+  readonly type = ERROR_TYPES.plan_feature_locked;
+  readonly title = 'Plan Feature Locked';
+  readonly feature: string;
+  readonly currentPlan: string;
+  readonly requiredPlan: string;
+
+  constructor(feature: string, currentPlan: string, requiredPlan: string) {
+    super(`Feature "${feature}" requires the ${requiredPlan} plan or higher.`);
+    this.feature = feature;
+    this.currentPlan = currentPlan;
+    this.requiredPlan = requiredPlan;
+  }
+
+  override toProblem(instance?: string): ProblemDetails {
+    const p = super.toProblem(instance);
+    return {
+      ...p,
+      feature: this.feature,
+      currentPlan: this.currentPlan,
+      requiredPlan: this.requiredPlan,
+      upgradeUrl: '/app/billing',
+    } as ProblemDetails & { feature: string; currentPlan: string; requiredPlan: string; upgradeUrl: string };
+  }
+}
+
 export class InternalError extends AppError {
   readonly status = 500;
   readonly type = ERROR_TYPES.internal;
