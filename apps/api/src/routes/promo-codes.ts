@@ -10,6 +10,7 @@ import {
 } from '@butterbook/shared';
 import { getDb, type Tx, withOrgContext, withOrgRead } from '../db/index.js';
 import { ConflictError, NotFoundError } from '../errors/index.js';
+import { requireFeature } from '../services/plan.js';
 import { allowIncludeDeleted } from '../utils/soft-delete.js';
 import { publicPromoCode, validatePromoCodeInTx } from '../services/promo-codes.js';
 
@@ -35,6 +36,7 @@ export function registerPromoCodeRoutes(app: FastifyInstance): void {
     await req.requirePermission(orgId, 'promo_codes.manage');
     const m = await req.loadMembershipFor(orgId);
     return withOrgContext(orgId, req.actorForOrg(orgId, m), async ({ tx, audit }) => {
+      await requireFeature(tx, orgId, 'promo_codes');
       if (body.membershipTierId) await assertTierBelongsToOrg(tx, orgId, body.membershipTierId);
       const row = await tx
         .insertInto('promo_codes')
@@ -74,6 +76,7 @@ export function registerPromoCodeRoutes(app: FastifyInstance): void {
     await req.requirePermission(orgId, 'promo_codes.manage');
     const m = await req.loadMembershipFor(orgId);
     return withOrgContext(orgId, req.actorForOrg(orgId, m), async ({ tx, audit }) => {
+      await requireFeature(tx, orgId, 'promo_codes');
       if (body.membershipTierId) await assertTierBelongsToOrg(tx, orgId, body.membershipTierId);
       const current = await tx.selectFrom('promo_codes').selectAll().where('org_id', '=', orgId).where('id', '=', promoCodeId).where('deleted_at', 'is', null).executeTakeFirst();
       if (!current) throw new NotFoundError();
@@ -113,6 +116,7 @@ export function registerPromoCodeRoutes(app: FastifyInstance): void {
     await req.requirePermission(orgId, 'promo_codes.manage');
     const m = await req.loadMembershipFor(orgId);
     return withOrgContext(orgId, req.actorForOrg(orgId, m), async ({ tx, audit }) => {
+      await requireFeature(tx, orgId, 'promo_codes');
       const row = await tx.updateTable('promo_codes').set({ deleted_at: new Date(), active: false }).where('org_id', '=', orgId).where('id', '=', promoCodeId).where('deleted_at', 'is', null).returning(['id']).executeTakeFirst();
       if (!row) throw new NotFoundError();
       await audit({ action: 'promo_code.deleted', targetType: 'promo_code', targetId: promoCodeId });

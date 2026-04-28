@@ -47,6 +47,8 @@ export async function truncateAll(): Promise<void> {
   await db.deleteFrom('org_booking_policies').execute();
   await db.deleteFrom('org_membership_policies').execute();
   await db.deleteFrom('org_booking_page').execute();
+  await db.deleteFrom('org_usage_periods').execute();
+  await db.deleteFrom('org_subscriptions').execute();
   await db.deleteFrom('orgs').execute();
   await db.deleteFrom('users').execute();
 }

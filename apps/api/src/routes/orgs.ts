@@ -10,6 +10,7 @@ import {
 import { getDb, withOrgContext, withOrgRead } from '../db/index.js';
 import { createOrgWithOwner } from '../services/orgs.js';
 import { ConflictError, NotFoundError } from '../errors/index.js';
+import { requireFeature } from '../services/plan.js';
 import { assertSafeFormFieldPatterns } from '../utils/safe-regex.js';
 
 const orgIdParam = z.object({ orgId: z.string().uuid() });
@@ -158,6 +159,7 @@ export function registerOrgRoutes(app: FastifyInstance): void {
     await req.requirePermission(orgId, 'admin.manage_org');
     const m = await req.loadMembershipFor(orgId);
     return withOrgContext(orgId, req.actorForOrg(orgId, m), async ({ tx, audit }) => {
+      await requireFeature(tx, orgId, 'custom_branding');
       const updates: Record<string, unknown> = {};
       if (body.logoUrl !== undefined) updates.logo_url = body.logoUrl;
       if (body.theme !== undefined) updates.theme = body.theme;
@@ -185,6 +187,7 @@ export function registerOrgRoutes(app: FastifyInstance): void {
     await req.requirePermission(orgId, 'admin.manage_forms');
     const m = await req.loadMembershipFor(orgId);
     return withOrgContext(orgId, req.actorForOrg(orgId, m), async ({ tx, audit }) => {
+      await requireFeature(tx, orgId, 'custom_form_fields');
       await tx.updateTable('orgs').set({ form_fields: JSON.stringify(body.fields) }).where('id', '=', orgId).execute();
       await audit({ action: 'org.form_updated', targetType: 'org', targetId: orgId });
       return { data: { fields: body.fields } };

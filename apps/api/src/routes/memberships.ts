@@ -18,6 +18,7 @@ import {
 } from '@butterbook/shared';
 import { withOrgContext, withOrgRead } from '../db/index.js';
 import { ConflictError, NotFoundError } from '../errors/index.js';
+import { requireFeature } from '../services/plan.js';
 import { allowIncludeDeleted } from '../utils/soft-delete.js';
 import { cancelStripeSubscription, createBillingPortalSession, createStripeRefund } from '../services/stripe.js';
 import { getConfig } from '../config.js';
@@ -66,6 +67,7 @@ function registerPolicyRoutes(app: FastifyInstance): void {
     await req.requirePermission(orgId, 'memberships.manage');
     const m = await req.loadMembershipFor(orgId);
     return withOrgContext(orgId, req.actorForOrg(orgId, m), async ({ tx, audit }) => {
+      await requireFeature(tx, orgId, 'memberships');
       const updates: Record<string, unknown> = {};
       if (body.enabled !== undefined) updates.enabled = body.enabled;
       if (body.gracePeriodDays !== undefined) updates.grace_period_days = body.gracePeriodDays;
@@ -103,6 +105,7 @@ function registerTierRoutes(app: FastifyInstance): void {
     await req.requirePermission(orgId, 'memberships.manage');
     const m = await req.loadMembershipFor(orgId);
     return withOrgContext(orgId, req.actorForOrg(orgId, m), async ({ tx, audit }) => {
+      await requireFeature(tx, orgId, 'memberships');
       const row = await tx
         .insertInto('membership_tiers')
         .values({
@@ -143,6 +146,7 @@ function registerTierRoutes(app: FastifyInstance): void {
     await req.requirePermission(orgId, 'memberships.manage');
     const m = await req.loadMembershipFor(orgId);
     return withOrgContext(orgId, req.actorForOrg(orgId, m), async ({ tx, audit }) => {
+      await requireFeature(tx, orgId, 'memberships');
       const updates: Record<string, unknown> = {};
       if (body.slug !== undefined) updates.slug = body.slug;
       if (body.name !== undefined) updates.name = body.name;
@@ -169,6 +173,7 @@ function registerTierRoutes(app: FastifyInstance): void {
     await req.requirePermission(orgId, 'memberships.manage');
     const m = await req.loadMembershipFor(orgId);
     return withOrgContext(orgId, req.actorForOrg(orgId, m), async ({ tx, audit }) => {
+      await requireFeature(tx, orgId, 'memberships');
       const row = await tx.updateTable('membership_tiers').set({ deleted_at: new Date(), active: false }).where('org_id', '=', orgId).where('id', '=', tierId).where('deleted_at', 'is', null).returning(['id']).executeTakeFirst();
       if (!row) throw new NotFoundError();
       await audit({ action: 'membership_tier.deleted', targetType: 'membership_tier', targetId: tierId });
@@ -181,6 +186,7 @@ function registerTierRoutes(app: FastifyInstance): void {
     await req.requireSuperadmin(orgId);
     const m = await req.loadMembershipFor(orgId);
     return withOrgContext(orgId, req.actorForOrg(orgId, m), async ({ tx, audit }) => {
+      await requireFeature(tx, orgId, 'memberships');
       const row = await tx
         .updateTable('membership_tiers')
         .set({ deleted_at: null })
@@ -249,6 +255,7 @@ function registerMembershipRecordRoutes(app: FastifyInstance): void {
     await req.requirePermission(orgId, 'memberships.manage');
     const m = await req.loadMembershipFor(orgId);
     return withOrgContext(orgId, req.actorForOrg(orgId, m), async ({ tx, audit, emit }) => {
+      await requireFeature(tx, orgId, 'memberships');
       const createInput: Parameters<typeof createMembershipInTx>[1] = {
         orgId,
         visitorId: body.visitorId,
@@ -285,6 +292,7 @@ function registerMembershipRecordRoutes(app: FastifyInstance): void {
     await req.requirePermission(orgId, 'memberships.manage');
     const m = await req.loadMembershipFor(orgId);
     return withOrgContext(orgId, req.actorForOrg(orgId, m), async ({ tx, audit }) => {
+      await requireFeature(tx, orgId, 'memberships');
       const current = await tx
         .selectFrom('memberships')
         .select(['status'])
@@ -331,6 +339,7 @@ function registerMembershipRecordRoutes(app: FastifyInstance): void {
     await req.requirePermission(orgId, 'memberships.manage');
     const m = await req.loadMembershipFor(orgId);
     return withOrgContext(orgId, req.actorForOrg(orgId, m), async ({ tx, audit, emit }) => {
+      await requireFeature(tx, orgId, 'memberships');
       const membership = await tx
         .selectFrom('memberships')
         .select(['stripe_subscription_id', 'auto_renew'])
@@ -363,6 +372,7 @@ function registerMembershipRecordRoutes(app: FastifyInstance): void {
     await req.requirePermission(orgId, 'memberships.manage');
     const m = await req.loadMembershipFor(orgId);
     return withOrgContext(orgId, req.actorForOrg(orgId, m), async ({ tx, audit, emit }) => {
+      await requireFeature(tx, orgId, 'memberships');
       const renewInput: Parameters<typeof renewMembershipInTx>[3] = {};
       if (body.expiresAt !== undefined) renewInput.expiresAt = body.expiresAt === null ? null : new Date(body.expiresAt);
       if (body.amountCents !== undefined) renewInput.amountCents = body.amountCents;
@@ -382,6 +392,7 @@ function registerMembershipRecordRoutes(app: FastifyInstance): void {
     await req.requirePermission(orgId, 'memberships.refund');
     const m = await req.loadMembershipFor(orgId);
     return withOrgContext(orgId, req.actorForOrg(orgId, m), async ({ tx, audit }) => {
+      await requireFeature(tx, orgId, 'memberships');
       // Default behaviour: refund against the latest payment. For multi-payment
       // memberships (e.g. a renewed annual sub), the caller supplies a
       // paymentId so they can pick which payment to refund.
@@ -540,6 +551,7 @@ function registerGuestPassRoutes(app: FastifyInstance): void {
     await req.requirePermission(orgId, 'memberships.manage');
     const m = await req.loadMembershipFor(orgId);
     return withOrgContext(orgId, req.actorForOrg(orgId, m), async ({ tx, audit }) => {
+      await requireFeature(tx, orgId, 'memberships');
       const membership = await tx
         .selectFrom('memberships')
         .select(['id', 'expires_at'])
@@ -558,6 +570,7 @@ function registerGuestPassRoutes(app: FastifyInstance): void {
     await req.requirePermission(orgId, 'memberships.manage');
     const m = await req.loadMembershipFor(orgId);
     return withOrgContext(orgId, req.actorForOrg(orgId, m), async ({ tx, audit }) => {
+      await requireFeature(tx, orgId, 'memberships');
       const pass = await tx
         .selectFrom('guest_passes')
         .select(['id', 'redeemed_at'])

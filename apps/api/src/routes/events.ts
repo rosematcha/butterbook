@@ -11,6 +11,7 @@ import {
 } from '@butterbook/shared';
 import { withOrgContext, withOrgRead, type Tx } from '../db/index.js';
 import { ConflictError, NotFoundError, ValidationError } from '../errors/index.js';
+import { requireFeature } from '../services/plan.js';
 import { planWeeklySeriesOccurrences } from '../services/event-series.js';
 import { newPublicId } from '../utils/ids.js';
 import { allowIncludeDeleted } from '../utils/soft-delete.js';
@@ -67,6 +68,7 @@ export function registerEventRoutes(app: FastifyInstance): void {
     await req.requirePermission(orgId, 'events.create');
     const m = await req.loadMembershipFor(orgId);
     return withOrgContext(orgId, req.actorForOrg(orgId, m), async ({ tx, audit }) => {
+      if (body.membershipRequiredTierId) await requireFeature(tx, orgId, 'member_only_events');
       await assertLocationExists(tx, orgId, body.locationId);
       if (body.slug) await assertEventSlugAvailable(tx, orgId, body.slug);
       const row = await insertEvent(tx, {
@@ -97,6 +99,7 @@ export function registerEventRoutes(app: FastifyInstance): void {
     await req.requirePermission(orgId, 'events.create');
     const m = await req.loadMembershipFor(orgId);
     return withOrgContext(orgId, req.actorForOrg(orgId, m), async ({ tx, audit }) => {
+      if (body.membershipRequiredTierId) await requireFeature(tx, orgId, 'member_only_events');
       const org = await tx
         .selectFrom('orgs')
         .select(['timezone'])
@@ -228,6 +231,7 @@ export function registerEventRoutes(app: FastifyInstance): void {
     await req.requirePermission(orgId, 'events.edit');
     const m = await req.loadMembershipFor(orgId);
     return withOrgContext(orgId, req.actorForOrg(orgId, m), async ({ tx, audit }) => {
+      if (body.membershipRequiredTierId) await requireFeature(tx, orgId, 'member_only_events');
       const updates: Record<string, unknown> = {};
       if (body.title !== undefined) updates.title = body.title;
       if (body.description !== undefined) updates.description = body.description;
