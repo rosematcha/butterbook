@@ -5,6 +5,7 @@ import { kioskCheckinSchema, type Permission } from '@butterbook/shared';
 import { getDb, withOrgContext } from '../db/index.js';
 import { AuthenticationError, NotFoundError } from '../errors/index.js';
 import { createVisitInTx } from '../services/booking.js';
+import { recordAppointmentUsage } from '../services/billing-usage.js';
 import { redeemGuestPassInTx } from '../services/memberships.js';
 import { handleIdempotent } from '../middleware/idempotency.js';
 import { getConfig } from '../config.js';
@@ -123,6 +124,7 @@ export function registerKioskRoutes(app: FastifyInstance): void {
             idempotencyKey: idemKey,
           });
           await audit({ action: 'visit.kiosk_checkin', targetType: 'visit', targetId: res.visitId ?? '' });
+          if (res.kind === 'visit') await recordAppointmentUsage(tx, loc.orgId);
           const guestPassCode = body.guestPassCode ?? guestPassCodeFromFormResponse(body.formResponse);
           if (guestPassCode && res.visitId) {
             const redeemed = await redeemGuestPassInTx(tx, { orgId: loc.orgId, code: guestPassCode, visitId: res.visitId });

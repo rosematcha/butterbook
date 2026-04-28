@@ -93,6 +93,7 @@ const ROUTES: RouteCase[] = [
   { name: 'PATCH org branding (admin.manage_org)', method: 'PATCH', url: (c) => `/api/v1/orgs/${c.orgId}/branding`, body: () => ({ theme: { primaryColor: '#112233' } }) },
   { name: 'GET booking-policies (admin.manage_org)', method: 'GET', url: (c) => `/api/v1/orgs/${c.orgId}/booking-policies` },
   { name: 'PATCH booking-policies (admin.manage_org)', method: 'PATCH', url: (c) => `/api/v1/orgs/${c.orgId}/booking-policies`, body: () => ({ selfCancelEnabled: true }), invalidBody: () => ({ cancelCutoffHours: -1 }) },
+  { name: 'GET usage (admin.manage_org)', method: 'GET', url: (c) => `/api/v1/orgs/${c.orgId}/usage` },
   { name: 'GET booking-page (admin.manage_org)', method: 'GET', url: (c) => `/api/v1/orgs/${c.orgId}/booking-page` },
   { name: 'PATCH booking-page (admin.manage_org)', method: 'PATCH', url: (c) => `/api/v1/orgs/${c.orgId}/booking-page`, body: () => ({ heroTitle: 'Hello' }), invalidBody: () => ({ leadTimeMinHours: -1 }) },
   { name: 'GET org form (admin.manage_forms)', method: 'GET', url: (c) => `/api/v1/orgs/${c.orgId}/form` },

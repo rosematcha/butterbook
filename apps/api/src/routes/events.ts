@@ -12,6 +12,7 @@ import {
 import { withOrgContext, withOrgRead, type Tx } from '../db/index.js';
 import { ConflictError, NotFoundError, ValidationError } from '../errors/index.js';
 import { requireFeature } from '../services/plan.js';
+import { recordEventUsage } from '../services/billing-usage.js';
 import { planWeeklySeriesOccurrences } from '../services/event-series.js';
 import { newPublicId } from '../utils/ids.js';
 import { allowIncludeDeleted } from '../utils/soft-delete.js';
@@ -397,6 +398,15 @@ export function registerEventRoutes(app: FastifyInstance): void {
       await req.requirePermission(orgId, 'events.publish');
       const m = await req.loadMembershipFor(orgId);
       return withOrgContext(orgId, req.actorForOrg(orgId, m), async ({ tx, audit, emit }) => {
+        const prior = await tx
+          .selectFrom('events')
+          .select(['is_published'])
+          .where('id', '=', eventId)
+          .where('org_id', '=', orgId)
+          .where('deleted_at', 'is', null)
+          .executeTakeFirst();
+        if (!prior) throw new NotFoundError();
+        const wasPublished = prior.is_published;
         const res = await tx
           .updateTable('events')
           .set({ is_published: action === 'publish' })
@@ -407,6 +417,9 @@ export function registerEventRoutes(app: FastifyInstance): void {
           .executeTakeFirst();
         if (!res) throw new NotFoundError();
         await audit({ action: `event.${action}ed`, targetType: 'event', targetId: eventId });
+        if (action === 'publish' && !wasPublished) {
+          await recordEventUsage(tx, orgId);
+        }
         if (action === 'publish') {
           await emit({
             eventType: 'event.published',

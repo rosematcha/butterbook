@@ -4,6 +4,7 @@ import { selfBookingSchema, isoDateSchema, type Permission } from '@butterbook/s
 import { getDb, withOrgContext, withOrgRead, type Tx } from '../db/index.js';
 import { NotFoundError } from '../errors/index.js';
 import { createVisitInTx } from '../services/booking.js';
+import { recordAppointmentUsage } from '../services/billing-usage.js';
 import { handleIdempotent } from '../middleware/idempotency.js';
 import { redactAuditBody } from '../utils/audit.js';
 import { slotsForDate, type SlotRounding } from '../services/availability.js';
@@ -238,6 +239,7 @@ export function registerPublicBookingRoutes(app: FastifyInstance): void {
             diff: { after: redactAuditBody(body) },
           });
           if (r.kind === 'visit' && r.visitId) {
+            await recordAppointmentUsage(tx, org.id);
             await emit({
               eventType: 'visit.self_booked',
               aggregateType: 'visit',

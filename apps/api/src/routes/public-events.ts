@@ -4,6 +4,7 @@ import { registerForEventSchema, type Permission } from '@butterbook/shared';
 import { getDb, withOrgContext, withOrgRead } from '../db/index.js';
 import { NotFoundError } from '../errors/index.js';
 import { createVisitInTx } from '../services/booking.js';
+import { recordAppointmentUsage } from '../services/billing-usage.js';
 import { upsertVisitorFromFormResponse } from '../services/contacts.js';
 import { activeMembershipSatisfiesTier } from '../services/memberships.js';
 import { handleIdempotent } from '../middleware/idempotency.js';
@@ -108,6 +109,7 @@ export function registerPublicEventRoutes(app: FastifyInstance): void {
             targetType: res.kind === 'visit' ? 'visit' : 'waitlist_entry',
             targetId: (res.visitId ?? res.waitlistEntryId)!,
           });
+          if (res.kind === 'visit') await recordAppointmentUsage(tx, ev.org_id);
           return res;
         });
         return {

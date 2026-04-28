@@ -13,6 +13,7 @@ import {
 import { getDb, withOrgContext, withOrgRead, type Tx } from '../db/index.js';
 import { NotFoundError, ValidationError } from '../errors/index.js';
 import { createVisitInTx } from '../services/booking.js';
+import { recordAppointmentUsage } from '../services/billing-usage.js';
 import { cancelVisitInTx } from '../services/visits.js';
 import { redactAuditBody } from '../utils/audit.js';
 
@@ -110,6 +111,7 @@ export function registerVisitRoutes(app: FastifyInstance): void {
             bookingMethod: 'admin',
           },
         });
+        await recordAppointmentUsage(tx, orgId);
         return { data: { id: result.visitId, kind: 'visit' } };
       }
       await audit({ action: 'waitlist.joined', targetType: 'waitlist_entry', targetId: result.waitlistEntryId!, diff: { after: redactAuditBody(body) } });
